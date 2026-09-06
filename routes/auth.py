@@ -298,7 +298,8 @@ def user_add():
 
         existing_user = User.query.filter(db.func.lower(User.username) == username).first()
         if existing_user:
-            username = f"{username}_{int(datetime.now().timestamp()) % 1000}"
+            flash(f'Username "{username}" is already taken. Please choose another username.', 'error')
+            return render_template('auth/user_form.html', roles=USER_ROLES, user=None)
 
         try:
             new_user = User(
@@ -312,7 +313,7 @@ def user_add():
             new_user.set_password(password)
             db.session.add(new_user)
             db.session.commit()
-            flash(f'User "{new_user.name}" ({new_user.email}) created successfully! They can now log in.', 'success')
+            flash(f'Staff account "{new_user.name}" (@{new_user.username}) created successfully! They can now log in with username "{new_user.username}" or email "{new_user.email}".', 'success')
             return redirect(url_for('auth.users_list'))
         except Exception as e:
             db.session.rollback()
@@ -329,6 +330,7 @@ def user_edit(id):
     
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
+        username = request.form.get('username', '').strip().lower()
         email = request.form.get('email', '').strip().lower()
         role = request.form.get('role', user.role)
         phone = request.form.get('phone', '').strip()
@@ -339,14 +341,24 @@ def user_edit(id):
             flash('Email address cannot be empty.', 'error')
             return render_template('auth/user_form.html', roles=USER_ROLES, user=user)
 
+        if not username:
+            username = email.split('@')[0]
+
         # Check if email taken by another user
-        conflict = User.query.filter(db.func.lower(User.email) == email, User.id != user.id).first()
-        if conflict:
+        conflict_email = User.query.filter(db.func.lower(User.email) == email, User.id != user.id).first()
+        if conflict_email:
             flash(f'Email "{email}" is already used by another user.', 'error')
+            return render_template('auth/user_form.html', roles=USER_ROLES, user=user)
+
+        # Check if username taken by another user
+        conflict_user = User.query.filter(db.func.lower(User.username) == username, User.id != user.id).first()
+        if conflict_user:
+            flash(f'Username "{username}" is already used by another user.', 'error')
             return render_template('auth/user_form.html', roles=USER_ROLES, user=user)
 
         try:
             user.name = name or user.name
+            user.username = username
             user.email = email
             user.role = role
             user.phone = phone
@@ -363,7 +375,7 @@ def user_edit(id):
                 user.set_password(new_password)
 
             db.session.commit()
-            flash(f'User "{user.name}" updated successfully.', 'success')
+            flash(f'User "{user.name}" (@{user.username}) updated successfully. New credentials are now active on all devices.', 'success')
             return redirect(url_for('auth.users_list'))
         except Exception as e:
             db.session.rollback()
@@ -395,36 +407,82 @@ def user_delete(id):
 @bp.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
-    """Update own profile (Name, Email, Phone)."""
+    """Update own profile (Name, Username, Email, Phone, and Password)."""
     user = current_user
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
+        username = request.form.get('username', '').strip().lower()
         email = request.form.get('email', '').strip().lower()
         phone = request.form.get('phone', '').strip()
+        old_password = request.form.get('old_password', '').strip()
+        new_password = request.form.get('new_password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
 
         if not email:
             flash('Email address is required.', 'error')
             return render_template('auth/profile.html')
 
-        conflict = User.query.filter(db.func.lower(User.email) == email, User.id != user.id).first()
-        if conflict:
+        if not username:
+            username = email.split('@')[0]
+
+        # Check unique email
+        conflict_email = User.query.filter(db.func.lower(User.email) == email, User.id != user.id).first()
+        if conflict_email:
             flash(f'Email "{email}" is already used by another user.', 'error')
             return render_template('auth/profile.html')
 
+        # Check unique username
+        conflict_user = User.query.filter(db.func.lower(User.username) == username, User.id != user.id).first()
+        if conflict_user:
+            flash(f'Username "{username}" is already taken by another account.', 'error')
+            return render_template('auth/profile.html')
+
+        password_changed = False
+        if new_password:
+            if not old_password:
+                flash('Please enter your current password to set a new password.', 'error')
+                return render_template('auth/profile.html')
+            if not user.check_password(old_password):
+                flash('Incorrect current password.', 'error')
+                return render_template('auth/profile.html')
+            if len(new_password) < 4:
+                flash('New password must be at least 4 characters long.', 'error')
+                return render_template('auth/profile.html')
+            if new_password != confirm_password:
+                flash('New password and confirmation do not match.', 'error')
+                return render_template('auth/profile.html')
+            user.set_password(new_password)
+            password_changed = True
+
         try:
             user.name = name or user.name
+            user.username = username
             user.email = email
             user.phone = phone
             db.session.commit()
 
-            # Also update owner email in alert settings
+            # Also update owner email in alert settings if owner
             settings = AlertSettings.query.first()
-            if settings:
+            if settings and user.role in ['owner', 'admin']:
                 settings.owner_email = email
                 settings.owner_name = name or settings.owner_name
+                if phone:
+                    settings.phone_number = phone
                 db.session.commit()
 
-            flash('Profile updated successfully! You can now use this email to sign in.', 'success')
+            # Security notification
+            time_str = datetime.now().strftime('%d-%b-%Y at %I:%M %p')
+            msg_details = []
+            if password_changed:
+                msg_details.append("Password updated")
+            msg_details.append(f"Username: {username}")
+            msg_details.append(f"Email: {email}")
+
+            sec_msg = f"🔐 Security Notice: Account profile for '{user.name or username}' was updated on {time_str}.\nChanges: {', '.join(msg_details)}.\nYou can now log in across all devices with your new credentials."
+            _dispatch_mobile_alert(sec_msg)
+            _dispatch_email_alert("🔐 FlyAsh Manager: Profile & Password Updated", sec_msg, email)
+
+            flash(f'Profile updated successfully! You can now sign in using username "{username}" or email "{email}" on any device with your new password.', 'success')
             return redirect(url_for('dashboard.index'))
         except Exception as e:
             db.session.rollback()
@@ -444,7 +502,7 @@ def login_history():
 @bp.route('/change-password', methods=['GET', 'POST'])
 @login_required
 def change_password():
-    """Owner & Admin password setting."""
+    """Owner, Admin & Staff password update."""
     if request.method == 'POST':
         old_password = request.form.get('old_password')
         new_password = request.form.get('new_password')
@@ -459,7 +517,7 @@ def change_password():
         else:
             current_user.set_password(new_password)
             db.session.commit()
-            flash('Password updated successfully! Please use your new password next time you sign in.', 'success')
+            flash('Password updated successfully! Your updated password is saved in the database and active across all devices immediately.', 'success')
             
             # Send alert about password change
             time_str = datetime.now().strftime('%d-%b-%Y at %I:%M %p')
