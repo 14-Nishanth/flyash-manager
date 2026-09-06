@@ -14,6 +14,8 @@ class Config:
         # Normalize postgres:// to postgresql:// for modern SQLAlchemy
         if raw_db_url.startswith('postgres://'):
             raw_db_url = raw_db_url.replace('postgres://', 'postgresql://', 1)
+        # Strip unsupported channel_binding param from URL if present
+        raw_db_url = raw_db_url.replace('channel_binding=require&', '').replace('&channel_binding=require', '').replace('channel_binding=require', '')
         SQLALCHEMY_DATABASE_URI = raw_db_url
     elif os.environ.get('VERCEL') == '1' or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
         # Serverless fallback SQLite in /tmp
