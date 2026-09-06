@@ -65,17 +65,27 @@
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label for="role" class="form-label fw-semibold">Role & Permissions *</label>
-                        <select class="form-select fw-semibold" id="role" name="role" required>
-                            {% for r_key, r_label in roles %}
-                            <option value="{{ r_key }}" {% if user and user.role == r_key %}selected{% endif %}>{{ r_label }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">
-                            <strong>Operator:</strong> Piece-rate jobs, loading, unloading, inward | 
-                            <strong>Supervisor:</strong> Attendance & wages | 
-                            <strong>Accountant:</strong> Parties & payments
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="role" class="form-label fw-semibold">Role & Permissions *</label>
+                            <select class="form-select fw-semibold" id="role" name="role" required>
+                                {% for r_key, r_label in roles %}
+                                <option value="{{ r_key }}" {% if user and user.role == r_key %}selected{% endif %}>{{ r_label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="preferred_language" class="form-label fw-semibold">
+                                <i class="bi bi-translate text-primary me-1"></i> Preferred Language (पसंदीदा भाषा) *
+                            </label>
+                            <select class="form-select fw-semibold" id="preferred_language" name="preferred_language">
+                                {% for code, native_name, eng_name, flag, gt_code in supported_languages %}
+                                <option value="{{ code }}" {% if user and (user.preferred_language == code) or (not user and code == 'en') %}selected{% endif %}>
+                                    {{ flag }} {{ native_name }} ({{ eng_name }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Website will automatically display in this language when this user logs in.</div>
                         </div>
                     </div>
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ current_language or 'en' }}" data-lang="{{ current_language or 'en' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -124,6 +124,30 @@
                     {% block page_title %}Dashboard{% endblock %}
                 </span>
                 <div class="ms-auto d-flex align-items-center gap-2">
+                    <!-- Indian Multi-Language Switcher Dropdown -->
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle d-flex align-items-center gap-1.5 border bg-white shadow-xs" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Change Language / भाषा बदलें">
+                            <span class="fs-6">{{ current_lang_meta.flag }}</span>
+                            <span class="fw-bold text-dark d-none d-sm-inline" style="font-size: 0.85rem;">{{ current_lang_meta.native }}</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-lg py-1 border-0 rounded-3 mt-1" style="max-height: 380px; overflow-y: auto; min-width: 210px;">
+                            <li><h6 class="dropdown-header text-uppercase text-primary small fw-bold px-3 py-2" style="font-size: 0.72rem; letter-spacing: 0.5px;">🇮🇳 Indian Languages / भाषा</h6></li>
+                            {% for code, native_name, eng_name, flag, gt_code in supported_languages %}
+                                <li>
+                                    <a class="dropdown-item d-flex align-items-center justify-content-between px-3 py-2 lang-select-btn {% if code == current_language %}active fw-bold{% endif %}" 
+                                       href="{{ url_for('auth.set_language', lang_code=code, next=request.path) }}"
+                                       data-lang-code="{{ code }}">
+                                        <span class="d-flex align-items-center gap-2">
+                                            <span>{{ flag }}</span>
+                                            <span>{{ native_name }}</span>
+                                        </span>
+                                        <small class="{% if code == current_language %}text-white-50{% else %}text-muted{% endif %} ms-2" style="font-size: 0.75rem;">{{ eng_name }}</small>
+                                    </a>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+
                     <a href="{{ url_for('auth.alert_settings') }}" class="btn btn-outline-primary btn-sm" title="Owner Mobile Alerts">
                         <i class="bi bi-phone-vibrate"></i> <span class="d-none d-md-inline">Mobile Alerts</span>
                     </a>
@@ -197,6 +221,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>

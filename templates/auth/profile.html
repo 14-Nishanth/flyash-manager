@@ -67,6 +67,20 @@
                         </div>
                     </div>
 
+                    <div class="mb-4">
+                        <label for="preferred_language" class="form-label fw-semibold">
+                            <i class="bi bi-translate text-primary me-1"></i> Preferred Language (पसंदीदा भाषा)
+                        </label>
+                        <select class="form-select fw-semibold" id="preferred_language" name="preferred_language">
+                            {% for code, native_name, eng_name, flag, gt_code in supported_languages %}
+                            <option value="{{ code }}" {% if current_user.preferred_language == code %}selected{% endif %}>
+                                {{ flag }} {{ native_name }} ({{ eng_name }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Choose the language you prefer for this website across all devices.</div>
+                    </div>
+
                     <div class="p-3 bg-light rounded-3 border mb-4">
                         <h6 class="fw-bold text-dark mb-2">
                             <i class="bi bi-shield-lock-fill me-1 text-warning"></i> Change Password (Optional)

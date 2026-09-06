@@ -15,6 +15,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), default='admin')  # owner, admin, operator, accountant, staff
     phone = db.Column(db.String(20))
+    preferred_language = db.Column(db.String(10), default='en')  # en, hi, bho, ta, ml, te, kn, bn, mr, gu, pa, or
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

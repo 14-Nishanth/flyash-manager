@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ current_language or 'en' }}" data-lang="{{ current_language or 'en' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
@@ -85,15 +85,40 @@
                     <div class="w-100 mx-auto" style="max-width: 440px;">
                         
                         <!-- Mobile-only Brand Header -->
-                        <div class="text-center d-lg-none mb-4">
-                            <img src="{{ url_for('static', filename='img/plant_logo.jpg') }}" alt="Plant Logo" class="login-logo-mobile rounded-3 shadow mb-2" style="width: 64px; height: 64px; object-fit: cover;">
-                            <h3 class="fw-bold text-dark mb-1">FlyAsh Manager</h3>
+                        <div class="text-center d-lg-none mb-3">
+                            <img src="{{ url_for('static', filename='img/plant_logo.jpg') }}" alt="Plant Logo" class="login-logo-mobile rounded-3 shadow mb-2" style="width: 56px; height: 56px; object-fit: cover;">
+                            <h4 class="fw-bold text-dark mb-1">FlyAsh Manager</h4>
                             <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-1">Brick & Block Plant ERP</span>
                         </div>
 
-                        <div class="mb-4">
-                            <h3 class="fw-bold text-dark mb-1 d-none d-lg-block">Welcome Back</h3>
-                            <p class="text-muted small mb-0">Sign in with your username or email address to access the plant portal.</p>
+                        <!-- Top Title & Language Selector Row -->
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div>
+                                <h3 class="fw-bold text-dark mb-1 d-none d-lg-block">Welcome Back</h3>
+                                <p class="text-muted small mb-0">Sign in to access plant portal</p>
+                            </div>
+                            
+                            <!-- Login Language Dropdown -->
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary btn-sm dropdown-toggle d-flex align-items-center gap-1.5 border bg-white shadow-xs rounded-3 py-1 px-2.5" 
+                                        type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Change Language / भाषा बदलें">
+                                    <span class="fs-6">{{ current_lang_meta.flag }}</span>
+                                    <span class="fw-bold text-dark" style="font-size: 0.8rem;">{{ current_lang_meta.native }}</span>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow-lg py-1 border-0 rounded-3 mt-1" style="max-height: 320px; overflow-y: auto; min-width: 200px;">
+                                    <li><h6 class="dropdown-header text-uppercase text-primary small fw-bold px-3 py-1.5" style="font-size: 0.7rem;">🇮🇳 Select Language / भाषा</h6></li>
+                                    {% for code, native_name, eng_name, flag, gt_code in supported_languages %}
+                                        <li>
+                                            <a class="dropdown-item d-flex align-items-center justify-content-between px-3 py-1.5 lang-select-btn {% if code == current_language %}active fw-bold{% endif %}" 
+                                               href="{{ url_for('auth.set_language', lang_code=code, next=request.path) }}"
+                                               data-lang-code="{{ code }}">
+                                                <span>{{ flag }} {{ native_name }}</span>
+                                                <small class="{% if code == current_language %}text-white-50{% else %}text-muted{% endif %} ms-2" style="font-size: 0.72rem;">{{ eng_name }}</small>
+                                            </a>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
                         </div>
 
                         <!-- Alert Notifications -->
@@ -191,6 +216,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
     <script>
         const toggleBtn = document.getElementById('togglePasswordBtn');
         const passwordInput = document.getElementById('password');

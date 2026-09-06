@@ -8,9 +8,18 @@ from models import db, User
 
 
 def _migrate_db():
-    """Ensure newly added columns exist in SQLite tables."""
+    """Ensure newly added columns exist in SQLite and PostgreSQL tables."""
+    # PostgreSQL migration
     if not Config.SQLALCHEMY_DATABASE_URI.startswith('sqlite:///'):
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(db.text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS preferred_language VARCHAR(10) DEFAULT \'en\';'))
+                conn.commit()
+        except Exception as e:
+            print(f"[WARN] PostgreSQL migration notice: {e}")
         return
+
+    # SQLite migration
     db_path = Config.SQLALCHEMY_DATABASE_URI.replace('sqlite:///', '')
     if os.path.exists(db_path):
         conn = sqlite3.connect(db_path)
@@ -24,6 +33,7 @@ def _migrate_db():
                 ('name', "VARCHAR(100) DEFAULT 'Admin'"),
                 ('email', "VARCHAR(120) DEFAULT 'admin@flyash.com'"),
                 ('phone', "VARCHAR(20)"),
+                ('preferred_language', "VARCHAR(10) DEFAULT 'en'"),
                 ('is_active', "BOOLEAN DEFAULT 1"),
                 ('created_at', "DATETIME")
             ],
@@ -206,11 +216,31 @@ def create_app():
         _create_default_rates_and_groups()
 
     # Template context processors
+    from translations import SUPPORTED_LANGUAGES, LANGUAGE_MAP, get_translation
+    from flask import session, request
+    from flask_login import current_user
+
     @app.context_processor
     def inject_globals():
+        user_lang = None
+        if current_user.is_authenticated:
+            user_lang = getattr(current_user, 'preferred_language', None)
+        active_lang = session.get('lang') or request.cookies.get('flyash_lang') or user_lang or 'en'
+        if active_lang not in LANGUAGE_MAP:
+            active_lang = 'en'
+
+        def _t(key, default=None):
+            return get_translation(key, active_lang, default)
+
         return {
             'app_name': 'FlyAsh Manager',
             'app_version': '1.0.0',
+            'supported_languages': SUPPORTED_LANGUAGES,
+            'language_map': LANGUAGE_MAP,
+            'current_language': active_lang,
+            'current_lang_meta': LANGUAGE_MAP.get(active_lang, LANGUAGE_MAP['en']),
+            '_t': _t,
+            't': _t
         }
 
     return app

@@ -5,9 +5,10 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from models import db, User, LoginHistory, AlertSettings
+from translations import SUPPORTED_LANGUAGES, LANGUAGE_MAP, TRANSLATIONS, get_translation
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -228,11 +229,21 @@ def login():
 
             if user.check_password(password):
                 login_user(user)
+                user_lang = getattr(user, 'preferred_language', 'en') or 'en'
+                session['lang'] = user_lang
                 _send_login_alert(user, login_input, 'SUCCESS', ip_addr, u_agent)
                 
                 user_display = user.name or user.username
                 flash(f'Welcome back, {user_display}!', 'success')
-                return redirect(url_for('dashboard.index'))
+                
+                resp = make_response(redirect(url_for('dashboard.index')))
+                resp.set_cookie('flyash_lang', user_lang, max_age=365*24*60*60, path='/', samesite='Lax')
+                gt_code = LANGUAGE_MAP.get(user_lang, {}).get('gt_code', user_lang)
+                if user_lang == 'en':
+                    resp.set_cookie('googtrans', '', expires=0, path='/')
+                else:
+                    resp.set_cookie('googtrans', f'/en/{gt_code}', max_age=365*24*60*60, path='/', samesite='Lax')
+                return resp
             else:
                 # WRONG PASSWORD for existing user account
                 _send_login_alert(user, login_input, 'WRONG_PASSWORD', ip_addr, u_agent)
@@ -257,13 +268,46 @@ def logout():
 # ==============================================================================
 # USER / STAFF MANAGEMENT & PROFILE
 # ==============================================================================
+# LANGUAGE LOCALIZATION ROUTE
+# ==============================================================================
+
+@bp.route('/set-language/<string:lang_code>', methods=['GET', 'POST'])
+def set_language(lang_code):
+    """Set active language in session, cookie, and user profile if authenticated."""
+    if lang_code not in LANGUAGE_MAP:
+        lang_code = 'en'
+    
+    session['lang'] = lang_code
+    
+    if current_user.is_authenticated:
+        try:
+            current_user.preferred_language = lang_code
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    next_url = request.args.get('next') or request.referrer or url_for('dashboard.index')
+    
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        resp = jsonify({'status': 'success', 'language': lang_code})
+    else:
+        resp = make_response(redirect(next_url))
+        
+    resp.set_cookie('flyash_lang', lang_code, max_age=365*24*60*60, path='/', samesite='Lax')
+    gt_code = LANGUAGE_MAP.get(lang_code, {}).get('gt_code', lang_code)
+    if lang_code == 'en':
+        resp.set_cookie('googtrans', '', expires=0, path='/')
+    else:
+        resp.set_cookie('googtrans', f'/en/{gt_code}', max_age=365*24*60*60, path='/', samesite='Lax')
+    return resp
+
 
 @bp.route('/users')
 @login_required
 def users_list():
     """List all application users / staff accounts."""
     users = User.query.order_by(User.role, User.username).all()
-    return render_template('auth/users_list.html', users=users, roles=dict(USER_ROLES))
+    return render_template('auth/users_list.html', users=users, roles=dict(USER_ROLES), language_map=LANGUAGE_MAP, supported_languages=SUPPORTED_LANGUAGES)
 
 
 @bp.route('/users/add', methods=['GET', 'POST'])
@@ -277,29 +321,30 @@ def user_add():
         password = request.form.get('password', '').strip()
         role = request.form.get('role', 'staff')
         phone = request.form.get('phone', '').strip()
+        preferred_language = request.form.get('preferred_language', 'en')
         is_active = request.form.get('is_active') == 'on'
 
         if not email:
             flash('Email address is required.', 'error')
-            return render_template('auth/user_form.html', roles=USER_ROLES, user=None)
+            return render_template('auth/user_form.html', roles=USER_ROLES, supported_languages=SUPPORTED_LANGUAGES, user=None)
 
         if not username:
             username = email.split('@')[0]
 
         if not password or len(password) < 4:
             flash('Password must be at least 4 characters long.', 'error')
-            return render_template('auth/user_form.html', roles=USER_ROLES, user=None)
+            return render_template('auth/user_form.html', roles=USER_ROLES, supported_languages=SUPPORTED_LANGUAGES, user=None)
 
         # Check for duplicates
         existing_email = User.query.filter(db.func.lower(User.email) == email).first()
         if existing_email:
             flash(f'User with email "{email}" already exists.', 'error')
-            return render_template('auth/user_form.html', roles=USER_ROLES, user=None)
+            return render_template('auth/user_form.html', roles=USER_ROLES, supported_languages=SUPPORTED_LANGUAGES, user=None)
 
         existing_user = User.query.filter(db.func.lower(User.username) == username).first()
         if existing_user:
             flash(f'Username "{username}" is already taken. Please choose another username.', 'error')
-            return render_template('auth/user_form.html', roles=USER_ROLES, user=None)
+            return render_template('auth/user_form.html', roles=USER_ROLES, supported_languages=SUPPORTED_LANGUAGES, user=None)
 
         try:
             new_user = User(
@@ -308,18 +353,19 @@ def user_add():
                 username=username,
                 role=role,
                 phone=phone,
+                preferred_language=preferred_language,
                 is_active=is_active
             )
             new_user.set_password(password)
             db.session.add(new_user)
             db.session.commit()
-            flash(f'Staff account "{new_user.name}" (@{new_user.username}) created successfully! They can now log in with username "{new_user.username}" or email "{new_user.email}".', 'success')
+            flash(f'Staff account "{new_user.name}" (@{new_user.username}) created successfully! Language set to {LANGUAGE_MAP.get(preferred_language, {}).get("name", "English")}.', 'success')
             return redirect(url_for('auth.users_list'))
         except Exception as e:
             db.session.rollback()
             flash(f'Error creating user: {str(e)}', 'error')
 
-    return render_template('auth/user_form.html', roles=USER_ROLES, user=None)
+    return render_template('auth/user_form.html', roles=USER_ROLES, supported_languages=SUPPORTED_LANGUAGES, user=None)
 
 
 @bp.route('/users/<int:id>/edit', methods=['GET', 'POST'])
@@ -334,12 +380,13 @@ def user_edit(id):
         email = request.form.get('email', '').strip().lower()
         role = request.form.get('role', user.role)
         phone = request.form.get('phone', '').strip()
+        preferred_language = request.form.get('preferred_language', getattr(user, 'preferred_language', 'en') or 'en')
         new_password = request.form.get('new_password', '').strip()
         is_active = request.form.get('is_active') == 'on'
 
         if not email:
             flash('Email address cannot be empty.', 'error')
-            return render_template('auth/user_form.html', roles=USER_ROLES, user=user)
+            return render_template('auth/user_form.html', roles=USER_ROLES, supported_languages=SUPPORTED_LANGUAGES, user=user)
 
         if not username:
             username = email.split('@')[0]
@@ -348,13 +395,13 @@ def user_edit(id):
         conflict_email = User.query.filter(db.func.lower(User.email) == email, User.id != user.id).first()
         if conflict_email:
             flash(f'Email "{email}" is already used by another user.', 'error')
-            return render_template('auth/user_form.html', roles=USER_ROLES, user=user)
+            return render_template('auth/user_form.html', roles=USER_ROLES, supported_languages=SUPPORTED_LANGUAGES, user=user)
 
         # Check if username taken by another user
         conflict_user = User.query.filter(db.func.lower(User.username) == username, User.id != user.id).first()
         if conflict_user:
             flash(f'Username "{username}" is already used by another user.', 'error')
-            return render_template('auth/user_form.html', roles=USER_ROLES, user=user)
+            return render_template('auth/user_form.html', roles=USER_ROLES, supported_languages=SUPPORTED_LANGUAGES, user=user)
 
         try:
             user.name = name or user.name
@@ -362,6 +409,7 @@ def user_edit(id):
             user.email = email
             user.role = role
             user.phone = phone
+            user.preferred_language = preferred_language
             # Prevent deactivating yourself
             if user.id == current_user.id:
                 user.is_active = True
@@ -371,17 +419,17 @@ def user_edit(id):
             if new_password:
                 if len(new_password) < 4:
                     flash('New password must be at least 4 characters long.', 'error')
-                    return render_template('auth/user_form.html', roles=USER_ROLES, user=user)
+                    return render_template('auth/user_form.html', roles=USER_ROLES, supported_languages=SUPPORTED_LANGUAGES, user=user)
                 user.set_password(new_password)
 
             db.session.commit()
-            flash(f'User "{user.name}" (@{user.username}) updated successfully. New credentials are now active on all devices.', 'success')
+            flash(f'User "{user.name}" (@{user.username}) updated successfully. Preferred language is now {LANGUAGE_MAP.get(preferred_language, {}).get("name", "English")}.', 'success')
             return redirect(url_for('auth.users_list'))
         except Exception as e:
             db.session.rollback()
             flash(f'Error updating user: {str(e)}', 'error')
 
-    return render_template('auth/user_form.html', roles=USER_ROLES, user=user)
+    return render_template('auth/user_form.html', roles=USER_ROLES, supported_languages=SUPPORTED_LANGUAGES, user=user)
 
 
 @bp.route('/users/<int:id>/delete', methods=['POST'])
@@ -414,13 +462,14 @@ def profile():
         username = request.form.get('username', '').strip().lower()
         email = request.form.get('email', '').strip().lower()
         phone = request.form.get('phone', '').strip()
+        preferred_language = request.form.get('preferred_language', getattr(user, 'preferred_language', 'en') or 'en')
         old_password = request.form.get('old_password', '').strip()
         new_password = request.form.get('new_password', '').strip()
         confirm_password = request.form.get('confirm_password', '').strip()
 
         if not email:
             flash('Email address is required.', 'error')
-            return render_template('auth/profile.html')
+            return render_template('auth/profile.html', supported_languages=SUPPORTED_LANGUAGES)
 
         if not username:
             username = email.split('@')[0]
@@ -429,28 +478,28 @@ def profile():
         conflict_email = User.query.filter(db.func.lower(User.email) == email, User.id != user.id).first()
         if conflict_email:
             flash(f'Email "{email}" is already used by another user.', 'error')
-            return render_template('auth/profile.html')
+            return render_template('auth/profile.html', supported_languages=SUPPORTED_LANGUAGES)
 
         # Check unique username
         conflict_user = User.query.filter(db.func.lower(User.username) == username, User.id != user.id).first()
         if conflict_user:
             flash(f'Username "{username}" is already taken by another account.', 'error')
-            return render_template('auth/profile.html')
+            return render_template('auth/profile.html', supported_languages=SUPPORTED_LANGUAGES)
 
         password_changed = False
         if new_password:
             if not old_password:
                 flash('Please enter your current password to set a new password.', 'error')
-                return render_template('auth/profile.html')
+                return render_template('auth/profile.html', supported_languages=SUPPORTED_LANGUAGES)
             if not user.check_password(old_password):
                 flash('Incorrect current password.', 'error')
-                return render_template('auth/profile.html')
+                return render_template('auth/profile.html', supported_languages=SUPPORTED_LANGUAGES)
             if len(new_password) < 4:
                 flash('New password must be at least 4 characters long.', 'error')
-                return render_template('auth/profile.html')
+                return render_template('auth/profile.html', supported_languages=SUPPORTED_LANGUAGES)
             if new_password != confirm_password:
                 flash('New password and confirmation do not match.', 'error')
-                return render_template('auth/profile.html')
+                return render_template('auth/profile.html', supported_languages=SUPPORTED_LANGUAGES)
             user.set_password(new_password)
             password_changed = True
 
@@ -459,6 +508,8 @@ def profile():
             user.username = username
             user.email = email
             user.phone = phone
+            user.preferred_language = preferred_language
+            session['lang'] = preferred_language
             db.session.commit()
 
             # Also update owner email in alert settings if owner
@@ -482,13 +533,21 @@ def profile():
             _dispatch_mobile_alert(sec_msg)
             _dispatch_email_alert("🔐 FlyAsh Manager: Profile & Password Updated", sec_msg, email)
 
-            flash(f'Profile updated successfully! You can now sign in using username "{username}" or email "{email}" on any device with your new password.', 'success')
-            return redirect(url_for('dashboard.index'))
+            flash(f'Profile updated successfully! Preferred language set to {LANGUAGE_MAP.get(preferred_language, {}).get("name", "English")}.', 'success')
+            
+            resp = make_response(redirect(url_for('dashboard.index')))
+            resp.set_cookie('flyash_lang', preferred_language, max_age=365*24*60*60, path='/', samesite='Lax')
+            gt_code = LANGUAGE_MAP.get(preferred_language, {}).get('gt_code', preferred_language)
+            if preferred_language == 'en':
+                resp.set_cookie('googtrans', '', expires=0, path='/')
+            else:
+                resp.set_cookie('googtrans', f'/en/{gt_code}', max_age=365*24*60*60, path='/', samesite='Lax')
+            return resp
         except Exception as e:
             db.session.rollback()
             flash(f'Error updating profile: {str(e)}', 'error')
 
-    return render_template('auth/profile.html')
+    return render_template('auth/profile.html', supported_languages=SUPPORTED_LANGUAGES)
 
 
 @bp.route('/history')
