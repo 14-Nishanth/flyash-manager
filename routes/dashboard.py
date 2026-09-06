@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template
 from flask_login import login_required
-from models import db, Employee, Party, MaterialInward, MaterialOutward
+from models import db, Employee, Party, MaterialInward, MaterialOutward, JobWageEntry, JobRateSetting
 from datetime import date, timedelta
 from sqlalchemy import func
 import calendar
@@ -16,11 +16,11 @@ def index():
     total_employees = Employee.query.filter_by(is_active=True).count()
     total_parties = Party.query.count()
     
-    # Today's Data
+    # Today's Material Inward & Outward
     today_inward_query = db.session.query(
         func.sum(MaterialInward.quantity_mt).label('qty'),
         func.sum(MaterialInward.amount).label('amount')
-    ).filter(func.date(MaterialInward.date) == today).first()
+    ).filter(MaterialInward.date == today).first()
     
     today_inward = today_inward_query.qty or 0.0
     today_inward_amount = today_inward_query.amount or 0.0
@@ -28,12 +28,23 @@ def index():
     today_outward_query = db.session.query(
         func.sum(MaterialOutward.quantity_mt).label('qty'),
         func.sum(MaterialOutward.amount).label('amount')
-    ).filter(func.date(MaterialOutward.date) == today).first()
+    ).filter(MaterialOutward.date == today).first()
     
     today_outward = today_outward_query.qty or 0.0
     today_outward_amount = today_outward_query.amount or 0.0
 
-    # Outstanding
+    # Piece-Rate Job Metrics for Today
+    today_jobs_query = db.session.query(
+        func.count(JobWageEntry.id).label('count'),
+        func.sum(JobWageEntry.quantity).label('pieces'),
+        func.sum(JobWageEntry.total_amount).label('amount')
+    ).filter(JobWageEntry.date == today).first()
+
+    today_jobs_count = today_jobs_query.count or 0
+    today_jobs_pieces = today_jobs_query.pieces or 0
+    today_jobs_amount = today_jobs_query.amount or 0.0
+
+    # Outstanding Balances
     parties = Party.query.all()
     total_receivable = sum(p.get_outstanding() for p in parties if p.get_outstanding() > 0)
     total_payable = sum(abs(p.get_outstanding()) for p in parties if p.get_outstanding() < 0)
@@ -41,6 +52,20 @@ def index():
     # Recent records
     recent_inward = MaterialInward.query.order_by(MaterialInward.date.desc(), MaterialInward.id.desc()).limit(5).all()
     recent_outward = MaterialOutward.query.order_by(MaterialOutward.date.desc(), MaterialOutward.id.desc()).limit(5).all()
+    recent_jobs = JobWageEntry.query.order_by(JobWageEntry.date.desc(), JobWageEntry.id.desc()).limit(5).all()
+
+    # Material Stock Balance Summary
+    common_materials = ['Cement', 'Jelly (20mm / 12mm / Baby)', 'Fly Ash', 'M-Sand / Sand', 'Slag']
+    stock_overview = []
+    for mat in ['Cement', 'Jelly', 'Fly Ash', 'Sand']:
+        in_qty = db.session.query(func.sum(MaterialInward.quantity_mt)).filter(MaterialInward.material_type.ilike(f'%{mat}%')).scalar() or 0.0
+        out_qty = db.session.query(func.sum(MaterialOutward.quantity_mt)).filter(MaterialOutward.material_type.ilike(f'%{mat}%')).scalar() or 0.0
+        stock_overview.append({
+            'name': mat,
+            'inward': in_qty,
+            'outward': out_qty,
+            'balance': round(in_qty - out_qty, 2)
+        })
 
     # Monthly data for the last 6 months
     month_labels = []
@@ -48,8 +73,7 @@ def index():
     outward_amounts = []
 
     for i in range(5, -1, -1):
-        # Calculate the month and year
-        d = today - timedelta(days=today.day - 1) # first day of current month
+        d = today - timedelta(days=today.day - 1)
         for _ in range(i):
             d = d - timedelta(days=1)
             d = d - timedelta(days=d.day - 1)
@@ -60,19 +84,24 @@ def index():
         month_label = f"{calendar.month_abbr[target_month]} {target_year}"
         month_labels.append(month_label)
         
-        # Monthly inward sum
-        inward_sum = db.session.query(func.sum(MaterialInward.amount)).filter(
-            func.extract('month', MaterialInward.date) == target_month,
-            func.extract('year', MaterialInward.date) == target_year
-        ).scalar() or 0.0
-        inward_amounts.append(inward_sum)
+        # SQLite vs Postgres month filtering
+        try:
+            inward_sum = db.session.query(func.sum(MaterialInward.amount)).filter(
+                func.extract('month', MaterialInward.date) == target_month,
+                func.extract('year', MaterialInward.date) == target_year
+            ).scalar() or 0.0
+        except Exception:
+            inward_sum = 0.0
+        inward_amounts.append(round(inward_sum, 2))
         
-        # Monthly outward sum
-        outward_sum = db.session.query(func.sum(MaterialOutward.amount)).filter(
-            func.extract('month', MaterialOutward.date) == target_month,
-            func.extract('year', MaterialOutward.date) == target_year
-        ).scalar() or 0.0
-        outward_amounts.append(outward_sum)
+        try:
+            outward_sum = db.session.query(func.sum(MaterialOutward.amount)).filter(
+                func.extract('month', MaterialOutward.date) == target_month,
+                func.extract('year', MaterialOutward.date) == target_year
+            ).scalar() or 0.0
+        except Exception:
+            outward_sum = 0.0
+        outward_amounts.append(round(outward_sum, 2))
         
     return render_template(
         'dashboard.html',
@@ -82,10 +111,15 @@ def index():
         today_outward=today_outward,
         today_inward_amount=today_inward_amount,
         today_outward_amount=today_outward_amount,
+        today_jobs_count=today_jobs_count,
+        today_jobs_pieces=today_jobs_pieces,
+        today_jobs_amount=today_jobs_amount,
         total_receivable=total_receivable,
         total_payable=total_payable,
         recent_inward=recent_inward,
         recent_outward=recent_outward,
+        recent_jobs=recent_jobs,
+        stock_overview=stock_overview,
         month_labels=month_labels,
         inward_amounts=inward_amounts,
         outward_amounts=outward_amounts
