@@ -13,9 +13,12 @@
     <div class="d-flex">
         <!-- Sidebar -->
         <nav id="sidebar" class="sidebar">
-            <div class="sidebar-header">
-                <h4><i class="bi bi-building-fill"></i> FlyAsh Manager</h4>
-                <small>Management System</small>
+            <div class="sidebar-header d-flex align-items-center gap-2.5 py-3 px-3.5">
+                <img src="{{ url_for('static', filename='img/plant_logo.jpg') }}" alt="Logo" class="rounded-2 shadow-sm" style="width: 36px; height: 36px; object-fit: cover;">
+                <div>
+                    <h4 class="mb-0 fs-6 fw-bold text-white">FlyAsh Manager</h4>
+                    <small class="text-white-50" style="font-size: 0.72rem;">Plant System</small>
+                </div>
             </div>
             <ul class="nav flex-column mt-2">
                 <li class="nav-item">

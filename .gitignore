@@ -16,3 +16,6 @@ get_telegram_updates.py
 send_telegram_test.py
 set_owner_phone.py
 check_settings.py
+
+.vercel
+.env*
