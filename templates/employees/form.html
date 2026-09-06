@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit Employee' if employee else 'Add Employee' }}{% endblock %}
+{% block page_title %}{{ 'Edit Employee' if employee else 'Add Employee' }}{% endblock %}
+{% block content %}
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="form-card card shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h4 class="mb-0">{{ 'Edit Employee' if employee else 'Add Employee' }}</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="name" name="name" value="{{ employee.name if employee else '' }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="phone" class="form-label">Phone</label>
+                        <input type="text" class="form-control" id="phone" name="phone" value="{{ employee.phone if employee else '' }}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Role</label>
+                        <input type="text" class="form-control" id="role" name="role" value="{{ employee.role if employee else '' }}" placeholder="e.g., Driver, Loader, Operator, Supervisor">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="daily_wage" class="form-label">Daily Wage (₹)</label>
+                        <input type="text" class="form-control" id="daily_wage" name="daily_wage" value="{{ employee.daily_wage if employee else '' }}" placeholder="Enter daily wage">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="joining_date" class="form-label">Joining Date</label>
+                        <input type="date" class="form-control" id="joining_date" name="joining_date" value="{{ employee.joining_date.strftime('%Y-%m-%d') if employee and employee.joining_date else '' }}">
+                    </div>
+
+                    <div class="mb-4 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_active" name="is_active" {% if not employee or employee.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="is_active">Active</label>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Save</button>
+                        <a href="{{ url_for('employees.list_employees') }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

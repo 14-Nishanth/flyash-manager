@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Parties{% endblock %}
+{% block page_title %}Parties{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <h2>Parties</h2>
+    <a href="{{ url_for('parties.add_party') }}" class="btn btn-primary quick-action-btn">
+        <i class="bi bi-plus-circle"></i> Add Party
+    </a>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card stat-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="stat-label">Total Receivable</div>
+                <div class="stat-value amount-receivable currency-display">₹{{ "%.2f"|format(total_receivable) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card stat-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="stat-label">Total Payable</div>
+                <div class="stat-value amount-payable currency-display">₹{{ "%.2f"|format(total_payable) }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="filter-bar card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="btn-group" role="group">
+            <a href="{{ url_for('parties.list_parties', type='all') }}" class="btn btn-outline-secondary {% if party_type == 'all' %}active{% endif %}">All</a>
+            <a href="{{ url_for('parties.list_parties', type='supplier') }}" class="btn btn-outline-secondary {% if party_type == 'supplier' %}active{% endif %}">Supplier</a>
+            <a href="{{ url_for('parties.list_parties', type='customer') }}" class="btn btn-outline-secondary {% if party_type == 'customer' %}active{% endif %}">Customer</a>
+            <a href="{{ url_for('parties.list_parties', type='both') }}" class="btn btn-outline-secondary {% if party_type == 'both' %}active{% endif %}">Both</a>
+        </div>
+    </div>
+</div>
+
+<div class="table-container card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Party Name</th>
+                        <th>Type</th>
+                        <th>Phone</th>
+                        <th>GSTIN</th>
+                        <th>Outstanding (₹)</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for party in parties %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>
+                            <a href="{{ url_for('parties.party_ledger', id=party.id) }}" class="text-decoration-none text-dark fw-bold">
+                                {{ party.name }}
+                            </a>
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ party.party_type }}">{{ party.party_type|capitalize }}</span>
+                        </td>
+                        <td>{{ party.phone }}</td>
+                        <td>{{ party.gstin }}</td>
+                        <td>
+                            <span class="fw-bold {% if party.outstanding > 0 %}amount-receivable{% elif party.outstanding < 0 %}amount-payable{% else %}amount-zero{% endif %}">
+                                ₹{{ "%.2f"|format(party.outstanding|abs) }}
+                                {% if party.outstanding > 0 %}(Dr){% elif party.outstanding < 0 %}(Cr){% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('parties.party_ledger', id=party.id) }}" class="btn btn-sm btn-outline-info" title="Ledger"><i class="bi bi-journal-text"></i> Ledger</a>
+                            <a href="{{ url_for('parties.edit_party', id=party.id) }}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="bi bi-pencil"></i></a>
+                            <form action="{{ url_for('parties.delete_party', id=party.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this party? This will also delete all related records.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger btn-delete" title="Delete"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center">No parties found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

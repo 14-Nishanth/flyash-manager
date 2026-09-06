@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Record Payment{% endblock %}
+{% block page_title %}Record Payment{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="form-card card shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h4 class="mb-0">Record Payment</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="date" class="form-label">Date *</label>
+                            <input type="date" class="form-control" id="date" name="date" required value="{{ today }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="party_id" class="form-label">Party *</label>
+                            <select class="form-select" id="party_id" name="party_id" required>
+                                <option value="">Select Party</option>
+                                {% for party in parties %}
+                                <option value="{{ party.id }}" {% if request.args.get('party_id')|int == party.id %}selected{% endif %}>
+                                    {{ party.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="payment_type" class="form-label">Payment Type *</label>
+                            <select class="form-select" id="payment_type" name="payment_type" required>
+                                <option value="received">Received (From Customer)</option>
+                                <option value="paid">Paid (To Supplier)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="amount" class="form-label">Amount (₹) *</label>
+                            <div class="input-group">
+                                <span class="input-group-text">₹</span>
+                                <input type="text" class="form-control" id="amount" name="amount" required placeholder="Enter payment amount">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="mode" class="form-label">Payment Mode *</label>
+                            <select class="form-select" id="mode" name="mode" required>
+                                <option value="bank">Bank Transfer</option>
+                                <option value="cash">Cash</option>
+                                <option value="upi">UPI</option>
+                                <option value="cheque">Cheque</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="reference_no" class="form-label">Reference No (Cheque/Txn ID)</label>
+                            <input type="text" class="form-control" id="reference_no" name="reference_no">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="2"></textarea>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('parties.payments_list') }}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Save Payment</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

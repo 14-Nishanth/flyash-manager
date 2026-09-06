@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Party Ledger - {{ party.name }}{% endblock %}
+{% block page_title %}Party Ledger{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <h2>Party Ledger</h2>
+    <div class="d-flex gap-2">
+        <button onclick="window.print()" class="btn btn-outline-secondary btn-print">
+            <i class="bi bi-printer"></i> Print
+        </button>
+        <a href="{{ url_for('parties.payment_add', party_id=party.id) }}" class="btn btn-primary">
+            <i class="bi bi-cash"></i> Record Payment
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h4 class="mb-1">{{ party.name }}</h4>
+                <div class="mb-1"><span class="badge badge-{{ party.party_type }}">{{ party.party_type|capitalize }}</span></div>
+            </div>
+            <div class="col-md-6 text-md-end">
+                <div><i class="bi bi-telephone"></i> {{ party.phone or 'N/A' }}</div>
+                <div><i class="bi bi-geo-alt"></i> {{ party.address or 'N/A' }}</div>
+                <div><strong>GSTIN:</strong> {{ party.gstin or 'N/A' }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="filter-bar card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label for="from_date" class="form-label">From Date</label>
+                <input type="date" class="form-control" id="from_date" name="from_date" value="{{ from_date or '' }}">
+            </div>
+            <div class="col-md-4">
+                <label for="to_date" class="form-label">To Date</label>
+                <input type="date" class="form-control" id="to_date" name="to_date" value="{{ to_date or '' }}">
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary w-100">Filter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="table-container card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Vehicle</th>
+                        <th class="text-end">Debit (₹)</th>
+                        <th class="text-end">Credit (₹)</th>
+                        <th class="text-end">Balance (₹)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set running_balance = [party.opening_balance] %}
+                    
+                    <tr class="table-secondary fw-bold">
+                        <td colspan="4">Opening Balance</td>
+                        <td class="text-end">
+                            {% if party.opening_balance > 0 %}₹{{ "%.2f"|format(party.opening_balance) }}{% else %}-{% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if party.opening_balance < 0 %}₹{{ "%.2f"|format(party.opening_balance|abs) }}{% else %}-{% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if running_balance[0] > 0 %}
+                                <span class="amount-receivable">₹{{ "%.2f"|format(running_balance[0]|abs) }} Dr</span>
+                            {% elif running_balance[0] < 0 %}
+                                <span class="amount-payable">₹{{ "%.2f"|format(running_balance[0]|abs) }} Cr</span>
+                            {% else %}
+                                <span class="amount-zero">₹0.00</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    
+                    {% for t in transactions %}
+                    {% set _ = running_balance.append(running_balance.pop() + t.debit - t.credit) %}
+                    <tr>
+                        <td>{{ t.date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ t.type }}</td>
+                        <td>{{ t.description }}</td>
+                        <td>{{ t.vehicle }}</td>
+                        <td class="text-end">{% if t.debit > 0 %}₹{{ "%.2f"|format(t.debit) }}{% else %}-{% endif %}</td>
+                        <td class="text-end">{% if t.credit > 0 %}₹{{ "%.2f"|format(t.credit) }}{% else %}-{% endif %}</td>
+                        <td class="text-end fw-bold">
+                            {% if running_balance[0] > 0 %}
+                                <span class="amount-receivable">₹{{ "%.2f"|format(running_balance[0]|abs) }} Dr</span>
+                            {% elif running_balance[0] < 0 %}
+                                <span class="amount-payable">₹{{ "%.2f"|format(running_balance[0]|abs) }} Cr</span>
+                            {% else %}
+                                <span class="amount-zero">₹0.00</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    
+                    <tr class="table-dark fw-bold">
+                        <td colspan="4" class="text-end">Closing Balance</td>
+                        <td class="text-end">-</td>
+                        <td class="text-end">-</td>
+                        <td class="text-end fs-5">
+                            {% if running_balance[0] > 0 %}
+                                <span class="text-info">₹{{ "%.2f"|format(running_balance[0]|abs) }} Dr</span>
+                            {% elif running_balance[0] < 0 %}
+                                <span class="text-warning">₹{{ "%.2f"|format(running_balance[0]|abs) }} Cr</span>
+                            {% else %}
+                                <span>₹0.00</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

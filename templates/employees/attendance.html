@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Mark Attendance{% endblock %}
+{% block page_title %}Mark Attendance{% endblock %}
+{% block content %}
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('employees.attendance') }}" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label for="date_selector" class="form-label">Attendance Date</label>
+                <input type="date" id="date_selector" name="date" class="form-control" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary">Go</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('employees.attendance', date=selected_date.strftime('%Y-%m-%d')) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    
+    <div class="table-container card mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">Mark Attendance for {{ selected_date.strftime('%d %b %Y') }}</h5>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Employee Name</th>
+                        <th>Role</th>
+                        <th class="text-center">Present</th>
+                        <th class="text-center">Absent</th>
+                        <th class="text-center">Half-Day</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for emp in employees %}
+                    {% set att = attendance_map.get(emp.id) %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ emp.name }}</td>
+                        <td>{{ emp.role or '-' }}</td>
+                        <td class="text-center">
+                            <input class="form-check-input" type="radio" name="status_{{ emp.id }}" value="present" {% if not att or att.status == 'present' %}checked{% endif %}>
+                        </td>
+                        <td class="text-center">
+                            <input class="form-check-input" type="radio" name="status_{{ emp.id }}" value="absent" {% if att and att.status == 'absent' %}checked{% endif %}>
+                        </td>
+                        <td class="text-center">
+                            <input class="form-check-input" type="radio" name="status_{{ emp.id }}" value="half-day" {% if att and att.status == 'half-day' %}checked{% endif %}>
+                        </td>
+                        <td>
+                            <input type="text" class="form-control form-control-sm" name="notes_{{ emp.id }}" value="{{ att.notes if att and att.notes else '' }}" placeholder="Optional notes">
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">No active employees found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    {% if employees %}
+    <div class="mb-4">
+        <button type="submit" class="btn btn-success btn-lg">Save Attendance</button>
+    </div>
+    {% endif %}
+</form>
+
+{% endblock %}

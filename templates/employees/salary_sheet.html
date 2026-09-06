@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Employee Salary & Wage Sheet{% endblock %}
+{% block page_title %}Employee Salary & Wage Sheet{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h2 class="fw-bold mb-1">Employee Salary & Wage Sheet</h2>
+        <p class="text-muted mb-0 small">Consolidated statement of attendance base wages + piece-rate production & loading earnings.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-secondary btn-print" onclick="window.print()">
+            <i class="bi bi-printer me-1"></i> Print Sheet
+        </button>
+        <a href="{{ url_for('employees.salary_sheet_export', from_date=from_date, to_date=to_date) }}" class="btn btn-success">
+            <i class="bi bi-file-earmark-arrow-down me-1"></i> Export Excel/CSV
+        </a>
+        <a href="{{ url_for('employees.job_wages_add') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i> Record Job Work
+        </a>
+    </div>
+</div>
+
+<!-- Grand Total Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card stat-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="stat-label">Total Daily Attendance Wages</div>
+                <div class="stat-value text-secondary currency-display">₹{{ "{:,.2f}".format(grand_attendance_wage) }}</div>
+                <small class="text-muted">From daily attendance</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="stat-label">Total Piece-Rate Production / Loading Wages</div>
+                <div class="stat-value text-primary currency-display">₹{{ "{:,.2f}".format(grand_piece_wage) }}</div>
+                <small class="text-muted">From piece-rate job divisions</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card shadow-sm h-100 border-start border-4 border-success">
+            <div class="card-body">
+                <div class="stat-label">Grand Total Salary Payable</div>
+                <div class="stat-value text-success currency-display">₹{{ "{:,.2f}".format(grand_total_salary) }}</div>
+                <small class="text-muted">Total for all employees</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Date Filter Bar -->
+<div class="filter-bar card mb-4 shadow-sm">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('employees.salary_sheet') }}" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label for="from_date" class="form-label small fw-semibold">From Date</label>
+                <input type="date" class="form-control" id="from_date" name="from_date" value="{{ from_date }}">
+            </div>
+            <div class="col-md-4">
+                <label for="to_date" class="form-label small fw-semibold">To Date</label>
+                <input type="date" class="form-control" id="to_date" name="to_date" value="{{ to_date }}">
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-filter me-1"></i> Calculate Wage Sheet
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Salary Sheet Table -->
+<div class="table-container card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered mb-0 align-middle">
+                <thead class="table-light text-center">
+                    <tr>
+                        <th rowspan="2" class="align-middle">#</th>
+                        <th rowspan="2" class="align-middle text-start">Employee Name</th>
+                        <th rowspan="2" class="align-middle text-start">Role</th>
+                        <th colspan="3" class="text-center bg-light">Attendance Summary</th>
+                        <th rowspan="2" class="align-middle text-end">Attendance Wages (₹)</th>
+                        <th colspan="2" class="text-center bg-primary bg-opacity-10 text-primary">Piece-Rate Job Work</th>
+                        <th rowspan="2" class="align-middle text-end bg-success bg-opacity-10 text-success fw-bold">Net Salary Payable (₹)</th>
+                    </tr>
+                    <tr>
+                        <th class="small text-success">Present</th>
+                        <th class="small text-warning">Half-Day</th>
+                        <th class="small text-danger">Absent</th>
+                        <th class="small text-primary">Jobs Done</th>
+                        <th class="small text-primary text-end">Piece Wage (₹)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in salary_data %}
+                    <tr>
+                        <td class="text-center">{{ loop.index }}</td>
+                        <td class="fw-bold text-dark text-start">
+                            {{ row.employee.name }}
+                            {% if not row.employee.is_active %}
+                            <span class="badge bg-secondary ms-1">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted text-start">{{ row.employee.role or '-' }}</td>
+                        <td class="text-center text-success fw-semibold">{{ row.days_present }}</td>
+                        <td class="text-center text-warning fw-semibold">{{ row.days_half }}</td>
+                        <td class="text-center text-danger fw-semibold">{{ row.days_absent }}</td>
+                        <td class="text-end currency-display">₹{{ "{:,.2f}".format(row.attendance_wages) }}</td>
+                        <td class="text-center fw-bold text-primary">
+                            <span class="badge bg-primary bg-opacity-10 text-primary px-2 py-1">
+                                {{ row.job_count }} jobs
+                            </span>
+                        </td>
+                        <td class="text-end fw-bold text-primary currency-display">₹{{ "{:,.2f}".format(row.piece_rate_wages) }}</td>
+                        <td class="text-end fw-bold text-success fs-6 bg-success bg-opacity-10 currency-display">
+                            ₹{{ "{:,.2f}".format(row.net_salary) }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center py-4 text-muted">No employee records found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if salary_data %}
+                <tfoot class="table-light fw-bold">
+                    <tr>
+                        <td colspan="6" class="text-end">Grand Totals:</td>
+                        <td class="text-end currency-display">₹{{ "{:,.2f}".format(grand_attendance_wage) }}</td>
+                        <td></td>
+                        <td class="text-end text-primary currency-display">₹{{ "{:,.2f}".format(grand_piece_wage) }}</td>
+                        <td class="text-end text-success fs-5 bg-success bg-opacity-10 currency-display">
+                            ₹{{ "{:,.2f}".format(grand_total_salary) }}
+                        </td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

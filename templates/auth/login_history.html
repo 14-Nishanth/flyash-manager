@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Sign-in & Security Alerts History{% endblock %}
+{% block page_title %}Sign-in & Security Alerts History{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1"><i class="bi bi-shield-check text-primary me-2"></i>Sign-in & Security Log</h2>
+        <p class="text-muted mb-0 small">Audit trail of all sign-ins, IP addresses, timestamps, and security alert events.</p>
+    </div>
+    <div>
+        <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+</div>
+
+<div class="table-container card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Timestamp</th>
+                        <th>User / Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>IP Address</th>
+                        <th>Device / Browser Agent</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for h in history %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td class="fw-bold text-nowrap">{{ h.timestamp.strftime('%d-%b-%Y at %I:%M:%S %p') }}</td>
+                        <td>
+                            <div class="fw-bold text-dark"><i class="bi bi-person-circle me-1 text-secondary"></i>{{ h.username }}</div>
+                            {% if h.email %}<small class="text-muted">{{ h.email }}</small>{% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {% if h.user_role in ['owner', 'admin'] %}bg-dark{% elif h.user_role == 'operator' %}bg-info text-dark{% elif h.user_role == 'accountant' %}bg-success{% else %}bg-secondary{% endif %}">
+                                {{ h.user_role|capitalize if h.user_role else 'User' }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if h.status == 'SUCCESS' %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Successful Login</span>
+                            {% else %}
+                            <span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Failed Attempt</span>
+                            {% endif %}
+                        </td>
+                        <td><code>{{ h.ip_address or 'Local' }}</code></td>
+                        <td class="small text-muted text-truncate" style="max-width: 320px;" title="{{ h.user_agent }}">
+                            {{ h.user_agent or 'Unknown Browser' }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">No sign-in history logged yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
