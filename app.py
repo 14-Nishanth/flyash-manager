@@ -9,6 +9,8 @@ from models import db, User
 
 def _migrate_db():
     """Ensure newly added columns exist in SQLite tables."""
+    if not Config.SQLALCHEMY_DATABASE_URI.startswith('sqlite:///'):
+        return
     db_path = Config.SQLALCHEMY_DATABASE_URI.replace('sqlite:///', '')
     if os.path.exists(db_path):
         conn = sqlite3.connect(db_path)
