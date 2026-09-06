@@ -73,6 +73,20 @@ You can deploy this repository to Vercel in 1 click:
 
 ---
 
+## 🗄️ Connecting a Persistent Cloud Database (Supabase / Neon / PostgreSQL)
+
+By default, local runs use SQLite (`flyash.db`). For persistent storage on Vercel:
+
+1. Create a free PostgreSQL database on [Neon.tech](https://neon.tech), [Supabase.com](https://supabase.com), or [Vercel Storage](https://vercel.com/docs/storage/vercel-postgres).
+2. Copy your connection URL (e.g., `postgresql://username:password@ep-xyz.neon.tech/flyash?sslmode=require`).
+3. Add it as an environment variable in Vercel:
+   - Go to your Project on **Vercel Dashboard** → **Settings** → **Environment Variables**.
+   - Key: `DATABASE_URL`
+   - Value: `postgresql://...`
+4. Redeploy your project. The application will automatically create all tables, default admin login, and keep your data permanently synchronized across all devices!
+
+---
+
 ## 💻 Local Installation & Setup
 
 1. **Clone the repository:**
