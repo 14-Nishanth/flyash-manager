@@ -45,6 +45,18 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and 'groups' in request.endpoint %}active{% endif %}"
+                       href="{{ url_for('employees.employee_groups_list') }}">
+                        <i class="bi bi-person-lines-fill"></i> Labor Groups / Gangs
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and 'rates' in request.endpoint %}active{% endif %}"
+                       href="{{ url_for('employees.job_rates_list') }}">
+                        <i class="bi bi-tag"></i> Piece-Rate Prices
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link {% if request.endpoint and 'salary_sheet' in request.endpoint %}active{% endif %}"
                        href="{{ url_for('employees.salary_sheet') }}">
                         <i class="bi bi-file-earmark-spreadsheet"></i> Salary Sheet
