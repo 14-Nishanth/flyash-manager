@@ -28,6 +28,7 @@
                         <th>Name</th>
                         <th>Email / Login ID</th>
                         <th>Role / Permissions</th>
+                        <th>Language</th>
                         <th>Phone</th>
                         <th>Account Status</th>
                         <th class="text-end">Actions</th>
@@ -49,6 +50,12 @@
                         <td>
                             <span class="badge {% if u.role == 'owner' %}bg-dark{% elif u.role == 'admin' %}bg-primary{% elif u.role == 'operator' %}bg-info text-dark{% elif u.role == 'accountant' %}bg-success{% else %}bg-secondary{% endif %} px-2 py-1">
                                 {{ roles.get(u.role, u.role|capitalize) }}
+                            </span>
+                        </td>
+                        <td>
+                            {% set lang_info = language_map.get(u.preferred_language, language_map['en']) %}
+                            <span class="badge bg-light text-dark border px-2 py-1">
+                                {{ lang_info.flag }} {{ lang_info.native }}
                             </span>
                         </td>
                         <td>{{ u.phone or '-' }}</td>
