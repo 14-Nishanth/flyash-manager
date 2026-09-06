@@ -1,0 +1,221 @@
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime, date
+
+db = SQLAlchemy()
+
+
+class User(UserMixin, db.Model):
+    """Application user for login/authentication and staff management."""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100))
+    email = db.Column(db.String(120), unique=True, index=True, nullable=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    role = db.Column(db.String(20), default='admin')  # owner, admin, operator, accountant, staff
+    phone = db.Column(db.String(20))
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def __repr__(self):
+        return f'<User {self.username} ({self.email})>'
+
+
+class LoginHistory(db.Model):
+    """Tracks login alerts, sign in history, IP, device and timestamps."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    username = db.Column(db.String(80), nullable=False)
+    email = db.Column(db.String(120))
+    user_role = db.Column(db.String(30))
+    ip_address = db.Column(db.String(50))
+    user_agent = db.Column(db.String(255))
+    status = db.Column(db.String(20), default='SUCCESS')  # SUCCESS, FAILED
+    timestamp = db.Column(db.DateTime, default=datetime.now)
+
+    def __repr__(self):
+        return f'<LoginHistory {self.username} {self.status} {self.timestamp}>'
+
+
+class AlertSettings(db.Model):
+    """Configuration for mobile/SMS/WhatsApp/Telegram and Email alerts."""
+    id = db.Column(db.Integer, primary_key=True)
+    is_enabled = db.Column(db.Boolean, default=True)
+    channel = db.Column(db.String(20), default='whatsapp')  # whatsapp, telegram, sms, webhook, email, both
+    phone_number = db.Column(db.String(20))  # Owner's mobile number
+    owner_name = db.Column(db.String(100), default='Nishanth (Owner)')
+    owner_email = db.Column(db.String(120), default='nishanthissan1515@gmail.com')  # Owner's email address
+    email_alerts_enabled = db.Column(db.Boolean, default=True)
+    smtp_host = db.Column(db.String(100), default='smtp.gmail.com')
+    smtp_port = db.Column(db.Integer, default=587)
+    smtp_user = db.Column(db.String(120), default='')
+    smtp_password = db.Column(db.String(120), default='')
+    api_key = db.Column(db.String(255))      # WhatsApp / Fast2SMS API Key or Telegram Bot Token
+    chat_id = db.Column(db.String(100))      # Telegram chat ID or webhook secret
+    webhook_url = db.Column(db.String(255))
+    alert_on_all_users = db.Column(db.Boolean, default=True)  # Alert when staff/other users log in
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    def __repr__(self):
+        return f'<AlertSettings {self.channel} enabled={self.is_enabled}>'
+
+
+class JobWageEntry(db.Model):
+    """Daily job / piece-rate work record divided among assigned workers."""
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    job_type = db.Column(db.String(50), nullable=False)  # Production, Loading Only, Both Loading & Unloading, Custom
+    product_name = db.Column(db.String(100), nullable=False)  # e.g., Hollow Block 6", Fly Ash Brick 9x4x3
+    quantity = db.Column(db.Float, nullable=False)
+    unit = db.Column(db.String(30), default='Pieces / Pcs')
+    rate_per_unit = db.Column(db.Float, nullable=False, default=0.0)
+    total_amount = db.Column(db.Float, nullable=False, default=0.0)
+    worker_count = db.Column(db.Integer, nullable=False, default=1)
+    wage_per_worker = db.Column(db.Float, nullable=False, default=0.0)
+    vehicle_no = db.Column(db.String(30))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    allocations = db.relationship('EmployeeJobAllocation', backref='job_entry', lazy=True,
+                                  cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<JobWageEntry {self.date} {self.job_type} ₹{self.total_amount}>'
+
+
+class Employee(db.Model):
+    """Company employee record."""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    phone = db.Column(db.String(15))
+    role = db.Column(db.String(50))
+    daily_wage = db.Column(db.Float, default=0)
+    joining_date = db.Column(db.Date, default=date.today)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    attendances = db.relationship('Attendance', backref='employee', lazy=True,
+                                  cascade='all, delete-orphan')
+    job_allocations = db.relationship('EmployeeJobAllocation', backref='employee', lazy=True,
+                                      cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<Employee {self.name}>'
+
+
+class EmployeeJobAllocation(db.Model):
+    """Individual worker share of a daily job pool."""
+    id = db.Column(db.Integer, primary_key=True)
+    job_entry_id = db.Column(db.Integer, db.ForeignKey('job_wage_entry.id'), nullable=False)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False)
+    allocated_wage = db.Column(db.Float, nullable=False, default=0.0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<EmployeeJobAllocation Emp:{self.employee_id} Job:{self.job_entry_id} ₹{self.allocated_wage}>'
+
+
+class Attendance(db.Model):
+    """Daily attendance record for an employee."""
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    status = db.Column(db.String(20), default='present')  # present, absent, half-day
+    notes = db.Column(db.String(200))
+
+    __table_args__ = (db.UniqueConstraint('employee_id', 'date', name='uq_employee_date'),)
+
+    def __repr__(self):
+        return f'<Attendance {self.employee_id} {self.date} {self.status}>'
+
+
+class Party(db.Model):
+    """Supplier or customer party."""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    party_type = db.Column(db.String(20), default='customer')  # supplier, customer, both
+    phone = db.Column(db.String(15))
+    address = db.Column(db.Text)
+    gstin = db.Column(db.String(15))
+    opening_balance = db.Column(db.Float, default=0)  # positive = they owe us, negative = we owe them
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    inwards = db.relationship('MaterialInward', backref='party', lazy=True,
+                              cascade='all, delete-orphan')
+    outwards = db.relationship('MaterialOutward', backref='party', lazy=True,
+                               cascade='all, delete-orphan')
+    payments = db.relationship('Payment', backref='party', lazy=True,
+                               cascade='all, delete-orphan')
+
+    def get_outstanding(self):
+        """Calculate outstanding amount for this party.
+        Positive = party owes us (receivable), Negative = we owe party (payable).
+        Outstanding = opening_balance + total_outward - total_inward - payments_received + payments_paid
+        """
+        total_outward = sum(m.amount for m in self.outwards) or 0
+        total_inward = sum(m.amount for m in self.inwards) or 0
+        payments_received = sum(p.amount for p in self.payments if p.payment_type == 'received') or 0
+        payments_paid = sum(p.amount for p in self.payments if p.payment_type == 'paid') or 0
+        return self.opening_balance + total_outward - total_inward - payments_received + payments_paid
+
+    def __repr__(self):
+        return f'<Party {self.name}>'
+
+
+class MaterialInward(db.Model):
+    """Record of material received from a supplier."""
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    party_id = db.Column(db.Integer, db.ForeignKey('party.id'), nullable=False)
+    material_type = db.Column(db.String(50), default='Fly Ash')
+    quantity_mt = db.Column(db.Float, nullable=False)
+    quantity_unit = db.Column(db.String(20), default='Ton')
+    vehicle_no = db.Column(db.String(20))
+    rate = db.Column(db.Float, default=0)
+    amount = db.Column(db.Float, default=0)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<MaterialInward {self.date} {self.quantity_mt}MT>'
+
+
+class MaterialOutward(db.Model):
+    """Record of material dispatched to a customer."""
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    party_id = db.Column(db.Integer, db.ForeignKey('party.id'), nullable=False)
+    material_type = db.Column(db.String(50), default='Fly Ash')
+    quantity_mt = db.Column(db.Float, nullable=False)
+    quantity_unit = db.Column(db.String(20), default='Ton')
+    vehicle_no = db.Column(db.String(20))
+    rate = db.Column(db.Float, default=0)
+    amount = db.Column(db.Float, default=0)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<MaterialOutward {self.date} {self.quantity_mt}MT>'
+
+
+class Payment(db.Model):
+    """Payment received from or paid to a party."""
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    party_id = db.Column(db.Integer, db.ForeignKey('party.id'), nullable=False)
+    payment_type = db.Column(db.String(20), nullable=False)  # received, paid
+    amount = db.Column(db.Float, nullable=False)
+    mode = db.Column(db.String(20), default='cash')  # cash, bank, upi, cheque
+    reference_no = db.Column(db.String(50))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<Payment {self.payment_type} ₹{self.amount}>'

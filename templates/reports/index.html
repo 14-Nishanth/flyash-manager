@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block page_title %}Reports{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h2>Reports Dashboard</h2>
+</div>
+
+<!-- Report Type Selection -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <a href="{{ url_for('reports.index', report_type='stock_summary') }}" class="text-decoration-none">
+            <div class="card text-center h-100 shadow-sm {% if report_type == 'stock_summary' %}border-primary bg-light{% else %}border-light{% endif %} hover-shadow">
+                <div class="card-body">
+                    <i class="bi bi-box-seam fs-1 text-primary mb-2 d-block"></i>
+                    <h5 class="card-title text-dark">Stock Summary</h5>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('reports.index', report_type='outstanding') }}" class="text-decoration-none">
+            <div class="card text-center h-100 shadow-sm {% if report_type == 'outstanding' %}border-primary bg-light{% else %}border-light{% endif %} hover-shadow">
+                <div class="card-body">
+                    <i class="bi bi-cash-stack fs-1 text-success mb-2 d-block"></i>
+                    <h5 class="card-title text-dark">Outstanding</h5>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('reports.index', report_type='daily') }}" class="text-decoration-none">
+            <div class="card text-center h-100 shadow-sm {% if report_type == 'daily' %}border-primary bg-light{% else %}border-light{% endif %} hover-shadow">
+                <div class="card-body">
+                    <i class="bi bi-calendar3 fs-1 text-info mb-2 d-block"></i>
+                    <h5 class="card-title text-dark">Daily Report</h5>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="{{ url_for('reports.index', report_type='party_wise') }}" class="text-decoration-none">
+            <div class="card text-center h-100 shadow-sm {% if report_type == 'party_wise' %}border-primary bg-light{% else %}border-light{% endif %} hover-shadow">
+                <div class="card-body">
+                    <i class="bi bi-person-lines-fill fs-1 text-warning mb-2 d-block"></i>
+                    <h5 class="card-title text-dark">Party-wise Report</h5>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+{% if report_type %}
+<!-- Common Filters -->
+<div class="filter-bar card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3 align-items-end">
+            <input type="hidden" name="report_type" value="{{ report_type }}">
+            
+            {% if report_type != 'outstanding' %}
+            <div class="col-md-3">
+                <label for="from_date" class="form-label">From Date</label>
+                <input type="date" class="form-control" id="from_date" name="from_date" value="{{ from_date or '' }}">
+            </div>
+            <div class="col-md-3">
+                <label for="to_date" class="form-label">To Date</label>
+                <input type="date" class="form-control" id="to_date" name="to_date" value="{{ to_date or '' }}">
+            </div>
+            {% endif %}
+            
+            {% if report_type == 'party_wise' %}
+            <div class="col-md-4">
+                <label for="party_id" class="form-label">Party</label>
+                <select class="form-select" id="party_id" name="party_id" required>
+                    <option value="">Select Party</option>
+                    {% for p in parties %}
+                    <option value="{{ p.id }}" {% if party_id and party_id|int == p.id %}selected{% endif %}>{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            
+            <div class="col-md-auto d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Generate Report</button>
+                {% set current_args = request.args.to_dict() %}
+                <a href="{{ url_for('reports.export_csv', **current_args) }}" class="btn btn-success">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Report Results -->
+<div class="table-container card shadow-sm">
+    <div class="card-body">
+        
+        {% if report_type == 'stock_summary' and 'results' in data %}
+            <h4 class="mb-3">Stock Summary</h4>
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Material Type</th>
+                            <th class="text-end">Total Inward (MT)</th>
+                            <th class="text-end">Total Outward (MT)</th>
+                            <th class="text-end">Balance (MT)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in data.results %}
+                        <tr>
+                            <td class="fw-bold">{{ row.material_type }}</td>
+                            <td class="text-end text-success">{{ "%.2f"|format(row.inward_qty) }}</td>
+                            <td class="text-end text-danger">{{ "%.2f"|format(row.outward_qty) }}</td>
+                            <td class="text-end fw-bold">{{ "%.2f"|format(row.balance) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center">No data available for the selected period.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+        {% elif report_type == 'outstanding' and 'results' in data %}
+            <h4 class="mb-3">Outstanding Balances</h4>
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Party Name</th>
+                            <th>Type</th>
+                            <th class="text-end">Outstanding Amount (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in data.results %}
+                        <tr>
+                            <td class="fw-bold">{{ row.party_name }}</td>
+                            <td><span class="badge badge-{{ row.party_type }}">{{ row.party_type|capitalize }}</span></td>
+                            <td class="text-end fw-bold">
+                                {% if row.outstanding > 0 %}
+                                    <span class="amount-receivable">₹{{ "%.2f"|format(row.outstanding) }} Dr</span>
+                                {% elif row.outstanding < 0 %}
+                                    <span class="amount-payable">₹{{ "%.2f"|format(row.outstanding|abs) }} Cr</span>
+                                {% else %}
+                                    <span class="amount-zero">₹0.00</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center">No parties found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+        {% elif report_type == 'daily' and 'results' in data %}
+            <h4 class="mb-3">Daily Operations Report</h4>
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th rowspan="2" class="align-middle text-center">Date</th>
+                            <th colspan="2" class="text-center text-success">Inward</th>
+                            <th colspan="2" class="text-center text-danger">Outward</th>
+                        </tr>
+                        <tr>
+                            <th class="text-end">Qty (MT)</th>
+                            <th class="text-end">Amount (₹)</th>
+                            <th class="text-end">Qty (MT)</th>
+                            <th class="text-end">Amount (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in data.results %}
+                        <tr>
+                            <td class="text-center">{{ row.date.strftime('%Y-%m-%d') }}</td>
+                            <td class="text-end">{{ "%.2f"|format(row.inward_qty) }}</td>
+                            <td class="text-end">₹{{ "%.2f"|format(row.inward_amt) }}</td>
+                            <td class="text-end">{{ "%.2f"|format(row.outward_qty) }}</td>
+                            <td class="text-end">₹{{ "%.2f"|format(row.outward_amt) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center">No transactions in the selected period.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+        {% elif report_type == 'party_wise' and 'summary' in data %}
+            <h4 class="mb-3">Party-wise Summary: {{ data.summary.party_name }}</h4>
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h6 class="text-muted">Total Inward</h6>
+                            <h5>{{ "%.2f"|format(data.summary.total_inward_qty) }} MT</h5>
+                            <h5 class="text-success">₹{{ "%.2f"|format(data.summary.total_inward_amt) }}</h5>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h6 class="text-muted">Total Outward</h6>
+                            <h5>{{ "%.2f"|format(data.summary.total_outward_qty) }} MT</h5>
+                            <h5 class="text-danger">₹{{ "%.2f"|format(data.summary.total_outward_amt) }}</h5>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h6 class="text-muted">Current Outstanding</h6>
+                            <h4 class="fw-bold {% if data.summary.outstanding > 0 %}amount-receivable{% elif data.summary.outstanding < 0 %}amount-payable{% else %}amount-zero{% endif %}">
+                                ₹{{ "%.2f"|format(data.summary.outstanding|abs) }}
+                                {% if data.summary.outstanding > 0 %}(Dr){% elif data.summary.outstanding < 0 %}(Cr){% endif %}
+                            </h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h6 class="text-muted">Total Payments Received</h6>
+                            <h5 class="text-success">₹{{ "%.2f"|format(data.summary.total_received) }}</h5>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h6 class="text-muted">Total Payments Paid</h6>
+                            <h5 class="text-danger">₹{{ "%.2f"|format(data.summary.total_paid) }}</h5>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        {% elif report_type == 'party_wise' %}
+            <div class="alert alert-info">Please select a party to view their report.</div>
+        {% endif %}
+        
+    </div>
+</div>
+{% endif %}
+{% endblock %}

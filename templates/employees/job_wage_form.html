@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}{% if entry %}Edit Job Wage Entry{% else %}Add Piece-Rate Job Work{% endif %}{% endblock %}
+{% block page_title %}{% if entry %}Edit Job Wage Entry{% else %}Record Daily Piece-Rate Job Work{% endif %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="form-card card shadow-sm">
+            <div class="card-header bg-white border-bottom py-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-1 text-primary fw-bold">
+                            <i class="bi bi-hammer me-2"></i>{% if entry %}Edit{% else %}Record{% endif %} Piece-Rate Work & Salary Pool
+                        </h4>
+                        <small class="text-muted">Set piece rate for Production, Loading, or Unloading — the total wage is automatically divided among selected workers.</small>
+                    </div>
+                    <a href="{{ url_for('employees.job_wages_list') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-arrow-left"></i> Back to Jobs
+                    </a>
+                </div>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" id="jobWageForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <!-- Step 1: Job Details -->
+                    <div class="card bg-light border-0 mb-4 p-3 rounded-3">
+                        <h5 class="fw-bold text-dark mb-3"><i class="bi bi-1-circle-fill text-primary me-2"></i>Job & Production Details</h5>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="date" class="form-label fw-semibold">Date *</label>
+                                <input type="date" class="form-control" id="date" name="date" required 
+                                       value="{{ entry.date.strftime('%Y-%m-%d') if entry else '' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="job_type" class="form-label fw-semibold">Job Type / Work Category *</label>
+                                <select class="form-select fw-bold text-primary" id="job_type" name="job_type" required>
+                                    {% for jt in job_types %}
+                                    <option value="{{ jt }}" {% if entry and entry.job_type == jt %}selected{% endif %}>{{ jt }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="product_name" class="form-label fw-semibold">Product / Item *</label>
+                                <input type="text" class="form-control" id="product_name" name="product_name" list="job_product_list" 
+                                       placeholder="e.g. Hollow Block 6'', Fly Ash Brick" required
+                                       value="{{ entry.product_name if entry else 'Hollow Block 6\" (400 x 200 x 150 mm)' }}">
+                                <datalist id="job_product_list">
+                                    {% for p in job_products %}
+                                    <option value="{{ p }}">
+                                    {% endfor %}
+                                </datalist>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-4">
+                                <label for="quantity" class="form-label fw-semibold">Quantity Done *</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control fw-bold" id="quantity" name="quantity" required 
+                                           placeholder="e.g. 1500"
+                                           value="{{ entry.quantity if entry else '' }}">
+                                    <input type="text" class="form-control" id="unit" name="unit" list="job_units_list" style="max-width: 140px;"
+                                           placeholder="Unit" value="{{ entry.unit if entry else 'Pieces / Pcs' }}">
+                                    <datalist id="job_units_list">
+                                        {% for u in job_units %}
+                                        <option value="{{ u }}">
+                                        {% endfor %}
+                                    </datalist>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="rate_per_unit" class="form-label fw-semibold">Wage Rate per Piece / Unit (₹) *</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">₹</span>
+                                    <input type="text" class="form-control fw-bold" id="rate_per_unit" name="rate_per_unit" required 
+                                           placeholder="e.g. 1.50"
+                                           value="{{ entry.rate_per_unit if entry else '' }}">
+                                </div>
+                                <div class="form-text">e.g. ₹0.60/brick or ₹2.00/hollow block</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="vehicle_no" class="form-label fw-semibold">Vehicle / Batch No (Optional)</label>
+                                <input type="text" class="form-control" id="vehicle_no" name="vehicle_no" 
+                                       placeholder="Truck / Machine / Batch"
+                                       value="{{ entry.vehicle_no if entry else '' }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Employee Assignment & Live Split Calculation -->
+                    <div class="card bg-light border-0 mb-4 p-3 rounded-3">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="fw-bold text-dark mb-0">
+                                <i class="bi bi-2-circle-fill text-primary me-2"></i>Select Employees Working on This Job
+                            </h5>
+                            <div>
+                                <button type="button" class="btn btn-sm btn-outline-primary me-1" id="selectAllWorkersBtn">Select All</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="clearWorkersBtn">Clear</button>
+                            </div>
+                        </div>
+
+                        <div class="row g-2" id="employeeCheckboxes">
+                            {% for emp in employees %}
+                            <div class="col-md-4 col-sm-6">
+                                <div class="card p-2 border worker-select-card h-100 {% if (entry and emp.id in assigned_emp_ids) %}border-primary bg-white shadow-sm{% endif %}">
+                                    <div class="form-check d-flex align-items-center">
+                                        <input class="form-check-input worker-checkbox me-2" type="checkbox" 
+                                               name="employee_ids" value="{{ emp.id }}" id="emp_{{ emp.id }}"
+                                               {% if (entry and emp.id in assigned_emp_ids) %}checked{% endif %}>
+                                        <label class="form-check-label w-100 cursor-pointer" for="emp_{{ emp.id }}">
+                                            <div class="fw-bold text-dark">{{ emp.name }}</div>
+                                            <small class="text-muted">{{ emp.role or 'Worker' }}</small>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="col-12 text-muted">No active employees found. Please add employees first.</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Live Wage Division Calculation Summary Box -->
+                    <div class="card border-primary bg-primary bg-opacity-10 mb-4 rounded-3 p-3">
+                        <div class="row text-center align-items-center g-3">
+                            <div class="col-md-4 border-end">
+                                <div class="text-muted small text-uppercase fw-semibold">Total Job Pool Amount</div>
+                                <div class="fs-3 fw-bold text-primary" id="dispTotalAmount">₹0.00</div>
+                                <small class="text-muted" id="dispFormula">0 pcs × ₹0.00</small>
+                            </div>
+                            <div class="col-md-4 border-end">
+                                <div class="text-muted small text-uppercase fw-semibold">Workers Assigned</div>
+                                <div class="fs-3 fw-bold text-dark" id="dispWorkerCount">0 Workers</div>
+                                <small class="text-muted">Selected from above</small>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-muted small text-uppercase fw-semibold">Salary Share Per Worker</div>
+                                <div class="fs-3 fw-bold text-success" id="dispPerWorkerWage">₹0.00</div>
+                                <small class="text-success fw-semibold">Credited to each worker's salary</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="notes" class="form-label fw-semibold">Notes / Remarks</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="Any special notes about shift, curing, or batch">{{ entry.notes if entry else '' }}</textarea>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('employees.job_wages_list') }}" class="btn btn-secondary px-4">Cancel</a>
+                        <button type="submit" class="btn btn-primary px-4 fw-bold">
+                            <i class="bi bi-check-circle me-1"></i> {% if entry %}Update Job & Salary Share{% else %}Save & Distribute Salary{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const qtyInput = document.getElementById('quantity');
+    const rateInput = document.getElementById('rate_per_unit');
+    const checkboxes = document.querySelectorAll('.worker-checkbox');
+    const selectAllBtn = document.getElementById('selectAllWorkersBtn');
+    const clearBtn = document.getElementById('clearWorkersBtn');
+
+    const dispTotal = document.getElementById('dispTotalAmount');
+    const dispFormula = document.getElementById('dispFormula');
+    const dispCount = document.getElementById('dispWorkerCount');
+    const dispPerWorker = document.getElementById('dispPerWorkerWage');
+
+    function calculateWageDivision() {
+        const qty = parseFloat(qtyInput.value) || 0;
+        const rate = parseFloat(rateInput.value) || 0;
+        const total = qty * rate;
+
+        let selectedCount = 0;
+        checkboxes.forEach(cb => {
+            if (cb.checked) selectedCount++;
+            const card = cb.closest('.worker-select-card');
+            if (card) {
+                if (cb.checked) {
+                    card.classList.add('border-primary', 'bg-white', 'shadow-sm');
+                } else {
+                    card.classList.remove('border-primary', 'bg-white', 'shadow-sm');
+                }
+            }
+        });
+
+        const perWorker = selectedCount > 0 ? (total / selectedCount) : 0;
+
+        dispTotal.textContent = '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        dispFormula.textContent = qty + ' × ₹' + rate.toFixed(2);
+        dispCount.textContent = selectedCount + (selectedCount === 1 ? ' Worker' : ' Workers');
+        dispPerWorker.textContent = '₹' + perWorker.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    qtyInput.addEventListener('input', calculateWageDivision);
+    rateInput.addEventListener('input', calculateWageDivision);
+    checkboxes.forEach(cb => cb.addEventListener('change', calculateWageDivision));
+
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', function () {
+            checkboxes.forEach(cb => cb.checked = true);
+            calculateWageDivision();
+        });
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function () {
+            checkboxes.forEach(cb => cb.checked = false);
+            calculateWageDivision();
+        });
+    }
+
+    calculateWageDivision();
+});
+</script>
+{% endblock %}

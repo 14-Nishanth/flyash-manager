@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %}Owner Alert & Notification Settings{% endblock %}
+{% block page_title %}Owner Alert & Notification Settings{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-9">
+        <div class="form-card card shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom py-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-1 text-primary fw-bold">
+                            <i class="bi bi-bell-fill me-2"></i>Owner Alert & Notification Setup
+                        </h4>
+                        <small class="text-muted">Receive real-time alerts on your <strong>Email (nishanthissan1515@gmail.com)</strong> and <strong>Mobile Phone (WhatsApp / Telegram / SMS)</strong> whenever anyone logs in.</small>
+                    </div>
+                    <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-arrow-left"></i> Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <div class="card-body p-4">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <!-- Top Notification Triggers -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch p-3 bg-light rounded-3 border h-100">
+                                <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="email_alerts_enabled" name="email_alerts_enabled" 
+                                       style="width: 2.3em; height: 1.2em;" {% if not settings or settings.email_alerts_enabled %}checked{% endif %}>
+                                <label class="form-check-label fw-bold text-dark" for="email_alerts_enabled">
+                                    <i class="bi bi-envelope-check text-primary me-1"></i> Email Alerts (Active)
+                                </label>
+                                <div class="text-muted small ms-5">Dispatches instant security emails to your inbox.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch p-3 bg-light rounded-3 border h-100">
+                                <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="is_enabled" name="is_enabled" 
+                                       style="width: 2.3em; height: 1.2em;" {% if not settings or settings.is_enabled %}checked{% endif %}>
+                                <label class="form-check-label fw-bold text-dark" for="is_enabled">
+                                    <i class="bi bi-phone-vibrate text-success me-1"></i> Mobile / Bot Alerts
+                                </label>
+                                <div class="text-muted small ms-5">Dispatches WhatsApp / Telegram / SMS notifications.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Staff Alert Switch -->
+                    <div class="form-check form-switch mb-4 p-3 bg-primary bg-opacity-10 rounded-3 border border-primary border-opacity-25">
+                        <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="alert_on_all_users" name="alert_on_all_users" 
+                               style="width: 2.5em; height: 1.3em;" {% if not settings or settings.alert_on_all_users %}checked{% endif %}>
+                        <label class="form-check-label fw-bold fs-6 text-primary" for="alert_on_all_users">
+                            Alert Me When Any Staff / Another Person Logs In
+                        </label>
+                        <div class="text-muted small ms-5">Sends user name, email, role, IP address, and time directly to your phone & email whenever staff logs in.</div>
+                    </div>
+
+                    <!-- SECTION 1: Email Alert Settings -->
+                    <h5 class="fw-bold text-dark border-bottom pb-2 mb-3 mt-4">
+                        <i class="bi bi-envelope-at text-primary me-2"></i>1. Email Notification Settings
+                    </h5>
+                    
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="owner_name" class="form-label fw-semibold">Owner Name</label>
+                            <input type="text" class="form-control" id="owner_name" name="owner_name" 
+                                   value="{{ settings.owner_name if settings else 'Nishanth (Owner)' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="owner_email" class="form-label fw-semibold">Owner Alert Email Address *</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-envelope-fill text-danger"></i></span>
+                                <input type="email" class="form-control fw-bold text-dark" id="owner_email" name="owner_email" 
+                                       value="{{ settings.owner_email if settings else 'nishanthissan1515@gmail.com' }}" required>
+                            </div>
+                            <div class="form-text">All sign-in alerts and login security notices will be sent to this email.</div>
+                        </div>
+                    </div>
+
+                    <!-- Optional SMTP configuration accordion -->
+                    <div class="accordion mb-4" id="smtpAccordion">
+                        <div class="accordion-item border rounded-3">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed py-2 small fw-semibold text-muted bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSmtp">
+                                    <i class="bi bi-gear me-2"></i> Advanced SMTP Sender Settings (Optional for Gmail delivery)
+                                </button>
+                            </h2>
+                            <div id="collapseSmtp" class="accordion-collapse collapse" data-bs-parent="#smtpAccordion">
+                                <div class="accordion-body bg-light">
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label for="smtp_host" class="form-label small fw-semibold">SMTP Host</label>
+                                            <input type="text" class="form-control form-control-sm" id="smtp_host" name="smtp_host" 
+                                                   value="{{ settings.smtp_host if settings else 'smtp.gmail.com' }}">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="smtp_port" class="form-label small fw-semibold">SMTP Port</label>
+                                            <input type="text" class="form-control form-control-sm" id="smtp_port" name="smtp_port" 
+                                                   value="{{ settings.smtp_port if settings else 587 }}">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="smtp_user" class="form-label small fw-semibold">Sender Email (e.g. your gmail)</label>
+                                            <input type="text" class="form-control form-control-sm" id="smtp_user" name="smtp_user" 
+                                                   placeholder="yourname@gmail.com"
+                                                   value="{{ settings.smtp_user if settings else '' }}">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="smtp_password" class="form-label small fw-semibold">Gmail App Password (16 characters)</label>
+                                            <input type="password" class="form-control form-control-sm" id="smtp_password" name="smtp_password" 
+                                                   placeholder="xxxx xxxx xxxx xxxx"
+                                                   value="{{ settings.smtp_password if settings else '' }}">
+                                        </div>
+                                    </div>
+                                    <div class="small text-muted mt-2">
+                                        Tip: Generate a 16-character App Password at <a href="https://myaccount.google.com/apppasswords" target="_blank">Google App Passwords</a> to enable direct Gmail delivery.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION 2: Mobile / WhatsApp / Telegram Bot Settings -->
+                    <h5 class="fw-bold text-dark border-bottom pb-2 mb-3 mt-4">
+                        <i class="bi bi-phone-vibrate text-success me-2"></i>2. Mobile & Bot Notification Settings
+                    </h5>
+
+                    <!-- Channel Selection -->
+                    <div class="mb-3">
+                        <label for="channel" class="form-label fw-semibold">Mobile Notification Method</label>
+                        <select class="form-select fw-bold text-primary" id="channel" name="channel">
+                            <option value="whatsapp" {% if settings and settings.channel == 'whatsapp' %}selected{% endif %}>
+                                💬 WhatsApp Message (Free & Instant to your WhatsApp Number)
+                            </option>
+                            <option value="telegram" {% if settings and settings.channel == 'telegram' %}selected{% endif %}>
+                                ✈️ Telegram Bot Alert (Instant Push Notification with Sound)
+                            </option>
+                            <option value="sms" {% if settings and settings.channel == 'sms' %}selected{% endif %}>
+                                📱 SMS Text Message (Fast2SMS Gateway)
+                            </option>
+                            <option value="webhook" {% if settings and settings.channel == 'webhook' %}selected{% endif %}>
+                                🔗 Webhook URL (Zapier / Custom Server)
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Mobile Phone Number -->
+                    <div class="mb-3" id="phoneGroup">
+                        <label for="phone_number" class="form-label fw-semibold">Owner Mobile Number</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-whatsapp text-success"></i></span>
+                            <input type="text" class="form-control" id="phone_number" name="phone_number" 
+                                   placeholder="e.g. 919876543210"
+                                   value="{{ settings.phone_number if settings else '' }}">
+                        </div>
+                        <div class="form-text">Enter your mobile number with country code (e.g. <code>919876543210</code>).</div>
+                    </div>
+
+                    <!-- API Key / Token Field -->
+                    <div class="mb-3" id="apiKeyGroup">
+                        <label for="api_key" class="form-label fw-semibold" id="apiKeyLabel">WhatsApp API Key (CallMeBot)</label>
+                        <input type="text" class="form-control" id="api_key" name="api_key" 
+                               placeholder="Enter API key or bot token"
+                               value="{{ settings.api_key if settings else '' }}">
+                        <div class="form-text" id="apiKeyHelp">
+                            For <strong>WhatsApp (Free)</strong>: Send <code>I allow callmebot to send me messages</code> to <code>+34 911 06 14 02</code> on WhatsApp to get your free key.
+                        </div>
+                    </div>
+
+                    <!-- Telegram Chat ID -->
+                    <div class="mb-3" id="chatIdGroup">
+                        <label for="chat_id" class="form-label fw-semibold">Telegram Chat ID (Numeric ID) *</label>
+                        <input type="text" class="form-control fw-bold" id="chat_id" name="chat_id" 
+                               placeholder="e.g. 7996045571"
+                               value="{{ settings.chat_id if settings else '7996045571' }}">
+                        <div class="form-text text-success fw-semibold">
+                            <i class="bi bi-check-circle-fill me-1"></i>Your connected Telegram Chat ID is <code>7996045571</code>. (Must be numeric, not bot name).
+                        </div>
+                    </div>
+
+                    <!-- Webhook URL -->
+                    <div class="mb-4" id="webhookGroup">
+                        <label for="webhook_url" class="form-label fw-semibold">Webhook URL</label>
+                        <input type="text" class="form-control" id="webhook_url" name="webhook_url" 
+                               placeholder="https://..."
+                               value="{{ settings.webhook_url if settings else '' }}">
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-3 border-top">
+                        <div class="d-flex gap-2">
+                            <button type="submit" name="action" value="test_email" class="btn btn-outline-danger">
+                                <i class="bi bi-envelope-arrow-up me-1"></i> Send Test Email
+                            </button>
+                            <button type="submit" name="action" value="test_mobile" class="btn btn-outline-success">
+                                <i class="bi bi-send-check me-1"></i> Send Test Mobile Message
+                            </button>
+                        </div>
+                        <button type="submit" name="action" value="save" class="btn btn-primary px-4 fw-bold">
+                            <i class="bi bi-check-circle me-1"></i> Save All Alert Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 1-Minute WhatsApp Guide -->
+        <div class="card border-0 bg-light p-3 rounded-3 shadow-sm">
+            <h6 class="fw-bold text-dark mb-2"><i class="bi bi-info-circle-fill text-primary me-2"></i>How to get Free WhatsApp Messages in 1 Minute:</h6>
+            <ol class="small text-muted mb-0 ps-3">
+                <li>Click <a href="https://wa.me/34911061402?text=I%20allow%20callmebot%20to%20send%20me%20messages" target="_blank">here to open WhatsApp with CallMeBot (+34 911 06 14 02)</a>.</li>
+                <li>Send the pre-filled message: <code>I allow callmebot to send me messages</code></li>
+                <li>CallMeBot will reply in 2 seconds with your <strong>API Key</strong>.</li>
+                <li>Paste your phone number (e.g. <code>919876543210</code>) and that API Key above, click <strong>Save</strong> and then <strong>"Send Test Mobile Message"</strong>!</li>
+            </ol>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const channelSelect = document.getElementById('channel');
+    const phoneGroup = document.getElementById('phoneGroup');
+    const apiKeyGroup = document.getElementById('apiKeyGroup');
+    const apiKeyLabel = document.getElementById('apiKeyLabel');
+    const apiKeyHelp = document.getElementById('apiKeyHelp');
+    const chatIdGroup = document.getElementById('chatIdGroup');
+    const webhookGroup = document.getElementById('webhookGroup');
+
+    function updateFields() {
+        const val = channelSelect.value;
+        chatIdGroup.style.display = 'none';
+        webhookGroup.style.display = 'none';
+        phoneGroup.style.display = 'block';
+        apiKeyGroup.style.display = 'block';
+
+        if (val === 'whatsapp') {
+            apiKeyLabel.textContent = 'WhatsApp API Key (CallMeBot)';
+            apiKeyHelp.innerHTML = 'Send <code>I allow callmebot to send me messages</code> to <code>+34 911 06 14 02</code> on WhatsApp to get your free key.';
+        } else if (val === 'telegram') {
+            phoneGroup.style.display = 'none';
+            chatIdGroup.style.display = 'block';
+            apiKeyLabel.textContent = 'Telegram Bot Token';
+            apiKeyHelp.textContent = 'Create a bot with @BotFather on Telegram and paste the bot token here.';
+        } else if (val === 'sms') {
+            apiKeyLabel.textContent = 'Fast2SMS / SMS Gateway API Authorization Key';
+            apiKeyHelp.textContent = 'Enter your SMS gateway API key to deliver SMS directly to your mobile.';
+        } else if (val === 'webhook') {
+            phoneGroup.style.display = 'none';
+            apiKeyGroup.style.display = 'none';
+            webhookGroup.style.display = 'block';
+        }
+    }
+
+    channelSelect.addEventListener('change', updateFields);
+    updateFields();
+});
+</script>
+{% endblock %}

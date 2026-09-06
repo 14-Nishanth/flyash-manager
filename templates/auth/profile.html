@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}My Profile{% endblock %}
+{% block page_title %}Owner & Admin Profile{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="form-card card shadow-sm">
+            <div class="card-header bg-white border-bottom py-3">
+                <h4 class="mb-0 text-primary fw-bold">
+                    <i class="bi bi-person-badge-fill me-2"></i>My Profile Settings
+                </h4>
+                <small class="text-muted">Update your owner email address and contact details.</small>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="mb-3">
+                        <label for="name" class="form-label fw-semibold">Your Name *</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person"></i></span>
+                            <input type="text" class="form-control" id="name" name="name" 
+                                   placeholder="Enter your name" required 
+                                   value="{{ current_user.name or current_user.username }}">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="email" class="form-label fw-semibold">Your Email Address (Login ID) *</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-envelope-at"></i></span>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   placeholder="e.g. owner@flyash.com" required 
+                                   value="{{ current_user.email or '' }}">
+                        </div>
+                        <div class="form-text">You can use this email to sign in to your dashboard.</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="phone" class="form-label fw-semibold">Phone / Mobile Number</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-telephone"></i></span>
+                            <input type="text" class="form-control" id="phone" name="phone" 
+                                   placeholder="e.g. 9876543210"
+                                   value="{{ current_user.phone or '' }}">
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary py-2 fw-bold">
+                            <i class="bi bi-check2-circle me-1"></i> Save Profile
+                        </button>
+                        <a href="{{ url_for('auth.change_password') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-key me-1"></i> Change Password
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

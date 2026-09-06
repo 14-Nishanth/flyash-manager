@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} Party{% endblock %}
+{% block page_title %}{{ action }} Party{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="form-card card shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h4 class="mb-0">{{ action }} Party</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Party Name *</label>
+                        <input type="text" class="form-control" id="name" name="name" required value="{{ party.name if party else '' }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="party_type" class="form-label">Type *</label>
+                        <select class="form-select" id="party_type" name="party_type" required>
+                            <option value="supplier" {% if party and party.party_type == 'supplier' %}selected{% endif %}>Supplier</option>
+                            <option value="customer" {% if party and party.party_type == 'customer' %}selected{% endif %}>Customer</option>
+                            <option value="both" {% if party and party.party_type == 'both' %}selected{% endif %}>Both</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="phone" class="form-label">Phone</label>
+                        <input type="text" class="form-control" id="phone" name="phone" value="{{ party.phone if party else '' }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="address" class="form-label">Address</label>
+                        <textarea class="form-control" id="address" name="address" rows="3">{{ party.address if party else '' }}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="gstin" class="form-label">GSTIN</label>
+                        <input type="text" class="form-control" id="gstin" name="gstin" value="{{ party.gstin if party else '' }}">
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="opening_balance" class="form-label">Opening Balance (₹)</label>
+                        <div class="input-group">
+                            <span class="input-group-text">₹</span>
+                            <input type="text" class="form-control" id="opening_balance" name="opening_balance" value="{{ party.opening_balance if party else '0.00' }}" placeholder="0.00">
+                        </div>
+                        <div class="form-text">Use positive value for receivable (Dr) and negative for payable (Cr).</div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('parties.list_parties') }}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Save Party</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

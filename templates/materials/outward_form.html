@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{% if entry %}Edit Outward Entry{% else %}Add Outward Entry{% endif %}{% endblock %}
+{% block page_title %}{% if entry %}Edit Outward Entry{% else %}Add Outward Entry{% endif %}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="form-card card">
+            <div class="card-header">
+                <h4 class="mb-0">{% if entry %}Edit{% else %}Add{% endif %} Material Outward</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="date" class="form-label">Date *</label>
+                            <input type="date" class="form-control" id="date" name="date" required 
+                                   value="{{ entry.date.strftime('%Y-%m-%d') if entry else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="party_id" class="form-label">Party *</label>
+                            <select class="form-select" id="party_id" name="party_id" required>
+                                <option value="">Select Party</option>
+                                {% for party in parties %}
+                                <option value="{{ party.id }}" {% if entry and entry.party_id == party.id %}selected{% endif %}>
+                                    {{ party.name }}{% if party.party_type == 'both' %} (Customer){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="material_type" class="form-label">Material Type</label>
+                            <input type="text" class="form-control" id="material_type" name="material_type" 
+                                   list="material_list" placeholder="Type or select material"
+                                   value="{{ entry.material_type if entry else '' }}">
+                            <datalist id="material_list">
+                                {% for mat in material_types %}
+                                <option value="{{ mat }}">
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="vehicle_no" class="form-label">Vehicle No</label>
+                            <input type="text" class="form-control" id="vehicle_no" name="vehicle_no" 
+                                   value="{{ entry.vehicle_no if entry else '' }}">
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="quantity_mt" class="form-label">Quantity *</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="quantity_mt" name="quantity_mt" required 
+                                       placeholder="Enter quantity"
+                                       value="{{ entry.quantity_mt if entry else '' }}">
+                                <input type="text" class="form-control" id="quantity_unit" name="quantity_unit" list="units_list" 
+                                       style="max-width: 140px;" placeholder="Unit"
+                                       value="{{ entry.quantity_unit if entry else 'Ton' }}">
+                                <datalist id="units_list">
+                                    {% for unit in quantity_units %}
+                                    <option value="{{ unit }}">
+                                    {% endfor %}
+                                </datalist>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="rate" class="form-label">Rate (₹)</label>
+                            <input type="text" class="form-control" id="rate" name="rate" 
+                                   placeholder="Enter rate"
+                                   value="{{ entry.rate if entry else '' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="amount" class="form-label">Amount (₹)</label>
+                            <input type="text" class="form-control" id="amount" name="amount" readonly 
+                                   placeholder="Auto calculated"
+                                   value="{{ entry.amount if entry else '' }}">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3">{{ entry.notes if entry else '' }}</textarea>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end">
+                        <a href="{{ url_for('materials.outward_list') }}" class="btn btn-secondary me-2">Cancel</a>
+                        <button type="submit" class="btn btn-primary">{% if entry %}Update{% else %}Save{% endif %}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const qtyInput = document.getElementById('quantity_mt');
+        const rateInput = document.getElementById('rate');
+        const amountInput = document.getElementById('amount');
+        
+        function calculateAmount() {
+            const qty = parseFloat(qtyInput.value) || 0;
+            const rate = parseFloat(rateInput.value) || 0;
+            if (qty > 0 || rate > 0) {
+                amountInput.value = (qty * rate).toFixed(2);
+            } else {
+                amountInput.value = '';
+            }
+        }
+        
+        qtyInput.addEventListener('input', calculateAmount);
+        rateInput.addEventListener('input', calculateAmount);
+    });
+</script>
+{% endblock %}
