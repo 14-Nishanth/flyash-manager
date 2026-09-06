@@ -30,6 +30,9 @@ def _migrate_db():
                 ('email', "VARCHAR(120)"),
                 ('user_role', "VARCHAR(30)")
             ],
+            'job_wage_entry': [
+                ('group_id', "INTEGER")
+            ],
             'alert_settings': [
                 ('owner_name', "VARCHAR(100) DEFAULT 'Nishanth (Owner)'"),
                 ('owner_email', "VARCHAR(120) DEFAULT 'nishanthissan1515@gmail.com'"),
@@ -55,6 +58,71 @@ def _migrate_db():
                 
         conn.commit()
         conn.close()
+
+
+def _create_default_rates_and_groups():
+    """Seed default piece rates and initial groups for Flyash Bricks, Solid Blocks, and Hollow Blocks."""
+    from models import JobRateSetting, EmployeeGroup, Employee
+    try:
+        if not JobRateSetting.query.first():
+            standard_rates = [
+                # --- Fly Ash Bricks ---
+                ('Fly Ash Brick 9"x4"x3" (Standard)', 'Production (Per Piece)', 0.60, 'Pieces / Pcs'),
+                ('Fly Ash Brick 9"x4"x3" (Standard)', 'Loading Only', 0.25, 'Pieces / Pcs'),
+                ('Fly Ash Brick 9"x4"x3" (Standard)', 'Unloading Only', 0.20, 'Pieces / Pcs'),
+                ('Fly Ash Brick 9"x4"x3" (Standard)', 'Both Loading & Unloading', 0.45, 'Pieces / Pcs'),
+                ('Fly Ash Brick Modular (190 x 90 x 90 mm)', 'Production (Per Piece)', 0.55, 'Pieces / Pcs'),
+                ('Fly Ash Brick Modular (190 x 90 x 90 mm)', 'Both Loading & Unloading', 0.40, 'Pieces / Pcs'),
+                
+                # --- Solid Blocks ---
+                ('Solid Block 4"', 'Production (Per Piece)', 1.20, 'Pieces / Pcs'),
+                ('Solid Block 4"', 'Loading Only', 0.35, 'Pieces / Pcs'),
+                ('Solid Block 4"', 'Unloading Only', 0.30, 'Pieces / Pcs'),
+                ('Solid Block 4"', 'Both Loading & Unloading', 0.65, 'Pieces / Pcs'),
+                ('Solid Block 6"', 'Production (Per Piece)', 1.60, 'Pieces / Pcs'),
+                ('Solid Block 6"', 'Loading Only', 0.45, 'Pieces / Pcs'),
+                ('Solid Block 6"', 'Unloading Only', 0.40, 'Pieces / Pcs'),
+                ('Solid Block 6"', 'Both Loading & Unloading', 0.85, 'Pieces / Pcs'),
+                ('Solid Block 8"', 'Production (Per Piece)', 2.00, 'Pieces / Pcs'),
+                ('Solid Block 8"', 'Loading Only', 0.55, 'Pieces / Pcs'),
+                ('Solid Block 8"', 'Unloading Only', 0.50, 'Pieces / Pcs'),
+                ('Solid Block 8"', 'Both Loading & Unloading', 1.05, 'Pieces / Pcs'),
+                
+                # --- Hollow Blocks ---
+                ('Hollow Block 4" (400 x 200 x 100 mm)', 'Production (Per Piece)', 1.00, 'Pieces / Pcs'),
+                ('Hollow Block 4" (400 x 200 x 100 mm)', 'Both Loading & Unloading', 0.55, 'Pieces / Pcs'),
+                ('Hollow Block 6" (400 x 200 x 150 mm)', 'Production (Per Piece)', 1.40, 'Pieces / Pcs'),
+                ('Hollow Block 6" (400 x 200 x 150 mm)', 'Loading Only', 0.40, 'Pieces / Pcs'),
+                ('Hollow Block 6" (400 x 200 x 150 mm)', 'Unloading Only', 0.35, 'Pieces / Pcs'),
+                ('Hollow Block 6" (400 x 200 x 150 mm)', 'Both Loading & Unloading', 0.75, 'Pieces / Pcs'),
+                ('Hollow Block 8" (400 x 200 x 200 mm)', 'Production (Per Piece)', 1.80, 'Pieces / Pcs'),
+                ('Hollow Block 8" (400 x 200 x 200 mm)', 'Both Loading & Unloading', 0.95, 'Pieces / Pcs'),
+                ('Hollow Block 9" (400 x 200 x 225 mm)', 'Production (Per Piece)', 2.00, 'Pieces / Pcs'),
+                ('Hollow Block 9" (400 x 200 x 225 mm)', 'Both Loading & Unloading', 1.05, 'Pieces / Pcs'),
+                ('Hollow Block 12" (400 x 200 x 300 mm)', 'Production (Per Piece)', 2.50, 'Pieces / Pcs'),
+                ('Hollow Block 12" (400 x 200 x 300 mm)', 'Both Loading & Unloading', 1.35, 'Pieces / Pcs'),
+            ]
+            for prod, job, rate, unit in standard_rates:
+                db.session.add(JobRateSetting(product_name=prod, job_type=job, rate_per_piece=rate, unit=unit))
+            db.session.commit()
+
+        if not EmployeeGroup.query.first():
+            sample_groups = [
+                ('Brick Production Team (Gang 1)', 'Group dedicated to daily Fly Ash Brick manufacturing', 'Production (Per Piece)', 'Fly Ash Brick 9"x4"x3" (Standard)'),
+                ('Solid & Hollow Block Gang (Gang 2)', 'Group for solid and hollow block machine production', 'Production (Per Piece)', 'Solid Block 6"'),
+                ('Loading & Vehicle Dispatch Team', 'Labor gang for vehicle loading and transport', 'Loading Only', 'Fly Ash Brick 9"x4"x3" (Standard)'),
+                ('Unloading & Material Handling Gang', 'Labor team for unloading raw materials and bricks', 'Unloading Only', 'Fly Ash Brick 9"x4"x3" (Standard)')
+            ]
+            all_emps = Employee.query.filter_by(is_active=True).all()
+            for gname, desc, jtype, prod in sample_groups:
+                grp = EmployeeGroup(name=gname, description=desc, default_job_type=jtype, default_product_name=prod)
+                if all_emps:
+                    grp.members = all_emps[:min(4, len(all_emps))]
+                db.session.add(grp)
+            db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"[WARN] Error seeding rates/groups: {e}")
 
 
 def _create_default_admin():
@@ -127,6 +195,7 @@ def create_app():
         _migrate_db()
         db.create_all()
         _create_default_admin()
+        _create_default_rates_and_groups()
 
     # Template context processors
     @app.context_processor

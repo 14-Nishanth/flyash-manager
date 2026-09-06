@@ -67,12 +67,54 @@ class AlertSettings(db.Model):
         return f'<AlertSettings {self.channel} enabled={self.is_enabled}>'
 
 
+class JobRateSetting(db.Model):
+    """Configurable piece-rate for different products and operations (Production, Loading, Unloading)."""
+    id = db.Column(db.Integer, primary_key=True)
+    product_name = db.Column(db.String(100), nullable=False) # e.g. Fly Ash Brick, Solid Block 4", Solid Block 6", Hollow Block 6"
+    job_type = db.Column(db.String(50), nullable=False)      # Production, Loading Only, Unloading Only, Both Loading & Unloading
+    rate_per_piece = db.Column(db.Float, nullable=False, default=0.0) # Rate per piece/unit (₹)
+    unit = db.Column(db.String(30), default='Pieces / Pcs')
+    notes = db.Column(db.String(200))
+    is_active = db.Column(db.Boolean, default=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint('product_name', 'job_type', name='uq_product_job_rate'),)
+
+    def __repr__(self):
+        return f'<JobRateSetting {self.product_name} - {self.job_type}: ₹{self.rate_per_piece}>'
+
+
+# Association table for Many-to-Many relationship between EmployeeGroup and Employee
+employee_group_members = db.Table('employee_group_members',
+    db.Column('group_id', db.Integer, db.ForeignKey('employee_group.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('employee_id', db.Integer, db.ForeignKey('employee.id', ondelete='CASCADE'), primary_key=True)
+)
+
+
+class EmployeeGroup(db.Model):
+    """Labor gang / team for piece-rate group jobs."""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False) # e.g. Brick Production Gang, Solid Block Team, Loading Team
+    description = db.Column(db.String(255))
+    default_job_type = db.Column(db.String(50))
+    default_product_name = db.Column(db.String(100))
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    members = db.relationship('Employee', secondary=employee_group_members, lazy='subquery',
+                              backref=db.backref('groups', lazy=True))
+
+    def __repr__(self):
+        return f'<EmployeeGroup {self.name} ({len(self.members)} members)>'
+
+
 class JobWageEntry(db.Model):
-    """Daily job / piece-rate work record divided among assigned workers."""
+    """Daily job / piece-rate work record divided among assigned workers in a group."""
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False, default=date.today)
-    job_type = db.Column(db.String(50), nullable=False)  # Production, Loading Only, Both Loading & Unloading, Custom
-    product_name = db.Column(db.String(100), nullable=False)  # e.g., Hollow Block 6", Fly Ash Brick 9x4x3
+    group_id = db.Column(db.Integer, db.ForeignKey('employee_group.id'), nullable=True) # Optional assigned labor group
+    job_type = db.Column(db.String(50), nullable=False)  # Production, Loading Only, Both Loading & Unloading, Unloading Only, Custom
+    product_name = db.Column(db.String(100), nullable=False)  # e.g., Hollow Block 6", Fly Ash Brick 9x4x3, Solid Block 6"
     quantity = db.Column(db.Float, nullable=False)
     unit = db.Column(db.String(30), default='Pieces / Pcs')
     rate_per_unit = db.Column(db.Float, nullable=False, default=0.0)
@@ -83,6 +125,7 @@ class JobWageEntry(db.Model):
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    group = db.relationship('EmployeeGroup', backref='job_entries', lazy=True)
     allocations = db.relationship('EmployeeJobAllocation', backref='job_entry', lazy=True,
                                   cascade='all, delete-orphan')
 

@@ -1,8 +1,9 @@
 import io
 import csv
-from flask import Blueprint, render_template, request, redirect, url_for, flash, Response
+import json
+from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify
 from flask_login import login_required
-from models import db, Employee, Attendance, JobWageEntry, EmployeeJobAllocation
+from models import db, Employee, Attendance, JobWageEntry, EmployeeJobAllocation, JobRateSetting, EmployeeGroup
 from datetime import datetime, date
 from sqlalchemy import func
 
@@ -11,35 +12,37 @@ bp = Blueprint('employees', __name__, url_prefix='/employees')
 JOB_TYPES = [
     'Production (Per Piece)',
     'Loading Only',
-    'Both Loading & Unloading',
     'Unloading Only',
+    'Both Loading & Unloading',
     'Stacking & Curing',
     'Raw Material Shifting',
-    'General Work / Maintenance'
+    'General Work / Custom'
 ]
 
 JOB_PRODUCTS = [
+    'Fly Ash Brick 9"x4"x3" (Standard)',
+    'Fly Ash Brick Modular (190 x 90 x 90 mm)',
+    'Fly Ash Brick Non-Modular',
+    'Heavy Duty Fly Ash Brick',
+    'Solid Block 4"',
+    'Solid Block 6"',
+    'Solid Block 8"',
     'Hollow Block 4" (400 x 200 x 100 mm)',
     'Hollow Block 6" (400 x 200 x 150 mm)',
     'Hollow Block 8" (400 x 200 x 200 mm)',
     'Hollow Block 9" (400 x 200 x 225 mm)',
     'Hollow Block 12" (400 x 200 x 300 mm)',
-    'Solid Block 4"',
-    'Solid Block 6"',
-    'Solid Block 8"',
-    'Fly Ash Brick 9"x4"x3" (Standard)',
-    'Fly Ash Brick Modular (190 x 90 x 90 mm)',
-    'Fly Ash Brick Non-Modular',
-    'Heavy Duty Fly Ash Brick',
-    'Fly Ash Paver Blocks',
-    'Fly Ash (Bulker / Loose)',
-    'Cement Bags',
-    'Stone Dust / Cooldust',
+    'Fly Ash Paver Blocks (60mm / 80mm)',
+    'Cement Bags Handling',
     'Other Work'
 ]
 
 JOB_UNITS = ['Pieces / Pcs', 'Nos (Numbers)', 'Bags', 'Ton', 'Load', 'Trip', 'Trolley', 'Brass', 'Hours', 'Day']
 
+
+# ==============================================================================
+# EMPLOYEE MANAGEMENT
+# ==============================================================================
 
 @bp.route('/')
 @login_required
@@ -101,11 +104,13 @@ def edit_employee(id):
         emp.role = request.form.get('role')
         daily_wage = request.form.get('daily_wage')
         emp.daily_wage = float(daily_wage) if daily_wage else 0.0
-        
         joining_date = request.form.get('joining_date')
         emp.joining_date = datetime.strptime(joining_date, '%Y-%m-%d').date() if joining_date else None
-        
         emp.is_active = request.form.get('is_active') == 'on'
+
+        if not emp.name:
+            flash('Name is required.', 'error')
+            return render_template('employees/form.html', employee=emp)
 
         try:
             db.session.commit()
@@ -128,9 +133,13 @@ def delete_employee(id):
         flash('Employee deleted successfully.', 'success')
     except Exception as e:
         db.session.rollback()
-        flash('Error deleting employee. They may have related records.', 'error')
+        flash(f'Error deleting employee: {str(e)}', 'error')
     return redirect(url_for('employees.list_employees'))
 
+
+# ==============================================================================
+# ATTENDANCE MANAGEMENT
+# ==============================================================================
 
 @bp.route('/attendance', methods=['GET', 'POST'])
 @login_required
@@ -145,8 +154,6 @@ def attendance():
         selected_date = date.today()
 
     employees = Employee.query.filter_by(is_active=True).order_by(Employee.name).all()
-    
-    # Get existing attendance for this date
     existing_attendance = Attendance.query.filter_by(date=selected_date).all()
     attendance_map = {a.employee_id: a for a in existing_attendance}
 
@@ -210,7 +217,6 @@ def attendance_history():
     records = query.order_by(Attendance.date.desc(), Employee.name).all()
     employees = Employee.query.order_by(Employee.name).all()
     
-    # Calculate summary if filtered
     summary = None
     if employee_id or from_date_str or to_date_str:
         total_present = 0
@@ -245,7 +251,204 @@ def attendance_history():
 
 
 # ==============================================================================
-# PIECE-RATE JOB WAGES & SALARY DISTRIBUTION SYSTEM
+# JOB RATE SETTINGS (PIECE RATES FOR PRODUCTION, LOADING, UNLOADING)
+# ==============================================================================
+
+@bp.route('/rates')
+@login_required
+def job_rates_list():
+    product = request.args.get('product')
+    job_type = request.args.get('job_type')
+
+    query = JobRateSetting.query.filter_by(is_active=True)
+    if product:
+        query = query.filter(JobRateSetting.product_name.ilike(f'%{product}%'))
+    if job_type:
+        query = query.filter(JobRateSetting.job_type == job_type)
+
+    rates = query.order_by(JobRateSetting.product_name, JobRateSetting.job_type).all()
+    return render_template('employees/job_rates_list.html',
+                           rates=rates,
+                           job_products=JOB_PRODUCTS,
+                           job_types=JOB_TYPES,
+                           selected_product=product,
+                           selected_job_type=job_type)
+
+
+@bp.route('/rates/add', methods=['GET', 'POST'])
+@login_required
+def job_rate_add():
+    if request.method == 'POST':
+        product_name = request.form.get('product_name')
+        job_type = request.form.get('job_type')
+        rate_per_piece = float(request.form.get('rate_per_piece') or 0.0)
+        unit = request.form.get('unit', 'Pieces / Pcs')
+        notes = request.form.get('notes')
+
+        if not product_name or not job_type:
+            flash('Product name and Job type are required.', 'error')
+            return redirect(url_for('employees.job_rate_add'))
+
+        existing = JobRateSetting.query.filter_by(product_name=product_name, job_type=job_type).first()
+        if existing:
+            existing.rate_per_piece = rate_per_piece
+            existing.unit = unit
+            existing.notes = notes
+            existing.is_active = True
+            db.session.commit()
+            flash(f'Updated rate for {product_name} ({job_type}) to ₹{rate_per_piece:.2f} per piece.', 'success')
+            return redirect(url_for('employees.job_rates_list'))
+
+        rate_obj = JobRateSetting(
+            product_name=product_name,
+            job_type=job_type,
+            rate_per_piece=rate_per_piece,
+            unit=unit,
+            notes=notes
+        )
+        db.session.add(rate_obj)
+        db.session.commit()
+        flash(f'Piece rate of ₹{rate_per_piece:.2f} added for {product_name} ({job_type}).', 'success')
+        return redirect(url_for('employees.job_rates_list'))
+
+    return render_template('employees/job_rate_form.html',
+                           rate=None,
+                           job_products=JOB_PRODUCTS,
+                           job_types=JOB_TYPES,
+                           job_units=JOB_UNITS)
+
+
+@bp.route('/rates/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def job_rate_edit(id):
+    rate = JobRateSetting.query.get_or_404(id)
+    if request.method == 'POST':
+        rate.product_name = request.form.get('product_name')
+        rate.job_type = request.form.get('job_type')
+        rate.rate_per_piece = float(request.form.get('rate_per_piece') or 0.0)
+        rate.unit = request.form.get('unit', 'Pieces / Pcs')
+        rate.notes = request.form.get('notes')
+        rate.is_active = request.form.get('is_active') == 'on'
+
+        db.session.commit()
+        flash(f'Rate for {rate.product_name} updated successfully.', 'success')
+        return redirect(url_for('employees.job_rates_list'))
+
+    return render_template('employees/job_rate_form.html',
+                           rate=rate,
+                           job_products=JOB_PRODUCTS,
+                           job_types=JOB_TYPES,
+                           job_units=JOB_UNITS)
+
+
+@bp.route('/rates/<int:id>/delete', methods=['POST'])
+@login_required
+def job_rate_delete(id):
+    rate = JobRateSetting.query.get_or_404(id)
+    db.session.delete(rate)
+    db.session.commit()
+    flash('Job rate deleted successfully.', 'success')
+    return redirect(url_for('employees.job_rates_list'))
+
+
+# ==============================================================================
+# EMPLOYEE GROUPS & LABOR GANGS (TEAM POOLING)
+# ==============================================================================
+
+@bp.route('/groups')
+@login_required
+def employee_groups_list():
+    groups = EmployeeGroup.query.filter_by(is_active=True).order_by(EmployeeGroup.name).all()
+    all_employees = Employee.query.filter_by(is_active=True).all()
+    return render_template('employees/groups_list.html', groups=groups, all_employees=all_employees)
+
+
+@bp.route('/groups/add', methods=['GET', 'POST'])
+@login_required
+def employee_group_add():
+    employees = Employee.query.filter_by(is_active=True).order_by(Employee.name).all()
+
+    if request.method == 'POST':
+        name = request.form.get('name')
+        description = request.form.get('description')
+        default_job_type = request.form.get('default_job_type')
+        default_product_name = request.form.get('default_product_name')
+        member_ids = request.form.getlist('employee_ids')
+
+        if not name:
+            flash('Group Name is required.', 'error')
+            return render_template('employees/group_form.html',
+                                   group=None,
+                                   employees=employees,
+                                   job_types=JOB_TYPES,
+                                   job_products=JOB_PRODUCTS)
+
+        grp = EmployeeGroup(
+            name=name,
+            description=description,
+            default_job_type=default_job_type,
+            default_product_name=default_product_name
+        )
+        if member_ids:
+            selected_emps = Employee.query.filter(Employee.id.in_([int(i) for i in member_ids])).all()
+            grp.members = selected_emps
+
+        db.session.add(grp)
+        db.session.commit()
+        flash(f'Employee Group "{name}" created with {len(grp.members)} members.', 'success')
+        return redirect(url_for('employees.employee_groups_list'))
+
+    return render_template('employees/group_form.html',
+                           group=None,
+                           employees=employees,
+                           job_types=JOB_TYPES,
+                           job_products=JOB_PRODUCTS)
+
+
+@bp.route('/groups/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def employee_group_edit(id):
+    grp = EmployeeGroup.query.get_or_404(id)
+    employees = Employee.query.filter_by(is_active=True).order_by(Employee.name).all()
+    member_ids = [m.id for m in grp.members]
+
+    if request.method == 'POST':
+        grp.name = request.form.get('name')
+        grp.description = request.form.get('description')
+        grp.default_job_type = request.form.get('default_job_type')
+        grp.default_product_name = request.form.get('default_product_name')
+        grp.is_active = request.form.get('is_active') == 'on'
+
+        selected_member_ids = request.form.getlist('employee_ids')
+        if selected_member_ids:
+            grp.members = Employee.query.filter(Employee.id.in_([int(i) for i in selected_member_ids])).all()
+        else:
+            grp.members = []
+
+        db.session.commit()
+        flash(f'Employee Group "{grp.name}" updated successfully.', 'success')
+        return redirect(url_for('employees.employee_groups_list'))
+
+    return render_template('employees/group_form.html',
+                           group=grp,
+                           member_ids=member_ids,
+                           employees=employees,
+                           job_types=JOB_TYPES,
+                           job_products=JOB_PRODUCTS)
+
+
+@bp.route('/groups/<int:id>/delete', methods=['POST'])
+@login_required
+def employee_group_delete(id):
+    grp = EmployeeGroup.query.get_or_404(id)
+    db.session.delete(grp)
+    db.session.commit()
+    flash(f'Group "{grp.name}" deleted successfully.', 'success')
+    return redirect(url_for('employees.employee_groups_list'))
+
+
+# ==============================================================================
+# PIECE-RATE DAILY JOB ENTRIES & EQUAL WAGE DIVISION
 # ==============================================================================
 
 @bp.route('/job-wages')
@@ -257,6 +460,7 @@ def job_wages_list():
     from_date_str = request.args.get('from_date', first_day.strftime('%Y-%m-%d'))
     to_date_str = request.args.get('to_date', today.strftime('%Y-%m-%d'))
     job_type = request.args.get('job_type')
+    product_name = request.args.get('product_name')
     employee_id = request.args.get('employee_id', type=int)
 
     query = JobWageEntry.query
@@ -270,7 +474,8 @@ def job_wages_list():
 
     if job_type:
         query = query.filter(JobWageEntry.job_type == job_type)
-
+    if product_name:
+        query = query.filter(JobWageEntry.product_name.ilike(f'%{product_name}%'))
     if employee_id:
         query = query.join(JobWageEntry.allocations).filter(EmployeeJobAllocation.employee_id == employee_id)
 
@@ -279,15 +484,19 @@ def job_wages_list():
     total_qty = sum(e.quantity for e in entries)
     
     employees = Employee.query.filter_by(is_active=True).order_by(Employee.name).all()
+    groups = EmployeeGroup.query.filter_by(is_active=True).all()
 
     return render_template('employees/job_wages_list.html',
                            entries=entries,
                            from_date=from_date_str,
                            to_date=to_date_str,
                            job_type=job_type,
+                           product_name=product_name,
                            employee_id=employee_id,
                            employees=employees,
+                           groups=groups,
                            job_types=JOB_TYPES,
+                           job_products=JOB_PRODUCTS,
                            total_amount=total_amount,
                            total_qty=total_qty)
 
@@ -296,10 +505,32 @@ def job_wages_list():
 @login_required
 def job_wages_add():
     employees = Employee.query.filter_by(is_active=True).order_by(Employee.name).all()
+    groups = EmployeeGroup.query.filter_by(is_active=True).order_by(EmployeeGroup.name).all()
+    rates = JobRateSetting.query.filter_by(is_active=True).all()
+
+    # Create rates lookup dictionary for fast client-side JS auto-fill
+    rates_map = {}
+    for r in rates:
+        key = f"{r.product_name}___{r.job_type}"
+        rates_map[key] = {
+            'rate': r.rate_per_piece,
+            'unit': r.unit
+        }
+
+    # Group member mapping
+    groups_map = {}
+    for g in groups:
+        groups_map[g.id] = {
+            'name': g.name,
+            'member_ids': [m.id for m in g.members],
+            'default_job': g.default_job_type or '',
+            'default_product': g.default_product_name or ''
+        }
 
     if request.method == 'POST':
         try:
             entry_date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
+            group_id = request.form.get('group_id')
             job_type = request.form.get('job_type')
             product_name = request.form.get('product_name')
             quantity = float(request.form.get('quantity') or 0.0)
@@ -308,12 +539,15 @@ def job_wages_add():
             vehicle_no = request.form.get('vehicle_no')
             notes = request.form.get('notes')
 
-            # Selected employees
+            # Selected working employees on this day
             selected_emp_ids = request.form.getlist('employee_ids')
             if not selected_emp_ids:
                 flash('Please select at least one employee who worked on this job.', 'error')
                 return render_template('employees/job_wage_form.html',
                                        employees=employees,
+                                       groups=groups,
+                                       rates_map=rates_map,
+                                       groups_map=groups_map,
                                        job_types=JOB_TYPES,
                                        job_products=JOB_PRODUCTS,
                                        job_units=JOB_UNITS)
@@ -324,6 +558,7 @@ def job_wages_add():
 
             entry = JobWageEntry(
                 date=entry_date,
+                group_id=int(group_id) if (group_id and group_id.isdigit()) else None,
                 job_type=job_type,
                 product_name=product_name,
                 quantity=quantity,
@@ -336,9 +571,9 @@ def job_wages_add():
                 notes=notes
             )
             db.session.add(entry)
-            db.session.flush()  # get entry.id
+            db.session.flush()
 
-            # Allocate wage share to each assigned employee
+            # Allocate equal share to each worker who worked that day
             for emp_id in selected_emp_ids:
                 alloc = EmployeeJobAllocation(
                     job_entry_id=entry.id,
@@ -348,7 +583,7 @@ def job_wages_add():
                 db.session.add(alloc)
 
             db.session.commit()
-            flash(f'Job recorded successfully! ₹{total_amount:,.2f} divided among {worker_count} workers (₹{wage_per_worker:,.2f} each).', 'success')
+            flash(f'✅ Job Recorded: ₹{total_amount:,.2f} total divided equally among {worker_count} working employees (₹{wage_per_worker:,.2f} per employee).', 'success')
             return redirect(url_for('employees.job_wages_list'))
 
         except Exception as e:
@@ -356,7 +591,11 @@ def job_wages_add():
             flash(f'Error recording job wage: {str(e)}', 'error')
 
     return render_template('employees/job_wage_form.html',
+                           entry=None,
                            employees=employees,
+                           groups=groups,
+                           rates_map=rates_map,
+                           groups_map=groups_map,
                            job_types=JOB_TYPES,
                            job_products=JOB_PRODUCTS,
                            job_units=JOB_UNITS)
@@ -366,12 +605,19 @@ def job_wages_add():
 @login_required
 def job_wages_edit(id):
     entry = JobWageEntry.query.get_or_404(id)
-    employees = Employee.query.order_by(Employee.name).all()
+    employees = Employee.query.filter_by(is_active=True).order_by(Employee.name).all()
+    groups = EmployeeGroup.query.filter_by(is_active=True).order_by(EmployeeGroup.name).all()
+    rates = JobRateSetting.query.filter_by(is_active=True).all()
     assigned_emp_ids = [alloc.employee_id for alloc in entry.allocations]
+
+    rates_map = {f"{r.product_name}___{r.job_type}": {'rate': r.rate_per_piece, 'unit': r.unit} for r in rates}
+    groups_map = {g.id: {'name': g.name, 'member_ids': [m.id for m in g.members], 'default_job': g.default_job_type or '', 'default_product': g.default_product_name or ''} for g in groups}
 
     if request.method == 'POST':
         try:
             entry.date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
+            group_id = request.form.get('group_id')
+            entry.group_id = int(group_id) if (group_id and group_id.isdigit()) else None
             entry.job_type = request.form.get('job_type')
             entry.product_name = request.form.get('product_name')
             entry.quantity = float(request.form.get('quantity') or 0.0)
@@ -387,6 +633,9 @@ def job_wages_edit(id):
                                        entry=entry,
                                        assigned_emp_ids=assigned_emp_ids,
                                        employees=employees,
+                                       groups=groups,
+                                       rates_map=rates_map,
+                                       groups_map=groups_map,
                                        job_types=JOB_TYPES,
                                        job_products=JOB_PRODUCTS,
                                        job_units=JOB_UNITS)
@@ -410,7 +659,7 @@ def job_wages_edit(id):
                 db.session.add(alloc)
 
             db.session.commit()
-            flash(f'Job updated! ₹{total_amount:,.2f} divided among {worker_count} workers (₹{wage_per_worker:,.2f} each).', 'success')
+            flash(f'✅ Job Updated: ₹{total_amount:,.2f} divided among {worker_count} working employees (₹{wage_per_worker:,.2f} each).', 'success')
             return redirect(url_for('employees.job_wages_list'))
 
         except Exception as e:
@@ -421,6 +670,9 @@ def job_wages_edit(id):
                            entry=entry,
                            assigned_emp_ids=assigned_emp_ids,
                            employees=employees,
+                           groups=groups,
+                           rates_map=rates_map,
+                           groups_map=groups_map,
                            job_types=JOB_TYPES,
                            job_products=JOB_PRODUCTS,
                            job_units=JOB_UNITS)
@@ -439,6 +691,10 @@ def job_wages_delete(id):
         flash(f'Error deleting entry: {str(e)}', 'error')
     return redirect(url_for('employees.job_wages_list'))
 
+
+# ==============================================================================
+# SALARY SHEET & EXPORT
+# ==============================================================================
 
 @bp.route('/salary-sheet')
 @login_required

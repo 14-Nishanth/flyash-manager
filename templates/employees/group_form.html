@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit Group' if group else 'Create Employee Labor Group' }}{% endblock %}
+{% block page_title %}{{ 'Edit Group' if group else 'Create Employee Labor Group' }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-9">
+        <div class="card form-card shadow-sm border-0 rounded-3">
+            <div class="card-header py-3 bg-light border-bottom">
+                <h5 class="fw-bold mb-0 text-dark">
+                    <i class="bi bi-people-fill text-primary me-2"></i>{{ 'Edit Employee Group: ' ~ group.name if group else 'Create New Labor Gang / Team' }}
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <!-- Group Name -->
+                    <div class="mb-3">
+                        <label for="name" class="form-label fw-semibold">Group / Gang Name *</label>
+                        <input type="text" class="form-control form-control-lg" id="name" name="name"
+                               placeholder="e.g. Brick Production Team (Gang 1), Solid Block Machine Gang, Loading Gang"
+                               value="{{ group.name if group else '' }}" required autofocus>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="mb-3">
+                        <label for="description" class="form-label fw-semibold">Description / Purpose</label>
+                        <input type="text" class="form-control" id="description" name="description"
+                               placeholder="e.g. 5-member team for morning hollow block production"
+                               value="{{ group.description if group else '' }}">
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <!-- Default Job Type -->
+                        <div class="col-md-6">
+                            <label for="default_job_type" class="form-label fw-semibold">Default Job Type</label>
+                            <select class="form-select" id="default_job_type" name="default_job_type">
+                                <option value="">-- None (Select on Job Entry) --</option>
+                                {% for jt in job_types %}
+                                    <option value="{{ jt }}" {% if group and group.default_job_type == jt %}selected{% endif %}>{{ jt }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Default Product -->
+                        <div class="col-md-6">
+                            <label for="default_product_name" class="form-label fw-semibold">Default Product</label>
+                            <input type="text" class="form-control" id="default_product_name" name="default_product_name" list="prodList"
+                                   placeholder="e.g. Fly Ash Brick 9x4x3, Solid Block 6&quot;"
+                                   value="{{ group.default_product_name if group else '' }}">
+                            <datalist id="prodList">
+                                {% for p in job_products %}
+                                    <option value="{{ p }}">
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                    </div>
+
+                    <!-- Member Selection -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-bold mb-0">Select Group Members (Employees in this Gang):</label>
+                            <div>
+                                <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" id="selectAllBtn">Select All</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" id="clearAllBtn">Clear All</button>
+                            </div>
+                        </div>
+
+                        <div class="p-3 border rounded-3 bg-light" style="max-height: 280px; overflow-y: auto;">
+                            <div class="row g-2">
+                                {% for emp in employees %}
+                                <div class="col-md-6 col-lg-4">
+                                    <div class="form-check p-2 bg-white rounded border shadow-sm h-100">
+                                        <input class="form-check-input emp-checkbox ms-1" type="checkbox" name="employee_ids" value="{{ emp.id }}" id="emp_{{ emp.id }}"
+                                               {% if group and emp.id in member_ids %}checked{% endif %}>
+                                        <label class="form-check-label ms-2 fw-semibold text-dark cursor-pointer" for="emp_{{ emp.id }}">
+                                            {{ emp.name }}
+                                            <span class="d-block small text-muted fw-normal">{{ emp.role or 'Worker' }} (Daily: ₹{{ "{:,.0f}".format(emp.daily_wage or 0) }})</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div class="col-12 text-center text-muted py-3">
+                                    No active employees found. <a href="{{ url_for('employees.add_employee') }}">Add an employee first</a>.
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if group %}
+                    <div class="form-check form-switch mb-4">
+                        <input class="form-check-input" type="checkbox" id="is_active" name="is_active" {% if group.is_active %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold" for="is_active">Group Active</label>
+                    </div>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                        <a href="{{ url_for('employees.employee_groups_list') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left me-1"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary px-4 py-2 fw-semibold">
+                            <i class="bi bi-check-circle me-1"></i> Save Employee Group
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const checkboxes = document.querySelectorAll('.emp-checkbox');
+
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', function () {
+            checkboxes.forEach(cb => cb.checked = true);
+        });
+    }
+
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', function () {
+            checkboxes.forEach(cb => cb.checked = false);
+        });
+    }
+});
+</script>
+{% endblock %}
