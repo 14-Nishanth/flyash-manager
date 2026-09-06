@@ -14,6 +14,12 @@ def _migrate_db():
         try:
             with db.engine.connect() as conn:
                 conn.execute(db.text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS preferred_language VARCHAR(10) DEFAULT \'en\';'))
+                conn.execute(db.text('ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS cooldown_minutes INTEGER DEFAULT 30;'))
+                conn.execute(db.text('ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS max_alerts_per_day INTEGER DEFAULT 3;'))
+                conn.execute(db.text('ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS alert_on_first_login_only BOOLEAN DEFAULT FALSE;'))
+                conn.execute(db.text('ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS alert_on_owner_login BOOLEAN DEFAULT FALSE;'))
+                conn.execute(db.text('ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS alert_on_staff_login BOOLEAN DEFAULT TRUE;'))
+                conn.execute(db.text('ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS alert_on_failed_attempts BOOLEAN DEFAULT TRUE;'))
                 conn.commit()
         except Exception as e:
             print(f"[WARN] PostgreSQL migration notice: {e}")
@@ -53,7 +59,13 @@ def _migrate_db():
                 ('smtp_port', "INTEGER DEFAULT 587"),
                 ('smtp_user', "VARCHAR(120)"),
                 ('smtp_password', "VARCHAR(120)"),
-                ('alert_on_all_users', "BOOLEAN DEFAULT 1")
+                ('alert_on_all_users', "BOOLEAN DEFAULT 1"),
+                ('cooldown_minutes', "INTEGER DEFAULT 30"),
+                ('max_alerts_per_day', "INTEGER DEFAULT 3"),
+                ('alert_on_first_login_only', "BOOLEAN DEFAULT 0"),
+                ('alert_on_owner_login', "BOOLEAN DEFAULT 0"),
+                ('alert_on_staff_login', "BOOLEAN DEFAULT 1"),
+                ('alert_on_failed_attempts', "BOOLEAN DEFAULT 1")
             ]
         }
         

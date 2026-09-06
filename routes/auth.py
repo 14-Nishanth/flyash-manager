@@ -184,8 +184,79 @@ def _send_login_alert(user, login_identifier, status, ip_address, user_agent):
                     f"• Device / Browser: {user_agent or 'Standard Browser'}\n\n"
                     f"Notification dispatched to Owner ({owner_email} & 8072416903).")
 
+        # Smart Anti-Spam & Frequency Throttling Check
+        should_dispatch = True
+        skip_reason = ""
+
+        if settings:
+            is_owner = (user and (user.role == 'owner' or user.email == owner_email))
+
+            if status == 'SUCCESS':
+                # 1. Role Alert Filter
+                if is_owner and not getattr(settings, 'alert_on_owner_login', False):
+                    should_dispatch = False
+                    skip_reason = "Owner login alerts are disabled in settings (no self-spam)"
+                elif not is_owner and not getattr(settings, 'alert_on_staff_login', True):
+                    should_dispatch = False
+                    skip_reason = "Staff login alerts are turned off in settings"
+                elif not getattr(settings, 'alert_on_all_users', True) and not is_owner:
+                    should_dispatch = False
+                    skip_reason = "Staff alerts are toggled off"
+
+                # 2. Duplicate / Frequency Throttling per user
+                if should_dispatch and uid:
+                    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+                    # First login of the day rule
+                    if getattr(settings, 'alert_on_first_login_only', False):
+                        earlier_today = LoginHistory.query.filter(
+                            LoginHistory.user_id == uid,
+                            LoginHistory.id != log_entry.id,
+                            LoginHistory.status == 'SUCCESS',
+                            LoginHistory.timestamp >= today_start
+                        ).first()
+                        if earlier_today:
+                            should_dispatch = False
+                            skip_reason = f"Alert already sent for user '{uname}' earlier today (First login of the day rule active)"
+
+                    # Max alerts per user per day rule
+                    max_day = getattr(settings, 'max_alerts_per_day', 3)
+                    if should_dispatch and max_day > 0:
+                        count_today = LoginHistory.query.filter(
+                            LoginHistory.user_id == uid,
+                            LoginHistory.status == 'SUCCESS',
+                            LoginHistory.timestamp >= today_start
+                        ).count()
+                        if count_today > max_day:
+                            should_dispatch = False
+                            skip_reason = f"User '{uname}' reached daily alert cap of {max_day} notifications"
+
+                    # Cooldown interval rule
+                    cooldown = getattr(settings, 'cooldown_minutes', 30)
+                    if should_dispatch and cooldown > 0:
+                        prev_entry = LoginHistory.query.filter(
+                            LoginHistory.user_id == uid,
+                            LoginHistory.id != log_entry.id,
+                            LoginHistory.status == 'SUCCESS'
+                        ).order_by(LoginHistory.timestamp.desc()).first()
+                        if prev_entry:
+                            diff_mins = (datetime.now() - prev_entry.timestamp).total_seconds() / 60.0
+                            if diff_mins < cooldown:
+                                should_dispatch = False
+                                skip_reason = f"Throttled: Last alert for '{uname}' was sent {int(diff_mins)}m ago (Cooldown: {cooldown}m)"
+
+            elif status in ['WRONG_PASSWORD', 'USER_NOT_FOUND']:
+                if not getattr(settings, 'alert_on_failed_attempts', True):
+                    should_dispatch = False
+                    skip_reason = "Failed attempt alerts disabled in settings"
+
+        if not should_dispatch:
+            print(f"  [ALERT THROTTLED] Message delivery skipped: {skip_reason}")
+            return
+
         # 1. Dispatch Mobile Bot / WhatsApp / SMS to 8072416903
-        _dispatch_mobile_alert(body)
+        if settings is None or settings.is_enabled:
+            _dispatch_mobile_alert(body)
 
         # 2. Dispatch Direct Email to nishanthissan1515@gmail.com
         if settings is None or settings.email_alerts_enabled:
@@ -638,8 +709,14 @@ def alert_settings():
             settings.chat_id = request.form.get('chat_id', '').strip()
             settings.webhook_url = request.form.get('webhook_url', '').strip()
             settings.alert_on_all_users = request.form.get('alert_on_all_users') == 'on'
+            settings.cooldown_minutes = int(request.form.get('cooldown_minutes', 30) or 30)
+            settings.max_alerts_per_day = int(request.form.get('max_alerts_per_day', 3) or 3)
+            settings.alert_on_first_login_only = request.form.get('alert_on_first_login_only') == 'on'
+            settings.alert_on_owner_login = request.form.get('alert_on_owner_login') == 'on'
+            settings.alert_on_staff_login = request.form.get('alert_on_staff_login') == 'on'
+            settings.alert_on_failed_attempts = request.form.get('alert_on_failed_attempts') == 'on'
 
             db.session.commit()
-            flash('Owner mobile and email alert settings saved successfully!', 'success')
+            flash('Owner notification preferences, alert limits, and frequency controls saved successfully!', 'success')
 
     return render_template('auth/alert_settings.html', settings=settings)
