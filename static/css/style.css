@@ -14,6 +14,7 @@ body {
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     background-color: #f1f5f9;
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
 /* ===== Remove all number/input spinners and scroll arrows ===== */
@@ -28,22 +29,33 @@ input[type=number] {
     appearance: textfield !important;
 }
 
+/* Touch & Mobile Input Sizing to prevent iOS auto-zoom */
+@media (max-width: 768px) {
+    input, select, textarea {
+        font-size: 16px !important;
+    }
+}
+
 /* ===== Sidebar ===== */
 .sidebar {
     width: var(--sidebar-width);
-    min-height: 100vh;
+    height: 100vh;
     background: var(--sidebar-bg);
     position: fixed;
     top: 0;
     left: 0;
-    z-index: 1000;
-    transition: transform 0.3s ease;
+    z-index: 1050;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .sidebar-header {
-    padding: 1.5rem;
+    padding: 1.25rem 1.5rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .sidebar-header h4 {
@@ -60,10 +72,12 @@ input[type=number] {
 
 .sidebar .nav-link {
     color: var(--sidebar-text);
-    padding: 0.75rem 1.5rem;
+    padding: 0.7rem 1.5rem;
     font-size: 0.9rem;
     border-left: 3px solid transparent;
     transition: all 0.2s;
+    display: flex;
+    align-items: center;
 }
 
 .sidebar .nav-link:hover {
@@ -82,38 +96,62 @@ input[type=number] {
     margin-right: 0.75rem;
     width: 1.2rem;
     text-align: center;
+    font-size: 1.1rem;
 }
 
 .sidebar .nav-section {
-    color: rgba(255, 255, 255, 0.35);
+    color: rgba(255, 255, 255, 0.4);
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 1px;
-    padding: 1.25rem 1.5rem 0.5rem;
-    font-weight: 600;
+    padding: 1rem 1.5rem 0.35rem;
+    font-weight: 700;
+}
+
+/* Sidebar Backdrop for Mobile */
+.sidebar-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1040;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.sidebar-backdrop.show {
+    opacity: 1;
+    visibility: visible;
 }
 
 /* ===== Main Content ===== */
 .main-content {
     margin-left: var(--sidebar-width);
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    width: calc(100% - var(--sidebar-width));
+    transition: margin-left 0.3s ease, width 0.3s ease;
 }
 
 /* ===== Stat Cards ===== */
 .stat-card {
     border: none;
     border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .stat-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
 .stat-card .card-body {
-    padding: 1.5rem;
+    padding: 1.25rem;
 }
 
 .stat-card .stat-icon {
@@ -124,32 +162,38 @@ input[type=number] {
     align-items: center;
     justify-content: center;
     font-size: 1.5rem;
+    flex-shrink: 0;
 }
 
 .stat-card .stat-value {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 700;
     color: #1e293b;
+    line-height: 1.2;
 }
 
 .stat-card .stat-label {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: #64748b;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 0.25rem;
 }
 
-/* ===== Tables ===== */
+/* ===== Tables & Containers ===== */
 .table-container {
     background: white;
     border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
 }
 
 .table-container .table {
     margin-bottom: 0;
+    width: 100%;
+    min-width: 600px; /* Ensures clean readable columns on mobile scroll */
 }
 
 .table-container .table thead th {
@@ -169,6 +213,7 @@ input[type=number] {
     vertical-align: middle;
     color: #334155;
     font-size: 0.9rem;
+    white-space: nowrap;
 }
 
 .table-container .table tbody tr:hover {
@@ -180,7 +225,7 @@ input[type=number] {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
     flex-wrap: wrap;
     gap: 0.75rem;
 }
@@ -189,7 +234,7 @@ input[type=number] {
     font-weight: 700;
     color: #1e293b;
     margin: 0;
-    font-size: 1.5rem;
+    font-size: 1.4rem;
 }
 
 /* ===== Filter Bar ===== */
@@ -197,34 +242,17 @@ input[type=number] {
     background: white;
     border-radius: 12px;
     padding: 1.25rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 /* ===== Badges ===== */
-.badge-present {
-    background-color: var(--success-color) !important;
-}
-
-.badge-absent {
-    background-color: var(--danger-color) !important;
-}
-
-.badge-half-day {
-    background-color: var(--warning-color) !important;
-}
-
-.badge-supplier {
-    background-color: #6366f1 !important;
-}
-
-.badge-customer {
-    background-color: #0ea5e9 !important;
-}
-
-.badge-both {
-    background-color: #8b5cf6 !important;
-}
+.badge-present { background-color: var(--success-color) !important; }
+.badge-absent { background-color: var(--danger-color) !important; }
+.badge-half-day { background-color: var(--warning-color) !important; }
+.badge-supplier { background-color: #6366f1 !important; }
+.badge-customer { background-color: #0ea5e9 !important; }
+.badge-both { background-color: #8b5cf6 !important; }
 
 /* ===== Login Page ===== */
 .login-page {
@@ -232,41 +260,32 @@ input[type=number] {
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 1rem;
     background: linear-gradient(135deg, #1a1f36 0%, #2d3348 50%, #4f46e5 100%);
 }
 
 .login-card {
     width: 100%;
-    max-width: 420px;
+    max-width: 400px;
     border: none;
     border-radius: 16px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
 .login-card .card-body {
-    padding: 2.5rem;
+    padding: 2rem 1.75rem;
 }
 
 /* ===== Outstanding Amounts ===== */
-.amount-receivable {
-    color: var(--success-color);
-    font-weight: 600;
-}
+.amount-receivable { color: var(--success-color); font-weight: 600; }
+.amount-payable { color: var(--danger-color); font-weight: 600; }
+.amount-zero { color: #94a3b8; }
 
-.amount-payable {
-    color: var(--danger-color);
-    font-weight: 600;
-}
-
-.amount-zero {
-    color: #94a3b8;
-}
-
-/* ===== Misc ===== */
+/* ===== Cards & Buttons ===== */
 .form-card {
     background: white;
     border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     border: none;
 }
 
@@ -275,23 +294,24 @@ input[type=number] {
     border-bottom: 1px solid #e2e8f0;
     font-weight: 600;
     color: #334155;
-    padding: 1rem 1.5rem;
+    padding: 1rem 1.25rem;
     border-radius: 12px 12px 0 0 !important;
 }
 
 .form-card .card-body {
-    padding: 1.5rem;
+    padding: 1.25rem;
 }
 
 .quick-action-btn {
     border: 2px dashed #cbd5e1;
     border-radius: 12px;
-    padding: 1.25rem;
+    padding: 1rem;
     text-align: center;
     color: #64748b;
     transition: all 0.2s;
     text-decoration: none;
     display: block;
+    height: 100%;
 }
 
 .quick-action-btn:hover {
@@ -301,49 +321,82 @@ input[type=number] {
 }
 
 .quick-action-btn i {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     display: block;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
 }
 
-/* ===== Responsive ===== */
-@media (max-width: 768px) {
+/* ===== Responsive Device Optimization ===== */
+@media (max-width: 991.98px) {
     .sidebar {
         transform: translateX(-100%);
     }
 
     .sidebar.show {
         transform: translateX(0);
+        box-shadow: 5px 0 25px rgba(0, 0, 0, 0.3);
     }
 
     .main-content {
         margin-left: 0;
+        width: 100%;
     }
 
     .page-header {
         flex-direction: column;
         align-items: flex-start;
     }
+}
+
+@media (max-width: 576px) {
+    .container-fluid {
+        padding: 0.85rem !important;
+    }
+
+    .page-header h2 {
+        font-size: 1.25rem;
+    }
 
     .stat-card .stat-value {
-        font-size: 1.35rem;
+        font-size: 1.25rem;
+    }
+
+    .stat-card .stat-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.2rem;
+    }
+
+    .stat-card .card-body {
+        padding: 0.85rem;
+    }
+
+    .filter-bar {
+        padding: 0.85rem;
     }
 }
 
-/* ===== Print ===== */
+/* ===== Print Optimization ===== */
 @media print {
     .sidebar,
     .navbar,
     .no-print,
-    .btn {
+    .btn,
+    .sidebar-backdrop {
         display: none !important;
     }
 
     .main-content {
         margin-left: 0 !important;
+        width: 100% !important;
     }
 
     .table-container {
         box-shadow: none;
+        overflow: visible !important;
+    }
+
+    .table-container .table {
+        min-width: 100% !important;
     }
 }

@@ -95,14 +95,17 @@
             </ul>
         </nav>
 
+        <!-- Sidebar Mobile Backdrop Overlay -->
+        <div id="sidebarBackdrop" class="sidebar-backdrop d-lg-none"></div>
+
         <!-- Main Content -->
         <div class="main-content flex-grow-1">
             <!-- Top Navbar -->
-            <nav class="navbar navbar-light bg-white shadow-sm px-4 sticky-top">
-                <button class="btn d-md-none" id="sidebarToggle">
-                    <i class="bi bi-list fs-4"></i>
+            <nav class="navbar navbar-light bg-white shadow-sm px-3 px-md-4 sticky-top">
+                <button class="btn d-lg-none me-2" id="sidebarToggle" aria-label="Toggle navigation">
+                    <i class="bi bi-list fs-3 text-primary"></i>
                 </button>
-                <span class="navbar-text d-none d-md-inline fw-semibold text-dark">
+                <span class="navbar-text fw-semibold text-dark fs-6">
                     {% block page_title %}Dashboard{% endblock %}
                 </span>
                 <div class="ms-auto d-flex align-items-center gap-2">
