@@ -8,7 +8,15 @@ bp = Blueprint('materials', __name__, url_prefix='/materials')
 
 # Comprehensive standard list of materials (Power Plants, Fly Ash, Cement, Minerals, Byproducts)
 MATERIAL_TYPES = [
-    # --- Regional & Thermal Power Plant Fly Ash ---
+    # --- Core Daily Raw Materials (Top Priority) ---
+    'Cement',
+    'Cement (OPC 53 Grade)',
+    'Cement (OPC 43 Grade)',
+    'Cement (PPC)',
+    'Cement (PSC Slag)',
+    'White Cement',
+    'Cooldust / Coal Dust',
+    'Stone Dust / Quarry Dust',
     'Fly Ash',
     'Mettur Flyash',
     'Tirupur Flyash',
@@ -16,6 +24,46 @@ MATERIAL_TYPES = [
     'Neyveli Ash (NLC)',
     'North Chennai Ash (NCTPS)',
     'Ennore Ash (ETPS)',
+    'M-Sand (Manufactured Sand)',
+    'P-Sand (Plastering Sand)',
+    'River Sand / Natural Sand',
+    'Crushed Aggregate 10mm',
+    'Crushed Aggregate 20mm',
+    'Crushed Aggregate 40mm',
+    'Grit (6mm / 8mm)',
+    'Gypsum (Mineral / Chemical / FGD)',
+    'Quicklime',
+    'Hydrated Lime / Slaked Lime',
+    'Lime Powder / Limestone',
+    'GGBS (Ground Granulated Blast-furnace Slag)',
+    'GGBFS Slag',
+    'Micro Silica / Silica Fume',
+    'Metakaolin',
+    'Calcined Clay (LC3)',
+    'Clinker (Grey / White)',
+    'Dolomite Powder',
+
+    # --- Your Finished Products: Hollow Blocks (All Sizes) ---
+    'Hollow Block 4" (400 x 200 x 100 mm)',
+    'Hollow Block 6" (400 x 200 x 150 mm)',
+    'Hollow Block 8" (400 x 200 x 200 mm)',
+    'Hollow Block 9" (400 x 200 x 225 mm)',
+    'Hollow Block 12" (400 x 200 x 300 mm)',
+    'Solid Block 4" (400 x 200 x 100 mm)',
+    'Solid Block 6" (400 x 200 x 150 mm)',
+    'Solid Block 8" (400 x 200 x 200 mm)',
+    'Corner / Lintel Hollow Block',
+
+    # --- Your Finished Products: Fly Ash Bricks (All Sizes) ---
+    'Fly Ash Brick 9"x4"x3" (230 x 110 x 75 mm)',
+    'Fly Ash Brick Modular (190 x 90 x 90 mm)',
+    'Fly Ash Brick (230 x 110 x 70 mm)',
+    'Heavy Duty Fly Ash Brick (Class 10/15)',
+    'Interlocking Fly Ash Brick',
+    'Fly Ash Paver Blocks (60mm / 80mm)',
+    'AAC Blocks',
+
+    # --- Regional & Thermal Power Plant Fly Ash ---
     'Vallur Ash (NTECL)',
     'Bellary Ash (BTPS)',
     'Raichur Ash (RTPS)',
@@ -72,8 +120,6 @@ MATERIAL_TYPES = [
     'Coal Ash',
 
     # --- Coal, Dust & Carbon Materials ---
-    'Cooldust / Coal Dust',
-    'Stone Dust / Quarry Dust',
     'Mineral Dust',
     'Silica Dust',
     'Foundry Dust',
@@ -87,36 +133,6 @@ MATERIAL_TYPES = [
     'Anthracite',
     'Met Coke / Charcoal',
     'Carbon Black',
-
-    # --- Cement & Pozzolanic Materials ---
-    'Cement',
-    'OPC 53 Grade',
-    'OPC 43 Grade',
-    'OPC 33 Grade',
-    'PPC Cement',
-    'PSC Slag Cement',
-    'White Cement',
-    'GGBS (Ground Granulated Blast-furnace Slag)',
-    'GGBFS Slag',
-    'Micro Silica / Silica Fume',
-    'Metakaolin',
-    'Calcined Clay (LC3)',
-    'Gypsum (Mineral / Chemical / FGD)',
-    'Clinker (Grey / White)',
-    'Quicklime',
-    'Hydrated Lime / Slaked Lime',
-    'Limestone / Lime Powder',
-    'Dolomite Powder',
-
-    # --- Sand, Aggregates & Minerals ---
-    'M-Sand (Manufactured Sand)',
-    'P-Sand (Plastering Sand)',
-    'River Sand / Natural Sand',
-    'Silica Sand / Quartz Sand',
-    'Crushed Aggregate 10mm',
-    'Crushed Aggregate 20mm',
-    'Crushed Aggregate 40mm',
-    'Grit (6mm / 8mm)',
     'GSB (Granular Sub Base)',
     'WMM (Wet Mix Macadam)',
     'Bentonite',
@@ -125,26 +141,6 @@ MATERIAL_TYPES = [
     'Red Mud',
     'Copper Slag (Grit)',
     'Iron / Steel Slag',
-
-    # --- Your Finished Products: Hollow Blocks (All Sizes) ---
-    'Hollow Block 4" (400 x 200 x 100 mm)',
-    'Hollow Block 6" (400 x 200 x 150 mm)',
-    'Hollow Block 8" (400 x 200 x 200 mm)',
-    'Hollow Block 9" (400 x 200 x 225 mm)',
-    'Hollow Block 12" (400 x 200 x 300 mm)',
-    'Solid Block 4" (400 x 200 x 100 mm)',
-    'Solid Block 6" (400 x 200 x 150 mm)',
-    'Solid Block 8" (400 x 200 x 200 mm)',
-    'Corner / Lintel Hollow Block',
-
-    # --- Your Finished Products: Fly Ash Bricks (All Sizes) ---
-    'Fly Ash Brick 9"x4"x3" (230 x 110 x 75 mm)',
-    'Fly Ash Brick Modular (190 x 90 x 90 mm)',
-    'Fly Ash Brick (230 x 110 x 70 mm)',
-    'Heavy Duty Fly Ash Brick (Class 10/15)',
-    'Interlocking Fly Ash Brick',
-    'Fly Ash Paver Blocks (60mm / 80mm)',
-    'AAC Blocks',
     'Other'
 ]
 
