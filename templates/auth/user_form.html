@@ -32,12 +32,14 @@
                                    value="{{ user.name if user else '' }}">
                         </div>
                         <div class="col-md-6">
-                            <label for="role" class="form-label fw-semibold">Role / Job Title *</label>
-                            <select class="form-select fw-semibold" id="role" name="role" required>
-                                {% for r_key, r_label in roles %}
-                                <option value="{{ r_key }}" {% if user and user.role == r_key %}selected{% endif %}>{{ r_label }}</option>
-                                {% endfor %}
-                            </select>
+                            <label for="username" class="form-label fw-semibold">Username (Login ID) *</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-at"></i></span>
+                                <input type="text" class="form-control" id="username" name="username" 
+                                       placeholder="e.g. ramesh or operator1" required 
+                                       value="{{ user.username if user else '' }}">
+                            </div>
+                            <div class="form-text">Used for direct sign-in.</div>
                         </div>
                     </div>
 
@@ -50,13 +52,30 @@
                                        placeholder="e.g. ramesh@plant.com" required 
                                        value="{{ user.email if user else '' }}">
                             </div>
-                            <div class="form-text">This will be used as their login ID.</div>
+                            <div class="form-text">Alternative login ID & alert receiver.</div>
                         </div>
                         <div class="col-md-6">
                             <label for="phone" class="form-label fw-semibold">Phone Number</label>
-                            <input type="text" class="form-control" id="phone" name="phone" 
-                                   placeholder="e.g. 9876543210"
-                                   value="{{ user.phone if user else '' }}">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-telephone"></i></span>
+                                <input type="text" class="form-control" id="phone" name="phone" 
+                                       placeholder="e.g. 9876543210"
+                                       value="{{ user.phone if user else '' }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="role" class="form-label fw-semibold">Role & Permissions *</label>
+                        <select class="form-select fw-semibold" id="role" name="role" required>
+                            {% for r_key, r_label in roles %}
+                            <option value="{{ r_key }}" {% if user and user.role == r_key %}selected{% endif %}>{{ r_label }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">
+                            <strong>Operator:</strong> Piece-rate jobs, loading, unloading, inward | 
+                            <strong>Supervisor:</strong> Attendance & wages | 
+                            <strong>Accountant:</strong> Parties & payments
                         </div>
                     </div>
 
@@ -68,7 +87,7 @@
                             <input type="password" class="form-control" id="password" name="password" 
                                    placeholder="Enter initial password" required>
                         </div>
-                        <div class="form-text">Minimum 4 characters.</div>
+                        <div class="form-text">Minimum 4 characters. Staff can use this password to log in immediately.</div>
                     </div>
                     {% else %}
                     <div class="mb-3">
