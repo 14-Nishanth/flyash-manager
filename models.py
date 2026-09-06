@@ -62,6 +62,12 @@ class AlertSettings(db.Model):
     chat_id = db.Column(db.String(100))      # Telegram chat ID or webhook secret
     webhook_url = db.Column(db.String(255))
     alert_on_all_users = db.Column(db.Boolean, default=True)  # Alert when staff/other users log in
+    cooldown_minutes = db.Column(db.Integer, default=30)  # Cooldown between alerts per user (mins)
+    max_alerts_per_day = db.Column(db.Integer, default=3)  # Maximum alerts per user per day
+    alert_on_first_login_only = db.Column(db.Boolean, default=False)  # Alert only once on first daily login
+    alert_on_owner_login = db.Column(db.Boolean, default=False)  # Alert on owner/admin login
+    alert_on_staff_login = db.Column(db.Boolean, default=True)  # Alert on staff logins
+    alert_on_failed_attempts = db.Column(db.Boolean, default=True)  # Alert on wrong passwords
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
     def __repr__(self):
