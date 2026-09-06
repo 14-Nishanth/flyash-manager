@@ -1,6 +1,6 @@
 import os
 import sqlite3
-from flask import Flask, redirect, url_for
+from flask import Flask, redirect, url_for, send_from_directory
 from flask_login import LoginManager
 from flask_wtf import CSRFProtect
 from config import Config
@@ -153,13 +153,19 @@ def create_app():
     app = Flask(
         __name__,
         template_folder=templates_dir,
-        static_folder=static_dir
+        static_folder=static_dir,
+        static_url_path='/static'
     )
     app.config.from_object(Config)
 
     # Initialize extensions
     db.init_app(app)
     CSRFProtect(app)
+
+    # Explicit static file handler for serverless Vercel
+    @app.route('/static/<path:filename>')
+    def serve_static(filename):
+        return send_from_directory(static_dir, filename)
 
     # Flask-Login setup
     login_manager = LoginManager()
