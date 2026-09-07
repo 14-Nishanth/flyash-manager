@@ -1,0 +1,64 @@
+{
+  "name": "FlyAsh Plant Manager",
+  "short_name": "FlyAsh ERP",
+  "description": "Smart Brick and Block Manufacturing ERP",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "orientation": "any",
+  "scope": "/",
+  "lang": "en-IN",
+  "categories": [
+    "business",
+    "finance",
+    "productivity",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "/static/img/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/img/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/img/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Expenses",
+      "short_name": "Expenses",
+      "description": "Record plant operational expenses",
+      "url": "/expenses",
+      "icons": [
+        {
+          "src": "/static/img/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Party Outstanding",
+      "short_name": "Outstanding",
+      "description": "Check party dues and WhatsApp reminders",
+      "url": "/parties/outstanding",
+      "icons": [
+        {
+          "src": "/static/img/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

@@ -20,6 +20,20 @@ def _migrate_db():
                 conn.execute(db.text('ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS alert_on_owner_login BOOLEAN DEFAULT FALSE;'))
                 conn.execute(db.text('ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS alert_on_staff_login BOOLEAN DEFAULT TRUE;'))
                 conn.execute(db.text('ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS alert_on_failed_attempts BOOLEAN DEFAULT TRUE;'))
+                conn.execute(db.text('''
+                    CREATE TABLE IF NOT EXISTS "expense" (
+                        id SERIAL PRIMARY KEY,
+                        date DATE NOT NULL DEFAULT CURRENT_DATE,
+                        category VARCHAR(60) NOT NULL DEFAULT 'Diesel / Fuel',
+                        title VARCHAR(150) NOT NULL,
+                        amount DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                        payment_mode VARCHAR(30) DEFAULT 'cash',
+                        paid_to VARCHAR(100),
+                        reference_no VARCHAR(50),
+                        notes TEXT,
+                        created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+                '''))
                 conn.commit()
         except Exception as e:
             print(f"[WARN] PostgreSQL migration notice: {e}")
@@ -185,6 +199,19 @@ def create_app():
     CSRFProtect(app)
 
     # Explicit static file handler for serverless Vercel
+    
+    # PWA Manifest and Service Worker routes
+    @app.route('/manifest.json')
+    def pwa_manifest():
+        return send_from_directory(static_dir, 'manifest.json', mimetype='application/manifest+json')
+
+    @app.route('/sw.js')
+    def pwa_sw():
+        response = send_from_directory(static_dir, 'sw.js', mimetype='application/javascript')
+        response.headers['Service-Worker-Allowed'] = '/'
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return response
+
     @app.route('/static/<path:filename>')
     def serve_static(filename):
         return send_from_directory(static_dir, filename)
@@ -207,6 +234,7 @@ def create_app():
     from routes.materials import bp as materials_bp
     from routes.parties import bp as parties_bp
     from routes.reports import bp as reports_bp
+    from routes.expenses import bp as expenses_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -214,6 +242,7 @@ def create_app():
     app.register_blueprint(materials_bp)
     app.register_blueprint(parties_bp)
     app.register_blueprint(reports_bp)
+    app.register_blueprint(expenses_bp)
 
     # Redirect root to dashboard if no dashboard blueprint handles it
     @app.route('/favicon.ico')

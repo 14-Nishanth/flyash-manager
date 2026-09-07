@@ -269,3 +269,20 @@ class Payment(db.Model):
 
     def __repr__(self):
         return f'<Payment {self.payment_type} ₹{self.amount}>'
+
+
+class Expense(db.Model):
+    """Daily operational and plant expense record."""
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    category = db.Column(db.String(60), nullable=False, default='Diesel / Fuel')
+    title = db.Column(db.String(150), nullable=False)
+    amount = db.Column(db.Float, nullable=False, default=0.0)
+    payment_mode = db.Column(db.String(30), default='cash')  # cash, upi, bank, cheque
+    paid_to = db.Column(db.String(100))  # Vendor / person name
+    reference_no = db.Column(db.String(50))  # Bill / invoice / txn ref
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<Expense {self.date} {self.category} ₹{self.amount}>'

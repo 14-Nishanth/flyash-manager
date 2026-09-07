@@ -1,92 +1,124 @@
 {% extends "base.html" %}
-{% block title %}Parties{% endblock %}
+{% block title %}Parties - FlyAsh ERP{% endblock %}
 {% block page_title %}Parties{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center mb-4">
-    <h2>Parties</h2>
-    <a href="{{ url_for('parties.add_party') }}" class="btn btn-primary quick-action-btn">
-        <i class="bi bi-plus-circle"></i> Add Party
-    </a>
-</div>
+<div class="container-fluid py-3">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2">
+        <div>
+            <h3 class="fw-bold mb-0 text-slate-800 d-flex align-items-center gap-2">
+                <i class="bi bi-person-lines-fill text-primary"></i>
+                <span data-i18n="parties">Parties & Customers / Suppliers</span>
+            </h3>
+            <p class="text-muted small mb-0">Manage customer/supplier directory, opening balances & individual ledgers</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('parties.party_outstanding') }}" class="btn btn-warning btn-sm d-flex align-items-center gap-1 shadow-sm fw-semibold">
+                <i class="bi bi-whatsapp"></i> <span data-i18n="outstanding_manager">Outstanding & WhatsApp Reminders</span>
+            </a>
+            <a href="{{ url_for('parties.add_party') }}" class="btn btn-primary btn-sm d-flex align-items-center gap-1 shadow-sm">
+                <i class="bi bi-plus-circle"></i> <span data-i18n="add_party">Add Party</span>
+            </a>
+        </div>
+    </div>
 
-<div class="row mb-4">
-    <div class="col-md-6">
-        <div class="card stat-card shadow-sm h-100">
-            <div class="card-body">
-                <div class="stat-label">Total Receivable</div>
-                <div class="stat-value amount-receivable currency-display">₹{{ "%.2f"|format(total_receivable) }}</div>
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-success">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase" data-i18n="total_receivable">Total Receivable (Customer Dues)</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-success">₹{{ "{:,.2f}".format(total_receivable) }}</div>
+                    </div>
+                    <div class="bg-success bg-opacity-10 text-success rounded-circle p-3">
+                        <i class="bi bi-arrow-down-left-circle fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-danger">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase" data-i18n="total_payable">Total Payable (Supplier Dues)</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-danger">₹{{ "{:,.2f}".format(total_payable) }}</div>
+                    </div>
+                    <div class="bg-danger bg-opacity-10 text-danger rounded-circle p-3">
+                        <i class="bi bi-arrow-up-right-circle fs-3"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-6">
-        <div class="card stat-card shadow-sm h-100">
-            <div class="card-body">
-                <div class="stat-label">Total Payable</div>
-                <div class="stat-value amount-payable currency-display">₹{{ "%.2f"|format(total_payable) }}</div>
+
+    <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+        <div class="card-body p-3">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-stretch align-items-md-center gap-2">
+                <div class="btn-group btn-group-sm" role="group">
+                    <a href="{{ url_for('parties.list_parties', type='all') }}" class="btn btn-outline-secondary {% if party_type == 'all' %}active{% endif %}">All</a>
+                    <a href="{{ url_for('parties.list_parties', type='customer') }}" class="btn btn-outline-secondary {% if party_type == 'customer' %}active{% endif %}">Customers</a>
+                    <a href="{{ url_for('parties.list_parties', type='supplier') }}" class="btn btn-outline-secondary {% if party_type == 'supplier' %}active{% endif %}">Suppliers</a>
+                    <a href="{{ url_for('parties.list_parties', type='both') }}" class="btn btn-outline-secondary {% if party_type == 'both' %}active{% endif %}">Both</a>
+                </div>
+                <form method="GET" action="{{ url_for('parties.list_parties') }}" class="d-flex gap-2">
+                    <input type="hidden" name="type" value="{{ party_type }}">
+                    <input type="text" name="search" class="form-control form-control-sm" placeholder="Search party or phone..." value="{{ search }}">
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search"></i></button>
+                </form>
             </div>
         </div>
     </div>
-</div>
 
-<div class="filter-bar card shadow-sm mb-4">
-    <div class="card-body">
-        <div class="btn-group" role="group">
-            <a href="{{ url_for('parties.list_parties', type='all') }}" class="btn btn-outline-secondary {% if party_type == 'all' %}active{% endif %}">All</a>
-            <a href="{{ url_for('parties.list_parties', type='supplier') }}" class="btn btn-outline-secondary {% if party_type == 'supplier' %}active{% endif %}">Supplier</a>
-            <a href="{{ url_for('parties.list_parties', type='customer') }}" class="btn btn-outline-secondary {% if party_type == 'customer' %}active{% endif %}">Customer</a>
-            <a href="{{ url_for('parties.list_parties', type='both') }}" class="btn btn-outline-secondary {% if party_type == 'both' %}active{% endif %}">Both</a>
-        </div>
-    </div>
-</div>
-
-<div class="table-container card shadow-sm">
-    <div class="card-body">
+    <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
         <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead>
-                    <tr>
-                        <th>#</th>
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr class="small text-muted text-uppercase">
+                        <th style="width: 50px;">#</th>
                         <th>Party Name</th>
-                        <th>Type</th>
-                        <th>Phone</th>
-                        <th>GSTIN</th>
-                        <th>Outstanding (₹)</th>
-                        <th>Actions</th>
+                        <th style="width: 110px;">Type</th>
+                        <th style="width: 140px;">Phone</th>
+                        <th style="width: 140px;">GSTIN</th>
+                        <th class="text-end" style="width: 160px;">Outstanding (₹)</th>
+                        <th class="text-center" style="width: 170px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for party in parties %}
                     <tr>
-                        <td>{{ loop.index }}</td>
+                        <td class="text-muted small">{{ loop.index }}</td>
                         <td>
                             <a href="{{ url_for('parties.party_ledger', id=party.id) }}" class="text-decoration-none text-dark fw-bold">
                                 {{ party.name }}
                             </a>
                         </td>
                         <td>
-                            <span class="badge badge-{{ party.party_type }}">{{ party.party_type|capitalize }}</span>
+                            <span class="badge {% if party.party_type == 'customer' %}bg-primary bg-opacity-10 text-primary{% elif party.party_type == 'supplier' %}bg-warning bg-opacity-10 text-dark{% else %}bg-info bg-opacity-10 text-info{% endif %}">
+                                {{ party.party_type|capitalize }}
+                            </span>
                         </td>
-                        <td>{{ party.phone }}</td>
-                        <td>{{ party.gstin }}</td>
-                        <td>
-                            <span class="fw-bold {% if party.outstanding > 0 %}amount-receivable{% elif party.outstanding < 0 %}amount-payable{% else %}amount-zero{% endif %}">
-                                ₹{{ "%.2f"|format(party.outstanding|abs) }}
+                        <td class="small">{{ party.phone or '-' }}</td>
+                        <td class="small font-monospace">{{ party.gstin or '-' }}</td>
+                        <td class="text-end">
+                            <span class="fw-bold {% if party.outstanding > 0 %}text-success{% elif party.outstanding < 0 %}text-danger{% else %}text-secondary{% endif %}">
+                                ₹{{ "{:,.2f}".format(party.outstanding|abs) }}
                                 {% if party.outstanding > 0 %}(Dr){% elif party.outstanding < 0 %}(Cr){% endif %}
                             </span>
                         </td>
-                        <td>
-                            <a href="{{ url_for('parties.party_ledger', id=party.id) }}" class="btn btn-sm btn-outline-info" title="Ledger"><i class="bi bi-journal-text"></i> Ledger</a>
-                            <a href="{{ url_for('parties.edit_party', id=party.id) }}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="bi bi-pencil"></i></a>
-                            <form action="{{ url_for('parties.delete_party', id=party.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this party? This will also delete all related records.');">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn btn-sm btn-outline-danger btn-delete" title="Delete"><i class="bi bi-trash"></i></button>
-                            </form>
+                        <td class="text-center">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('parties.party_ledger', id=party.id) }}" class="btn btn-outline-info btn-sm" title="Ledger"><i class="bi bi-journal-text"></i></a>
+                                <a href="{{ url_for('parties.edit_party', id=party.id) }}" class="btn btn-outline-primary btn-sm" title="Edit"><i class="bi bi-pencil"></i></a>
+                                <form action="{{ url_for('parties.delete_party', id=party.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this party? This will also delete all related records.');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="text-center">No parties found.</td>
+                        <td colspan="7" class="text-center py-5 text-muted">No parties found.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}{% if expense %}Edit Expense{% else %}Add Expense{% endif %} - FlyAsh ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3" style="max-width: 800px;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h3 class="fw-bold mb-0 text-slate-800 d-flex align-items-center gap-2">
+                <i class="bi bi-wallet2 text-danger"></i>
+                <span>{% if expense %}Edit Operational Expense{% else %}Record New Plant Expense{% endif %}</span>
+            </h3>
+            <p class="text-muted small mb-0">Record fuel, electricity bills, machinery spares, daily wages, transport & plant costs</p>
+        </div>
+        <a href="{{ url_for('expenses.list_expenses') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Back to Expenses
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-3 bg-white p-4">
+        <form method="POST" action="{% if expense %}{{ url_for('expenses.edit_expense', id=expense.id) }}{% else %}{{ url_for('expenses.add_expense') }}{% endif %}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+            <div class="row g-3">
+                <div class="col-12 col-md-6">
+                    <label class="form-label fw-semibold text-slate-700">Expense Date <span class="text-danger">*</span></label>
+                    <input type="date" name="date" class="form-control" value="{% if expense %}{{ expense.date.strftime('%Y-%m-%d') }}{% else %}{{ today }}{% endif %}" required>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label class="form-label fw-semibold text-slate-700">Expense Category <span class="text-danger">*</span></label>
+                    <select name="category" id="expense_category" class="form-select" required onchange="toggleCustomCategory(this.value)">
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if expense and expense.category == cat %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                        <option value="Other" {% if expense and expense.category not in categories %}selected{% endif %}>Other / Custom Category</option>
+                    </select>
+                </div>
+
+                <div class="col-12" id="custom_category_div" style="display: {% if expense and expense.category not in categories %}block{% else %}none{% endif %};">
+                    <label class="form-label fw-semibold text-slate-700">Custom Category Name</label>
+                    <input type="text" name="custom_category" class="form-control" placeholder="Enter custom category name" value="{% if expense and expense.category not in categories %}{{ expense.category }}{% endif %}">
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label fw-semibold text-slate-700">Expense Title / Description <span class="text-danger">*</span></label>
+                    <input type="text" name="title" class="form-control" placeholder="e.g. 50L Diesel for Generator / JCB repair / Site electricity bill" value="{% if expense %}{{ expense.title }}{% endif %}" required>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label class="form-label fw-semibold text-slate-700">Amount (₹) <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light fw-bold">₹</span>
+                        <input type="number" step="0.01" name="amount" class="form-control form-control-lg fw-bold text-danger" placeholder="0.00" value="{% if expense %}{{ expense.amount }}{% endif %}" required min="0.01">
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label class="form-label fw-semibold text-slate-700">Payment Mode</label>
+                    <select name="payment_mode" class="form-select form-select-lg">
+                        {% for mode in payment_modes %}
+                        <option value="{{ mode }}" {% if expense and expense.payment_mode == mode %}selected{% endif %}>{{ mode }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label class="form-label fw-semibold text-slate-700">Paid To (Vendor / Person Name)</label>
+                    <input type="text" name="paid_to" class="form-control" placeholder="e.g. Bharat Petroleum / Sri Lakshmi Hardware" value="{% if expense %}{{ expense.paid_to or '' }}{% endif %}">
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label class="form-label fw-semibold text-slate-700">Bill No / Receipt / Txn Ref</label>
+                    <input type="text" name="reference_no" class="form-control" placeholder="e.g. Bill #1042 / UPI-94829384" value="{% if expense %}{{ expense.reference_no or '' }}{% endif %}">
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label fw-semibold text-slate-700">Additional Notes / Remarks</label>
+                    <textarea name="notes" class="form-control" rows="2" placeholder="Optional notes about this expense...">{% if expense %}{{ expense.notes or '' }}{% endif %}</textarea>
+                </div>
+
+                <div class="col-12 mt-4 pt-3 border-top d-flex gap-2 justify-content-end">
+                    <a href="{{ url_for('expenses.list_expenses') }}" class="btn btn-light px-4">Cancel</a>
+                    <button type="submit" class="btn btn-danger px-4 fw-semibold shadow-sm">
+                        <i class="bi bi-check-circle-fill me-1"></i> {% if expense %}Save Changes{% else %}Record Expense{% endif %}
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function toggleCustomCategory(val) {
+    const div = document.getElementById('custom_category_div');
+    if (val === 'Other') {
+        div.style.display = 'block';
+    } else {
+        div.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}
