@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}Party Outstanding Balance Manager - FlyAsh ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2">
+        <div>
+            <h3 class="fw-bold mb-0 text-slate-800 d-flex align-items-center gap-2">
+                <i class="bi bi-person-lines-fill text-primary"></i>
+                <span data-i18n="party_outstanding_title">Party Outstanding Balance Manager</span>
+            </h3>
+            <p class="text-muted small mb-0" data-i18n="party_outstanding_subtitle">Manage receivables from customers & payables to suppliers with 1-click WhatsApp reminders</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('parties.export_outstanding_csv', filter=filter_type, party_type=party_type, search=search) }}" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 shadow-sm">
+                <i class="bi bi-download"></i> <span data-i18n="export_csv">Export CSV</span>
+            </a>
+            <a href="{{ url_for('parties.list_parties') }}" class="btn btn-outline-primary btn-sm d-flex align-items-center gap-1 shadow-sm">
+                <i class="bi bi-people"></i> <span data-i18n="all_parties">All Parties</span>
+            </a>
+            <a href="{{ url_for('parties.payment_add') }}" class="btn btn-success btn-sm d-flex align-items-center gap-1 shadow-sm">
+                <i class="bi bi-cash"></i> <span data-i18n="record_payment">Record Payment</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary KPI Cards -->
+    <div class="row g-3 mb-4">
+        <!-- Receivables Card (Dr) -->
+        <div class="col-12 col-sm-6 col-lg-4">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-success">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase" data-i18n="total_receivable">Total Receivable (From Customers)</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-success">₹{{ "{:,.2f}".format(total_receivable) }}</div>
+                        <div class="small text-muted mt-1">{{ receivable_count }} parties owe money to plant</div>
+                    </div>
+                    <div class="bg-success bg-opacity-10 text-success rounded-circle p-3">
+                        <i class="bi bi-arrow-down-left-circle-fill fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payables Card (Cr) -->
+        <div class="col-12 col-sm-6 col-lg-4">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-danger">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase" data-i18n="total_payable">Total Payable (To Suppliers)</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-danger">₹{{ "{:,.2f}".format(total_payable) }}</div>
+                        <div class="small text-muted mt-1">{{ payable_count }} parties plant needs to pay</div>
+                    </div>
+                    <div class="bg-danger bg-opacity-10 text-danger rounded-circle p-3">
+                        <i class="bi bi-arrow-up-right-circle-fill fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Net Outstanding Position -->
+        <div class="col-12 col-sm-6 col-lg-4">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-primary">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase" data-i18n="net_balance">Net Position</div>
+                        <div class="h3 fw-bold mb-0 mt-1 {% if net_balance >= 0 %}text-primary{% else %}text-warning{% endif %}">
+                            ₹{{ "{:,.2f}".format(net_balance|abs) }}
+                            <span class="fs-6 fw-normal">{% if net_balance >= 0 %}(Net Inflow Dr){% else %}(Net Outflow Cr){% endif %}</span>
+                        </div>
+                        <div class="small text-muted mt-1">{{ total_count }} total registered parties</div>
+                    </div>
+                    <div class="bg-primary bg-opacity-10 text-primary rounded-circle p-3">
+                        <i class="bi bi-wallet2 fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter & Search Toolbar -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+        <div class="card-body p-3">
+            <form method="GET" action="{{ url_for('parties.party_outstanding') }}" class="row g-2 align-items-end">
+                <div class="col-12 col-md-4">
+                    <label class="form-label small fw-semibold text-muted mb-1" data-i18n="search">Search Party / Phone / GSTIN</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                        <input type="text" name="search" class="form-control" placeholder="Search by name, phone or GST..." value="{{ search }}">
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-semibold text-muted mb-1" data-i18n="party_type">Party Type</label>
+                    <select name="party_type" class="form-select form-select-sm">
+                        <option value="all" {% if party_type == 'all' %}selected{% endif %}>All Types</option>
+                        <option value="customer" {% if party_type == 'customer' %}selected{% endif %}>Customer</option>
+                        <option value="supplier" {% if party_type == 'supplier' %}selected{% endif %}>Supplier</option>
+                        <option value="both" {% if party_type == 'both' %}selected{% endif %}>Both</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="form-label small fw-semibold text-muted mb-1" data-i18n="sort_by">Sort By</label>
+                    <select name="sort" class="form-select form-select-sm">
+                        <option value="highest_due" {% if sort_by == 'highest_due' %}selected{% endif %}>Highest Due First (Max ₹)</option>
+                        <option value="lowest_due" {% if sort_by == 'lowest_due' %}selected{% endif %}>Lowest Due First (Min ₹)</option>
+                        <option value="name_asc" {% if sort_by == 'name_asc' %}selected{% endif %}>Name (A to Z)</option>
+                        <option value="name_desc" {% if sort_by == 'name_desc' %}selected{% endif %}>Name (Z to A)</option>
+                    </select>
+                </div>
+                <input type="hidden" name="filter" value="{{ filter_type }}">
+                <div class="col-12 col-md-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
+                        <i class="bi bi-funnel-fill"></i> <span data-i18n="apply_filter">Filter</span>
+                    </button>
+                    <a href="{{ url_for('parties.party_outstanding') }}" class="btn btn-light btn-sm border" title="Reset">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
+                </div>
+            </form>
+
+            <!-- Quick Filter Tabs -->
+            <div class="d-flex flex-wrap gap-2 mt-3 pt-2 border-top">
+                <a href="{{ url_for('parties.party_outstanding', filter='all', party_type=party_type, sort=sort_by, search=search) }}" 
+                   class="btn btn-sm rounded-pill {% if filter_type == 'all' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                    All Parties ({{ total_count }})
+                </a>
+                <a href="{{ url_for('parties.party_outstanding', filter='receivable', party_type=party_type, sort=sort_by, search=search) }}" 
+                   class="btn btn-sm rounded-pill {% if filter_type == 'receivable' %}btn-success text-white{% else %}btn-outline-success{% endif %}">
+                    <i class="bi bi-arrow-down-left-circle me-1"></i> Receivables / Customer Dues ({{ receivable_count }})
+                </a>
+                <a href="{{ url_for('parties.party_outstanding', filter='payable', party_type=party_type, sort=sort_by, search=search) }}" 
+                   class="btn btn-sm rounded-pill {% if filter_type == 'payable' %}btn-danger text-white{% else %}btn-outline-danger{% endif %}">
+                    <i class="bi bi-arrow-up-right-circle me-1"></i> Payables / Supplier Dues ({{ payable_count }})
+                </a>
+                <a href="{{ url_for('parties.party_outstanding', filter='zero', party_type=party_type, sort=sort_by, search=search) }}" 
+                   class="btn btn-sm rounded-pill {% if filter_type == 'zero' %}btn-secondary text-white{% else %}btn-outline-secondary{% endif %}">
+                    Settled / Zero Balance ({{ zero_count }})
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Outstanding Table -->
+    <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr class="small text-muted text-uppercase">
+                        <th style="width: 50px;">#</th>
+                        <th>Party Name & Contact</th>
+                        <th style="width: 110px;">Type</th>
+                        <th class="text-end" style="width: 150px;">Opening Bal</th>
+                        <th class="text-end" style="width: 180px;">Net Outstanding (₹)</th>
+                        <th class="text-center" style="width: 130px;">Status</th>
+                        <th class="text-center" style="width: 190px;">WhatsApp & Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for party in parties %}
+                    <tr>
+                        <td class="text-muted small">{{ loop.index }}</td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="avatar-sm rounded-circle bg-primary bg-opacity-10 text-primary fw-bold d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+                                    {{ party.name[:2]|upper }}
+                                </div>
+                                <div>
+                                    <a href="{{ url_for('parties.party_ledger', id=party.id) }}" class="fw-bold text-dark text-decoration-none">
+                                        {{ party.name }}
+                                    </a>
+                                    <div class="small text-muted d-flex align-items-center gap-2">
+                                        {% if party.phone %}
+                                        <span><i class="bi bi-telephone text-success"></i> {{ party.phone }}</span>
+                                        {% endif %}
+                                        {% if party.gstin %}
+                                        <span class="text-secondary font-monospace"><i class="bi bi-card-text"></i> {{ party.gstin }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge {% if party.party_type == 'customer' %}bg-primary bg-opacity-10 text-primary{% elif party.party_type == 'supplier' %}bg-warning bg-opacity-10 text-dark{% else %}bg-info bg-opacity-10 text-info{% endif %} fw-semibold">
+                                {{ party.party_type|capitalize }}
+                            </span>
+                        </td>
+                        <td class="text-end small text-muted">
+                            ₹{{ "{:,.2f}".format(party.opening_balance) }}
+                        </td>
+                        <td class="text-end">
+                            {% if party.outstanding > 0.01 %}
+                            <div class="fw-bold text-success fs-6">
+                                ₹{{ "{:,.2f}".format(party.outstanding) }} <span class="badge bg-success bg-opacity-10 text-success small fw-normal">Dr</span>
+                            </div>
+                            <small class="text-success text-opacity-75">Customer owes plant</small>
+                            {% elif party.outstanding < -0.01 %}
+                            <div class="fw-bold text-danger fs-6">
+                                ₹{{ "{:,.2f}".format(party.outstanding|abs) }} <span class="badge bg-danger bg-opacity-10 text-danger small fw-normal">Cr</span>
+                            </div>
+                            <small class="text-danger text-opacity-75">Plant owes supplier</small>
+                            {% else %}
+                            <div class="fw-bold text-secondary fs-6">₹0.00</div>
+                            <small class="text-muted">Account settled</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if party.outstanding > 0.01 %}
+                            <span class="badge bg-success text-white py-1 px-2"><i class="bi bi-arrow-down-left"></i> Receivable</span>
+                            {% elif party.outstanding < -0.01 %}
+                            <span class="badge bg-danger text-white py-1 px-2"><i class="bi bi-arrow-up-right"></i> Payable</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark border py-1 px-2"><i class="bi bi-check2-circle text-success"></i> Clear</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <div class="d-flex align-items-center justify-content-center gap-1">
+                                {% if party.wa_link %}
+                                <a href="{{ party.wa_link }}" target="_blank" class="btn btn-success btn-sm shadow-xs d-flex align-items-center gap-1" title="Send WhatsApp Payment Reminder">
+                                    <i class="bi bi-whatsapp"></i> <span class="d-none d-md-inline small">WhatsApp</span>
+                                </a>
+                                {% else %}
+                                <button class="btn btn-outline-secondary btn-sm opacity-50" disabled title="No phone number registered">
+                                    <i class="bi bi-whatsapp"></i>
+                                </button>
+                                {% endif %}
+
+                                <a href="{{ url_for('parties.payment_add') }}?party_id={{ party.id }}&type={% if party.outstanding > 0 %}received{% else %}paid{% endif %}" 
+                                   class="btn btn-outline-primary btn-sm" title="Record Payment">
+                                    <i class="bi bi-cash-stack"></i>
+                                </a>
+
+                                <a href="{{ url_for('parties.party_ledger', id=party.id) }}" 
+                                   class="btn btn-outline-secondary btn-sm" title="View Full Ledger">
+                                    <i class="bi bi-journal-text"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="bi bi-person-check fs-1 d-block mb-2 text-muted text-opacity-50"></i>
+                            <p class="mb-2">No parties found matching the selected filter.</p>
+                            <a href="{{ url_for('parties.party_outstanding') }}" class="btn btn-outline-primary btn-sm">
+                                Clear Filters
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

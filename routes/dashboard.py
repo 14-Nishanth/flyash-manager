@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template
 from flask_login import login_required
-from models import db, Employee, Party, MaterialInward, MaterialOutward, JobWageEntry, JobRateSetting
+from models import db, Employee, Party, MaterialInward, MaterialOutward, JobWageEntry, JobRateSetting, Expense
 from datetime import date, timedelta
 from sqlalchemy import func
 import calendar
@@ -33,6 +33,11 @@ def index():
     today_outward = today_outward_query.qty or 0.0
     today_outward_amount = today_outward_query.amount or 0.0
 
+    # Operational Expenses Today & This Month
+    first_of_month = today.replace(day=1)
+    today_expenses = db.session.query(func.sum(Expense.amount)).filter(Expense.date == today).scalar() or 0.0
+    month_expenses = db.session.query(func.sum(Expense.amount)).filter(Expense.date >= first_of_month, Expense.date <= today).scalar() or 0.0
+
     # Piece-Rate Job Metrics for Today
     today_jobs_query = db.session.query(
         func.count(JobWageEntry.id).label('count'),
@@ -53,9 +58,9 @@ def index():
     recent_inward = MaterialInward.query.order_by(MaterialInward.date.desc(), MaterialInward.id.desc()).limit(5).all()
     recent_outward = MaterialOutward.query.order_by(MaterialOutward.date.desc(), MaterialOutward.id.desc()).limit(5).all()
     recent_jobs = JobWageEntry.query.order_by(JobWageEntry.date.desc(), JobWageEntry.id.desc()).limit(5).all()
+    recent_expenses = Expense.query.order_by(Expense.date.desc(), Expense.id.desc()).limit(5).all()
 
     # Material Stock Balance Summary
-    common_materials = ['Cement', 'Jelly (20mm / 12mm / Baby)', 'Fly Ash', 'M-Sand / Sand', 'Slag']
     stock_overview = []
     for mat in ['Cement', 'Jelly', 'Fly Ash', 'Sand']:
         in_qty = db.session.query(func.sum(MaterialInward.quantity_mt)).filter(MaterialInward.material_type.ilike(f'%{mat}%')).scalar() or 0.0
@@ -84,7 +89,6 @@ def index():
         month_label = f"{calendar.month_abbr[target_month]} {target_year}"
         month_labels.append(month_label)
         
-        # SQLite vs Postgres month filtering
         try:
             inward_sum = db.session.query(func.sum(MaterialInward.amount)).filter(
                 func.extract('month', MaterialInward.date) == target_month,
@@ -102,25 +106,26 @@ def index():
         except Exception:
             outward_sum = 0.0
         outward_amounts.append(round(outward_sum, 2))
-        
-    return render_template(
-        'dashboard.html',
-        total_employees=total_employees,
-        total_parties=total_parties,
-        today_inward=today_inward,
-        today_outward=today_outward,
-        today_inward_amount=today_inward_amount,
-        today_outward_amount=today_outward_amount,
-        today_jobs_count=today_jobs_count,
-        today_jobs_pieces=today_jobs_pieces,
-        today_jobs_amount=today_jobs_amount,
-        total_receivable=total_receivable,
-        total_payable=total_payable,
-        recent_inward=recent_inward,
-        recent_outward=recent_outward,
-        recent_jobs=recent_jobs,
-        stock_overview=stock_overview,
-        month_labels=month_labels,
-        inward_amounts=inward_amounts,
-        outward_amounts=outward_amounts
-    )
+
+    return render_template('dashboard.html',
+                           total_employees=total_employees,
+                           total_parties=total_parties,
+                           today_inward=today_inward,
+                           today_inward_amount=today_inward_amount,
+                           today_outward=today_outward,
+                           today_outward_amount=today_outward_amount,
+                           today_jobs_count=today_jobs_count,
+                           today_jobs_pieces=today_jobs_pieces,
+                           today_jobs_amount=today_jobs_amount,
+                           today_expenses=today_expenses,
+                           month_expenses=month_expenses,
+                           total_receivable=total_receivable,
+                           total_payable=total_payable,
+                           recent_inward=recent_inward,
+                           recent_outward=recent_outward,
+                           recent_jobs=recent_jobs,
+                           recent_expenses=recent_expenses,
+                           stock_overview=stock_overview,
+                           month_labels=month_labels,
+                           inward_amounts=inward_amounts,
+                           outward_amounts=outward_amounts)

@@ -2,233 +2,131 @@
 <html lang="{{ current_language or 'en' }}" data-lang="{{ current_language or 'en' }}">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <meta name="theme-color" content="#0f172a">
-    <title>Sign In - FlyAsh & Concrete Block Plant Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Login - FlyAsh Plant Manager</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            padding: 1rem;
+        }
+        .login-card {
+            background: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+            width: 100%;
+            max-width: 420px;
+        }
+    </style>
 </head>
-<body class="login-body-v2">
-    <div class="login-container-fluid d-flex align-items-center justify-content-center min-vh-100 p-2 p-sm-4">
-        
-        <!-- Main Dynamic Glassmorphic Card -->
-        <div class="login-main-card shadow-2xl overflow-hidden rounded-4">
-            <div class="row g-0">
-                
-                <!-- Left Visual Showcase (Visible on Tablets & Desktops) -->
-                <div class="col-lg-6 d-none d-lg-block login-hero-side position-relative">
-                    <div class="login-hero-img" style="background-image: url('{{ url_for('static', filename='img/plant_hero.jpg') }}');"></div>
-                    <div class="login-hero-overlay d-flex flex-column justify-content-between p-4 p-xl-5 text-white">
-                        
-                        <!-- Top Header in Hero -->
-                        <div class="d-flex align-items-center gap-3">
-                            <img src="{{ url_for('static', filename='img/plant_logo.jpg') }}" alt="Plant Logo" class="login-logo-img rounded-3 shadow">
-                            <div>
-                                <span class="badge bg-primary bg-opacity-75 text-uppercase px-2 py-1 mb-1" style="font-size: 0.7rem; letter-spacing: 1px;">Smart Plant ERP</span>
-                                <h4 class="mb-0 fw-bold text-white tracking-wide">FlyAsh Manager</h4>
-                            </div>
-                        </div>
-
-                        <!-- Center Highlights in Hero -->
-                        <div class="my-4">
-                            <h2 class="display-6 fw-bold text-white mb-3" style="line-height: 1.2;">
-                                Automated Brick & Block Plant Management
-                            </h2>
-                            <p class="text-white-50 fs-6 mb-4">
-                                Complete production control, piece-rate labor wages, material inward/outward registers, and automated live reporting.
-                            </p>
-
-                            <div class="d-flex flex-column gap-2.5">
-                                <div class="d-flex align-items-center gap-3 p-2.5 rounded-3 bg-dark bg-opacity-50 backdrop-blur">
-                                    <div class="hero-feature-icon bg-success bg-opacity-25 text-success rounded-2 p-2">
-                                        <i class="bi bi-hammer fs-5"></i>
-                                    </div>
-                                    <div>
-                                        <div class="fw-bold text-white small">Piece-Rate Pricing & Labor Gangs</div>
-                                        <div class="text-white-50" style="font-size: 0.75rem;">Automated wage division for production, loading & unloading</div>
-                                    </div>
-                                </div>
-
-                                <div class="d-flex align-items-center gap-3 p-2.5 rounded-3 bg-dark bg-opacity-50 backdrop-blur">
-                                    <div class="hero-feature-icon bg-info bg-opacity-25 text-info rounded-2 p-2">
-                                        <i class="bi bi-truck fs-5"></i>
-                                    </div>
-                                    <div>
-                                        <div class="fw-bold text-white small">Material Inward & Outward Register</div>
-                                        <div class="text-white-50" style="font-size: 0.75rem;">Cement, Jelly, Fly Ash, Sand tracking & party ledgers</div>
-                                    </div>
-                                </div>
-
-                                <div class="d-flex align-items-center gap-3 p-2.5 rounded-3 bg-dark bg-opacity-50 backdrop-blur">
-                                    <div class="hero-feature-icon bg-warning bg-opacity-25 text-warning rounded-2 p-2">
-                                        <i class="bi bi-shield-lock fs-5"></i>
-                                    </div>
-                                    <div>
-                                        <div class="fw-bold text-white small">Multi-Device Cloud Sync</div>
-                                        <div class="text-white-50" style="font-size: 0.75rem;">Instant sync across phones, tablets & desktop with Neon PostgreSQL</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Footer in Hero -->
-                        <div class="d-flex justify-content-between align-items-center pt-3 border-top border-white border-opacity-10 text-white-50 small">
-                            <span><i class="bi bi-geo-alt-fill text-danger me-1"></i> Manufacturing Plant System</span>
-                            <span>v1.0.0 Cloud Production</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Right Form Side (Mobile Touch-First & Desktop High Precision) -->
-                <div class="col-lg-6 login-form-side d-flex align-items-center p-3 p-sm-4 p-md-5 bg-white">
-                    <div class="w-100 mx-auto" style="max-width: 440px;">
-                        
-                        <!-- Mobile-only Brand Header -->
-                        <div class="text-center d-lg-none mb-3">
-                            <img src="{{ url_for('static', filename='img/plant_logo.jpg') }}" alt="Plant Logo" class="login-logo-mobile rounded-3 shadow mb-2" style="width: 56px; height: 56px; object-fit: cover;">
-                            <h4 class="fw-bold text-dark mb-1">FlyAsh Manager</h4>
-                            <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-1">Brick & Block Plant ERP</span>
-                        </div>
-
-                        <!-- Top Title & Language Selector Row -->
-                        <div class="d-flex justify-content-between align-items-center mb-4">
-                            <div>
-                                <h3 class="fw-bold text-dark mb-1 d-none d-lg-block">Welcome Back</h3>
-                                <p class="text-muted small mb-0">Sign in to access plant portal</p>
-                            </div>
-                            
-                            <!-- Login Language Dropdown -->
-                            <div class="dropdown">
-                                <button class="btn btn-outline-secondary btn-sm dropdown-toggle d-flex align-items-center gap-1.5 border bg-white shadow-xs rounded-3 py-1 px-2.5" 
-                                        type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Change Language / भाषा बदलें">
-                                    <span class="fs-6">{{ current_lang_meta.flag }}</span>
-                                    <span class="fw-bold text-dark" style="font-size: 0.8rem;">{{ current_lang_meta.native }}</span>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end shadow-lg py-1 border-0 rounded-3 mt-1" style="max-height: 320px; overflow-y: auto; min-width: 200px;">
-                                    <li><h6 class="dropdown-header text-uppercase text-primary small fw-bold px-3 py-1.5" style="font-size: 0.7rem;">🇮🇳 Select Language / भाषा</h6></li>
-                                    {% for code, native_name, eng_name, flag, gt_code in supported_languages %}
-                                        <li>
-                                            <a class="dropdown-item d-flex align-items-center justify-content-between px-3 py-1.5 lang-select-btn {% if code == current_language %}active fw-bold{% endif %}" 
-                                               href="{{ url_for('auth.set_language', lang_code=code, next=request.path) }}"
-                                               data-lang-code="{{ code }}">
-                                                <span>{{ flag }} {{ native_name }}</span>
-                                                <small class="{% if code == current_language %}text-white-50{% else %}text-muted{% endif %} ms-2" style="font-size: 0.72rem;">{{ eng_name }}</small>
-                                            </a>
-                                        </li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                        </div>
-
-                        <!-- Alert Notifications -->
-                        {% with messages = get_flashed_messages(with_categories=true) %}
-                            {% if messages %}
-                                {% for category, message in messages %}
-                                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show py-2.5 px-3 small rounded-3 border-0 shadow-sm mb-3"
-                                         role="alert">
-                                        <div class="d-flex align-items-center">
-                                            <i class="bi bi-{{ 'exclamation-triangle-fill text-danger' if category == 'error' else 'check-circle-fill text-success' }} fs-5 me-2.5"></i>
-                                            <div class="fw-semibold">{{ message }}</div>
-                                        </div>
-                                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                                    </div>
-                                {% endfor %}
-                            {% endif %}
-                        {% endwith %}
-
-                        <!-- Login Form -->
-                        <form method="POST" action="{{ url_for('auth.login') }}" novalidate autocomplete="on">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-                            <div class="mb-3.5">
-                                <label for="username" class="form-label fw-bold text-dark small mb-1.5">
-                                    Username or Email
-                                </label>
-                                <div class="input-group input-group-lg input-glow rounded-3">
-                                    <span class="input-group-text bg-light border-0 text-muted px-3">
-                                        <i class="bi bi-person-fill text-primary"></i>
-                                    </span>
-                                    <input type="text" class="form-control form-control-lg bg-light border-0 ps-1" 
-                                           id="username" name="username" 
-                                           placeholder="e.g. admin or username" 
-                                           autocomplete="username" required autofocus>
-                                </div>
-                            </div>
-
-                            <div class="mb-3.5">
-                                <div class="d-flex justify-content-between align-items-center mb-1.5">
-                                    <label for="password" class="form-label fw-bold text-dark small mb-0">
-                                        Password
-                                    </label>
-                                </div>
-                                <div class="input-group input-group-lg input-glow rounded-3">
-                                    <span class="input-group-text bg-light border-0 text-muted px-3">
-                                        <i class="bi bi-lock-fill text-primary"></i>
-                                    </span>
-                                    <input type="password" class="form-control form-control-lg bg-light border-0 ps-1" 
-                                           id="password" name="password" 
-                                           placeholder="Enter password" 
-                                           autocomplete="current-password" required>
-                                    <button class="btn btn-light border-0 text-muted px-3" type="button" id="togglePasswordBtn" title="Toggle password visibility">
-                                        <i class="bi bi-eye" id="togglePasswordIcon"></i>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="d-flex justify-content-between align-items-center mb-4 pt-1">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="rememberMe" checked>
-                                    <label class="form-check-label text-muted small user-select-none" for="rememberMe">
-                                        Keep me signed in
-                                    </label>
-                                </div>
-                                <span class="badge bg-light text-secondary border px-2.5 py-1.5 small">
-                                    <i class="bi bi-shield-lock-fill text-success me-1"></i> SSL Protected
-                                </span>
-                            </div>
-
-                            <button type="submit" class="btn btn-primary btn-lg w-100 py-3 fw-bold rounded-3 shadow-lg dynamic-login-btn">
-                                <span class="d-flex align-items-center justify-content-center gap-2">
-                                    <span>Sign In to Plant Portal</span>
-                                    <i class="bi bi-arrow-right-circle-fill fs-5"></i>
-                                </span>
-                            </button>
-                        </form>
-
-                        <!-- Role Guide / Quick Notice -->
-                        <div class="mt-4 pt-3 border-top text-center text-muted" style="font-size: 0.8rem;">
-                            <div class="d-flex justify-content-center gap-3 text-secondary">
-                                <span><i class="bi bi-person-badge text-primary me-1"></i> Operator</span>
-                                <span>•</span>
-                                <span><i class="bi bi-clipboard-check text-info me-1"></i> Supervisor</span>
-                                <span>•</span>
-                                <span><i class="bi bi-cash-stack text-success me-1"></i> Accountant</span>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-
-            </div>
+<body>
+    <div class="login-card">
+        <div class="bg-primary text-white text-center p-4">
+            <img src="{{ url_for('static', filename='img/plant_logo.jpg') }}" alt="Logo" class="rounded-circle shadow mb-2" style="width: 64px; height: 64px; object-fit: cover; border: 3px solid rgba(255,255,255,0.3);">
+            <h4 class="fw-bold mb-1">FlyAsh Plant Manager</h4>
+            <p class="mb-0 text-white-50 small">Smart Brick & Block Manufacturing ERP</p>
         </div>
 
+        <div class="p-4">
+            <!-- Language Selector -->
+            <div class="d-flex justify-content-end mb-3">
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle d-flex align-items-center gap-1 border bg-light shadow-xs" type="button" data-bs-toggle="dropdown">
+                        <span>{{ current_lang_meta.flag }}</span>
+                        <span class="small fw-semibold">{{ current_lang_meta.native }}</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="max-height: 280px; overflow-y: auto;">
+                        {% for code, native_name, eng_name, flag, gt_code in supported_languages %}
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center justify-content-between px-3 py-1.5 lang-select-btn {% if code == current_language %}active fw-bold{% endif %}" 
+                                   href="{{ url_for('auth.set_language', lang_code=code, next=request.path) }}"
+                                   data-lang-code="{{ code }}">
+                                    <span>{{ flag }} {{ native_name }}</span>
+                                    <small class="text-muted ms-2">{{ eng_name }}</small>
+                                </a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show small" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('auth.login') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small text-slate-700">Username or Email</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light"><i class="bi bi-person"></i></span>
+                        <input type="text" name="username" class="form-control" placeholder="admin or staff username" required autofocus>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small text-slate-700">Password</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light"><i class="bi bi-lock"></i></span>
+                        <input type="password" name="password" class="form-control" placeholder="Enter password" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold rounded-3 shadow-sm mb-3">
+                    <i class="bi bi-box-arrow-in-right me-1"></i> Sign In to Plant ERP
+                </button>
+            </form>
+
+            <!-- Install Mobile App Banner -->
+            <div class="border-top pt-3 text-center">
+                <button class="btn btn-outline-dark btn-sm rounded-pill w-100 fw-semibold" id="loginPwaInstallBtn" onclick="installAppPrompt()">
+                    <i class="bi bi-phone text-primary me-1"></i> Download Mobile App (PWA)
+                </button>
+                <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">Fast mobile access for Admin & Staff</small>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
     <script>
-        const toggleBtn = document.getElementById('togglePasswordBtn');
-        const passwordInput = document.getElementById('password');
-        const toggleIcon = document.getElementById('togglePasswordIcon');
-
-        if (toggleBtn && passwordInput && toggleIcon) {
-            toggleBtn.addEventListener('click', function() {
-                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-                passwordInput.setAttribute('type', type);
-                toggleIcon.className = type === 'password' ? 'bi bi-eye' : 'bi bi-eye-slash text-primary';
-            });
+    let pwaPrompt = null;
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+    }
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        pwaPrompt = e;
+    });
+    function installAppPrompt() {
+        if (pwaPrompt) {
+            pwaPrompt.prompt();
+            pwaPrompt.userChoice.then(() => { pwaPrompt = null; });
+        } else {
+            alert('To install on Mobile: Tap Share / Options in your browser and select "Add to Home Screen"');
         }
+    }
     </script>
 </body>
 </html>

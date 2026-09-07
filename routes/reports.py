@@ -1,9 +1,9 @@
 import io
 import csv
-from datetime import datetime
+from datetime import datetime, date
 from flask import Blueprint, render_template, request, Response
 from flask_login import login_required
-from models import db, Party, MaterialInward, MaterialOutward, Payment
+from models import db, Party, MaterialInward, MaterialOutward, Payment, Expense
 
 bp = Blueprint('reports', __name__, url_prefix='/reports')
 
@@ -53,6 +53,23 @@ def get_report_data(report_type, from_date, to_date, party_id):
         results.sort(key=lambda x: x['outstanding'], reverse=True)
         data['results'] = results
         
+    elif report_type == 'expenses':
+        exp_query = Expense.query
+        if from_d:
+            exp_query = exp_query.filter(Expense.date >= from_d)
+        if to_d:
+            exp_query = exp_query.filter(Expense.date <= to_d)
+        expenses = exp_query.order_by(Expense.date.desc()).all()
+        
+        category_breakup = {}
+        total_expense = sum(e.amount for e in expenses)
+        for e in expenses:
+            category_breakup[e.category] = category_breakup.get(e.category, 0.0) + e.amount
+            
+        data['results'] = expenses
+        data['category_breakup'] = category_breakup
+        data['total_expense'] = total_expense
+
     elif report_type == 'daily':
         dates = set()
         
@@ -100,29 +117,27 @@ def get_report_data(report_type, from_date, to_date, party_id):
                 outward_query = outward_query.filter(MaterialOutward.date >= from_d)
                 payments_received_query = payments_received_query.filter(Payment.date >= from_d)
                 payments_paid_query = payments_paid_query.filter(Payment.date >= from_d)
+                
             if to_d:
                 inward_query = inward_query.filter(MaterialInward.date <= to_d)
                 outward_query = outward_query.filter(MaterialOutward.date <= to_d)
                 payments_received_query = payments_received_query.filter(Payment.date <= to_d)
                 payments_paid_query = payments_paid_query.filter(Payment.date <= to_d)
                 
-            inward_totals = inward_query.first()
-            outward_totals = outward_query.first()
-            payments_received = payments_received_query.scalar() or 0
-            payments_paid = payments_paid_query.scalar() or 0
+            inward_res = inward_query.first()
+            outward_res = outward_query.first()
+            received_res = payments_received_query.first()
+            paid_res = payments_paid_query.first()
             
-            data['summary'] = {
-                'party_name': party.name,
-                'total_inward_qty': inward_totals[0] or 0,
-                'total_inward_amt': inward_totals[1] or 0,
-                'total_outward_qty': outward_totals[0] or 0,
-                'total_outward_amt': outward_totals[1] or 0,
-                'total_received': payments_received,
-                'total_paid': payments_paid,
-                'outstanding': party.get_outstanding()
-            }
-            data['results'] = [data['summary']]
-    
+            data['party'] = party
+            data['total_inward_qty'] = inward_res.qty or 0 if inward_res else 0
+            data['total_inward_amt'] = inward_res.amt or 0 if inward_res else 0
+            data['total_outward_qty'] = outward_res.qty or 0 if outward_res else 0
+            data['total_outward_amt'] = outward_res.amt or 0 if outward_res else 0
+            data['payments_received'] = received_res[0] or 0 if received_res else 0
+            data['payments_paid'] = paid_res[0] or 0 if paid_res else 0
+            data['outstanding'] = party.get_outstanding()
+            
     return data
 
 @bp.route('/')
@@ -133,16 +148,16 @@ def index():
     to_date = request.args.get('to_date')
     party_id = request.args.get('party_id')
     
-    parties = Party.query.order_by(Party.name).all()
-    
     data = {}
     if report_type:
         data = get_report_data(report_type, from_date, to_date, party_id)
         
+    parties = Party.query.order_by(Party.name).all()
+    
     return render_template('reports/index.html', 
-                           report_type=report_type, 
-                           from_date=from_date, 
-                           to_date=to_date, 
+                           report_type=report_type,
+                           from_date=from_date,
+                           to_date=to_date,
                            party_id=party_id,
                            parties=parties,
                            data=data)
@@ -160,26 +175,45 @@ def export_csv():
     output = io.StringIO()
     writer = csv.writer(output)
     
-    if report_type == 'stock_summary' and 'results' in data:
-        writer.writerow(['Material Type', 'Inward Qty (MT)', 'Outward Qty (MT)', 'Balance (MT)'])
-        for row in data['results']:
+    if report_type == 'stock_summary':
+        writer.writerow(['Material Type', 'Inward Qty (MT)', 'Outward Qty (MT)', 'Balance Qty (MT)'])
+        for row in data.get('results', []):
             writer.writerow([row['material_type'], row['inward_qty'], row['outward_qty'], row['balance']])
             
-    elif report_type == 'outstanding' and 'results' in data:
-        writer.writerow(['Party Name', 'Party Type', 'Outstanding Amount'])
-        for row in data['results']:
-            writer.writerow([row['party_name'], row['party_type'].capitalize(), row['outstanding']])
+    elif report_type == 'outstanding':
+        writer.writerow(['Party Name', 'Party Type', 'Outstanding (₹)'])
+        for row in data.get('results', []):
+            writer.writerow([row['party_name'], row['party_type'], row['outstanding']])
+
+    elif report_type == 'expenses':
+        writer.writerow(['Date', 'Category', 'Title', 'Amount (INR)', 'Payment Mode', 'Paid To', 'Ref'])
+        for row in data.get('results', []):
+            writer.writerow([row.date.strftime('%Y-%m-%d'), row.category, row.title, row.amount, row.payment_mode, row.paid_to or '', row.reference_no or ''])
             
-    elif report_type == 'daily' and 'results' in data:
-        writer.writerow(['Date', 'Inward Qty', 'Inward Amount', 'Outward Qty', 'Outward Amount'])
-        for row in data['results']:
+    elif report_type == 'daily':
+        writer.writerow(['Date', 'Inward Qty (MT)', 'Inward Amount (₹)', 'Outward Qty (MT)', 'Outward Amount (₹)'])
+        for row in data.get('results', []):
             writer.writerow([row['date'], row['inward_qty'], row['inward_amt'], row['outward_qty'], row['outward_amt']])
             
-    elif report_type == 'party_wise' and 'summary' in data:
-        s = data['summary']
-        writer.writerow(['Party Name', 'Total Inward Qty', 'Total Inward Amount', 'Total Outward Qty', 'Total Outward Amount', 'Total Payments Received', 'Total Payments Paid', 'Outstanding Amount'])
-        writer.writerow([s['party_name'], s['total_inward_qty'], s['total_inward_amt'], s['total_outward_qty'], s['total_outward_amt'], s['total_received'], s['total_paid'], s['outstanding']])
-        
-    response = Response(output.getvalue(), content_type='text/csv')
-    response.headers["Content-Disposition"] = f"attachment; filename={report_type}_report_{datetime.now().strftime('%Y%m%d%H%M%S')}.csv"
-    return response
+    elif report_type == 'party_wise':
+        party = data.get('party')
+        if party:
+            writer.writerow(['Party Name', party.name])
+            writer.writerow(['Type', party.party_type])
+            writer.writerow(['Phone', party.phone])
+            writer.writerow([])
+            writer.writerow(['Metric', 'Value'])
+            writer.writerow(['Total Inward Qty (MT)', data.get('total_inward_qty')])
+            writer.writerow(['Total Inward Amount (₹)', data.get('total_inward_amt')])
+            writer.writerow(['Total Outward Qty (MT)', data.get('total_outward_qty')])
+            writer.writerow(['Total Outward Amount (₹)', data.get('total_outward_amt')])
+            writer.writerow(['Payments Received (₹)', data.get('payments_received')])
+            writer.writerow(['Payments Paid (₹)', data.get('payments_paid')])
+            writer.writerow(['Current Outstanding (₹)', data.get('outstanding')])
+            
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={"Content-disposition": f"attachment; filename=flyash_{report_type}_report.csv"}
+    )

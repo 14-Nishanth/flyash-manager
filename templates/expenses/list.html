@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}Plant Expenses - FlyAsh ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2">
+        <div>
+            <h3 class="fw-bold mb-0 text-slate-800 d-flex align-items-center gap-2">
+                <i class="bi bi-wallet2 text-danger"></i>
+                <span data-i18n="expenses_title">Plant Operational Expenses</span>
+            </h3>
+            <p class="text-muted small mb-0" data-i18n="expenses_subtitle">Track diesel, electricity, machine repairs, maintenance, freight & site expenses</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('expenses.export_csv', category=selected_category, payment_mode=selected_mode, search=selected_search, from_date=from_date, to_date=to_date) }}" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 shadow-sm">
+                <i class="bi bi-download"></i> <span data-i18n="export_csv">Export CSV</span>
+            </a>
+            <a href="{{ url_for('expenses.add_expense') }}" class="btn btn-danger btn-sm d-flex align-items-center gap-1 shadow-sm px-3">
+                <i class="bi bi-plus-circle-fill"></i> <span data-i18n="add_expense">Add Expense</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary KPI Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-sm-6 col-lg-4">
+            <div class="card border-0 shadow-sm rounded-3 bg-gradient bg-danger text-white p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-white-50 small fw-semibold text-uppercase" data-i18n="filtered_total">Filtered Expenses</div>
+                        <div class="h2 fw-bold mb-0 mt-1">₹{{ "{:,.2f}".format(total_amount) }}</div>
+                        <div class="small text-white-50 mt-1">{{ expenses|length }} entries recorded</div>
+                    </div>
+                    <div class="bg-white bg-opacity-25 rounded-circle p-3">
+                        <i class="bi bi-cash-coin fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-4">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-primary">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase" data-i18n="this_month_expenses">This Month Expenses</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-primary">₹{{ "{:,.2f}".format(month_expenses) }}</div>
+                        <div class="small text-muted mt-1">Month-to-date total</div>
+                    </div>
+                    <div class="bg-primary bg-opacity-10 text-primary rounded-circle p-3">
+                        <i class="bi bi-calendar3 fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-4">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-warning">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase" data-i18n="today_expenses">Today's Expenses</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-warning">₹{{ "{:,.2f}".format(today_expenses) }}</div>
+                        <div class="small text-muted mt-1">Direct daily cash out</div>
+                    </div>
+                    <div class="bg-warning bg-opacity-10 text-warning rounded-circle p-3">
+                        <i class="bi bi-fuel-pump fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter & Search Bar -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+        <div class="card-body p-3">
+            <form method="GET" action="{{ url_for('expenses.list_expenses') }}" class="row g-2 align-items-end">
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold text-muted mb-1" data-i18n="search">Search Purpose / Vendor / Bill</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                        <input type="text" name="search" class="form-control" placeholder="e.g. Diesel, Pump motor, IOCL..." value="{{ selected_search }}">
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-md-2">
+                    <label class="form-label small fw-semibold text-muted mb-1" data-i18n="category">Category</label>
+                    <select name="category" class="form-select form-select-sm">
+                        <option value="">All Categories</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if selected_category == cat %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-semibold text-muted mb-1" data-i18n="payment_mode">Payment Mode</label>
+                    <select name="payment_mode" class="form-select form-select-sm">
+                        <option value="">All Modes</option>
+                        {% for mode in payment_modes %}
+                        <option value="{{ mode }}" {% if selected_mode == mode %}selected{% endif %}>{{ mode }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-semibold text-muted mb-1" data-i18n="from_date">From Date</label>
+                    <input type="date" name="from_date" class="form-control form-control-sm" value="{{ from_date }}">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-semibold text-muted mb-1" data-i18n="to_date">To Date</label>
+                    <input type="date" name="to_date" class="form-control form-control-sm" value="{{ to_date }}">
+                </div>
+                <div class="col-6 col-md-1 d-flex gap-1">
+                    <button type="submit" class="btn btn-primary btn-sm w-100" title="Apply Filter">
+                        <i class="bi bi-funnel-fill"></i>
+                    </button>
+                    <a href="{{ url_for('expenses.list_expenses') }}" class="btn btn-light btn-sm border" title="Reset Filters">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
+                </div>
+            </form>
+
+            <!-- Quick Date Filter Pills -->
+            <div class="d-flex flex-wrap gap-2 mt-2 pt-2 border-top">
+                <span class="small text-muted align-self-center me-1">Quick:</span>
+                <a href="{{ url_for('expenses.list_expenses', preset='today') }}" class="badge rounded-pill text-decoration-none {% if date_preset == 'today' %}bg-primary text-white{% else %}bg-light text-dark border{% endif %} py-1 px-2">Today</a>
+                <a href="{{ url_for('expenses.list_expenses', preset='this_month') }}" class="badge rounded-pill text-decoration-none {% if date_preset == 'this_month' or (not date_preset and from_date) %}bg-primary text-white{% else %}bg-light text-dark border{% endif %} py-1 px-2">This Month</a>
+                <a href="{{ url_for('expenses.list_expenses') }}?all=1" class="badge rounded-pill text-decoration-none bg-light text-dark border py-1 px-2">All Time</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Breakup Pills (if any) -->
+    {% if category_totals %}
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        {% for cat, amt in category_totals.items() %}
+        <div class="bg-white border rounded-pill px-3 py-1 shadow-sm small d-flex align-items-center gap-2">
+            <span class="fw-semibold text-slate-700">{{ cat }}:</span>
+            <span class="badge bg-danger bg-opacity-10 text-danger fw-bold">₹{{ "{:,.2f}".format(amt) }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Expenses Table -->
+    <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr class="small text-muted text-uppercase">
+                        <th style="width: 100px;">Date</th>
+                        <th style="width: 150px;">Category</th>
+                        <th>Title / Description</th>
+                        <th style="width: 130px;">Paid To</th>
+                        <th style="width: 110px;">Mode</th>
+                        <th style="width: 110px;">Bill / Ref</th>
+                        <th class="text-end" style="width: 130px;">Amount (₹)</th>
+                        <th class="text-center" style="width: 100px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for exp in expenses %}
+                    <tr>
+                        <td class="text-nowrap fw-semibold text-secondary small">{{ exp.date.strftime('%d %b %Y') }}</td>
+                        <td>
+                            <span class="badge bg-light text-dark border fw-normal">{{ exp.category }}</span>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-slate-800">{{ exp.title }}</div>
+                            {% if exp.notes %}
+                            <div class="small text-muted">{{ exp.notes }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="small text-muted">{{ exp.paid_to or '-' }}</td>
+                        <td>
+                            <span class="badge {% if exp.payment_mode == 'Cash' %}bg-success bg-opacity-10 text-success{% elif exp.payment_mode == 'UPI' %}bg-primary bg-opacity-10 text-primary{% else %}bg-secondary bg-opacity-10 text-secondary{% endif %} fw-normal">
+                                {{ exp.payment_mode }}
+                            </span>
+                        </td>
+                        <td class="small text-muted font-monospace">{{ exp.reference_no or '-' }}</td>
+                        <td class="text-end fw-bold text-danger">₹{{ "{:,.2f}".format(exp.amount) }}</td>
+                        <td class="text-center">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('expenses.edit_expense', id=exp.id) }}" class="btn btn-outline-primary btn-sm" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('expenses.delete_expense', id=exp.id) }}" onsubmit="return confirm('Delete expense record ₹{{ exp.amount }}?');" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="bi bi-wallet-fill fs-1 d-block mb-2 text-muted text-opacity-50"></i>
+                            <p class="mb-2">No operational expenses recorded for this filter.</p>
+                            <a href="{{ url_for('expenses.add_expense') }}" class="btn btn-danger btn-sm">
+                                <i class="bi bi-plus-circle"></i> Add First Expense
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if expenses %}
+                <tfoot class="table-light fw-bold border-top">
+                    <tr>
+                        <td colspan="6" class="text-end text-uppercase">Total Amount:</td>
+                        <td class="text-end text-danger fs-5">₹{{ "{:,.2f}".format(total_amount) }}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

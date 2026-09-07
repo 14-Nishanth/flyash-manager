@@ -2,8 +2,20 @@
 <html lang="{{ current_language or 'en' }}" data-lang="{{ current_language or 'en' }}">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Dashboard{% endblock %} - FlyAsh Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{% block title %}Dashboard{% endblock %} - FlyAsh Plant Manager</title>
+    
+    <!-- PWA & Mobile Web App Meta -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FlyAsh ERP">
+    <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/img/icon-192.png">
+
+    <!-- CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
@@ -24,88 +36,107 @@
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}"
                        href="{{ url_for('dashboard.index') }}">
-                        <i class="bi bi-speedometer2"></i> Dashboard
+                        <i class="bi bi-speedometer2"></i> <span data-i18n="dashboard">Dashboard</span>
                     </a>
                 </li>
 
-                <li class="nav-section">Employees & Labor</li>
+                <li class="nav-section" data-i18n="employees_labor">Employees & Labor</li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint and 'employees.list' in request.endpoint %}active{% endif %}"
                        href="{{ url_for('employees.list_employees') }}">
-                        <i class="bi bi-people"></i> Employee List
+                        <i class="bi bi-people"></i> <span data-i18n="employee_list">Employee List</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint and 'attendance' in request.endpoint %}active{% endif %}"
                        href="{{ url_for('employees.attendance') }}">
-                        <i class="bi bi-calendar-check"></i> Attendance
+                        <i class="bi bi-calendar-check"></i> <span data-i18n="attendance">Attendance</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint and 'job_wages' in request.endpoint %}active{% endif %}"
                        href="{{ url_for('employees.job_wages_list') }}">
-                        <i class="bi bi-hammer"></i> Piece-Rate Jobs
+                        <i class="bi bi-hammer"></i> <span data-i18n="piece_rate_jobs">Piece-Rate Jobs</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint and 'groups' in request.endpoint %}active{% endif %}"
                        href="{{ url_for('employees.employee_groups_list') }}">
-                        <i class="bi bi-person-lines-fill"></i> Labor Groups / Gangs
+                        <i class="bi bi-person-lines-fill"></i> <span data-i18n="labor_groups">Labor Groups</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint and 'rates' in request.endpoint %}active{% endif %}"
                        href="{{ url_for('employees.job_rates_list') }}">
-                        <i class="bi bi-tag"></i> Piece-Rate Prices
+                        <i class="bi bi-tag"></i> <span data-i18n="piece_rate_prices">Piece-Rate Prices</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint and 'salary_sheet' in request.endpoint %}active{% endif %}"
                        href="{{ url_for('employees.salary_sheet') }}">
-                        <i class="bi bi-file-earmark-spreadsheet"></i> Salary Sheet
+                        <i class="bi bi-file-earmark-spreadsheet"></i> <span data-i18n="salary_sheet">Salary Sheet</span>
                     </a>
                 </li>
 
-                <li class="nav-section">Material</li>
+                <li class="nav-section" data-i18n="materials">Materials</li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint and 'inward' in request.endpoint %}active{% endif %}"
                        href="{{ url_for('materials.inward_list') }}">
-                        <i class="bi bi-box-arrow-in-down"></i> Material Inward
+                        <i class="bi bi-box-arrow-in-down"></i> <span data-i18n="material_inward">Material Inward</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint and 'outward' in request.endpoint %}active{% endif %}"
                        href="{{ url_for('materials.outward_list') }}">
-                        <i class="bi bi-box-arrow-up"></i> Material Outward
+                        <i class="bi bi-box-arrow-up"></i> <span data-i18n="material_outward">Material Outward</span>
                     </a>
                 </li>
 
-                <li class="nav-section">Accounts</li>
+                <li class="nav-section" data-i18n="accounts">Accounts & Expenses</li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint and 'parties' in request.endpoint %}active{% endif %}"
+                    <a class="nav-link {% if request.endpoint and 'expenses' in request.endpoint %}active{% endif %}"
+                       href="{{ url_for('expenses.list_expenses') }}">
+                        <i class="bi bi-wallet2 text-danger"></i> <span data-i18n="expenses">Plant Expenses</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and 'outstanding' in request.endpoint %}active{% endif %}"
+                       href="{{ url_for('parties.party_outstanding') }}">
+                        <i class="bi bi-cash-stack text-success"></i> <span data-i18n="outstanding_manager">Party Outstanding</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and request.endpoint == 'parties.list_parties' %}active{% endif %}"
                        href="{{ url_for('parties.list_parties') }}">
-                        <i class="bi bi-person-lines-fill"></i> Parties
+                        <i class="bi bi-person-lines-fill"></i> <span data-i18n="parties">Parties</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint and 'payments' in request.endpoint %}active{% endif %}"
                        href="{{ url_for('parties.payments_list') }}">
-                        <i class="bi bi-cash-stack"></i> Payments
+                        <i class="bi bi-cash"></i> <span data-i18n="payments">Payments</span>
                     </a>
                 </li>
 
-                <li class="nav-section">Reports & Staff</li>
+                <li class="nav-section" data-i18n="reports_staff">Reports & Staff</li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint and 'reports' in request.endpoint %}active{% endif %}"
                        href="{{ url_for('reports.index') }}">
-                        <i class="bi bi-bar-chart-line"></i> Reports
+                        <i class="bi bi-bar-chart-line"></i> <span data-i18n="reports">Reports</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint and 'users' in request.endpoint %}active{% endif %}"
                        href="{{ url_for('auth.users_list') }}">
-                        <i class="bi bi-person-gear"></i> Staff & Users
+                        <i class="bi bi-person-gear"></i> <span data-i18n="staff_users">Staff & Users</span>
                     </a>
+                </li>
+
+                <!-- PWA Install Sidebar Button -->
+                <li class="nav-item mt-3 px-3 d-none" id="sidebarPwaInstallItem">
+                    <button class="btn btn-warning btn-sm w-100 fw-bold d-flex align-items-center justify-content-center gap-1 shadow-sm text-dark" id="sidebarPwaInstallBtn">
+                        <i class="bi bi-download"></i> <span data-i18n="install_app">Install Mobile App</span>
+                    </button>
                 </li>
             </ul>
         </nav>
@@ -120,10 +151,16 @@
                 <button class="btn d-lg-none me-2" id="sidebarToggle" aria-label="Toggle navigation">
                     <i class="bi bi-list fs-3 text-primary"></i>
                 </button>
-                <span class="navbar-text fw-semibold text-dark fs-6">
+                <span class="navbar-text fw-semibold text-dark fs-6 d-none d-sm-inline">
                     {% block page_title %}Dashboard{% endblock %}
                 </span>
+                
                 <div class="ms-auto d-flex align-items-center gap-2">
+                    <!-- Mobile App Install Header Button -->
+                    <button class="btn btn-outline-primary btn-sm d-flex align-items-center gap-1 fw-semibold shadow-xs" id="headerPwaInstallBtn" title="Install to Home Screen">
+                        <i class="bi bi-phone"></i> <span class="d-none d-md-inline" data-i18n="install_mobile">Install App</span>
+                    </button>
+
                     <!-- Indian Multi-Language Switcher Dropdown -->
                     <div class="dropdown">
                         <button class="btn btn-outline-secondary btn-sm dropdown-toggle d-flex align-items-center gap-1.5 border bg-white shadow-xs" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Change Language / भाषा बदलें">
@@ -139,90 +176,157 @@
                                        data-lang-code="{{ code }}">
                                         <span class="d-flex align-items-center gap-2">
                                             <span>{{ flag }}</span>
-                                            <span>{{ native_name }}</span>
+                                            <span class="text-dark">{{ native_name }}</span>
                                         </span>
-                                        <small class="{% if code == current_language %}text-white-50{% else %}text-muted{% endif %} ms-2" style="font-size: 0.75rem;">{{ eng_name }}</small>
+                                        <small class="text-muted ms-2">{{ eng_name }}</small>
                                     </a>
                                 </li>
                             {% endfor %}
                         </ul>
                     </div>
 
-                    <a href="{{ url_for('auth.alert_settings') }}" class="btn btn-outline-primary btn-sm" title="Owner Mobile Alerts">
-                        <i class="bi bi-phone-vibrate"></i> <span class="d-none d-md-inline">Mobile Alerts</span>
-                    </a>
-                    
+                    <!-- User Profile Dropdown -->
                     <div class="dropdown">
-                        <button class="btn btn-light btn-sm dropdown-toggle border" type="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle text-primary me-1"></i> {{ current_user.name or current_user.username }}
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                        <a href="#" class="d-flex align-items-center text-dark text-decoration-none dropdown-toggle"
+                           id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <div class="avatar-circle">
+                                <i class="bi bi-person-fill"></i>
+                            </div>
+                            <span class="ms-2 d-none d-md-inline fw-semibold small">
+                                {{ current_user.name if current_user.is_authenticated and current_user.name else (current_user.username if current_user.is_authenticated else 'User') }}
+                            </span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="userDropdown">
+                            {% if current_user.is_authenticated %}
                             <li>
-                                <div class="px-3 py-2 border-bottom">
-                                    <div class="fw-bold text-dark">{{ current_user.name or current_user.username }}</div>
-                                    <small class="text-muted">{{ current_user.email or current_user.username }}</small>
-                                </div>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('auth.profile') }}">
-                                    <i class="bi bi-person-badge me-2 text-primary"></i> My Profile
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('auth.users_list') }}">
-                                    <i class="bi bi-people me-2 text-info"></i> Manage Staff Accounts
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('auth.change_password') }}">
-                                    <i class="bi bi-key me-2 text-warning"></i> Change Password
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('auth.alert_settings') }}">
-                                    <i class="bi bi-phone me-2 text-success"></i> Mobile Notification Settings
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('auth.login_history') }}">
-                                    <i class="bi bi-shield-check me-2 text-secondary"></i> Security & Sign-in Log
-                                </a>
+                                <span class="dropdown-item-text small text-muted">
+                                    Signed in as <strong>{{ current_user.username }}</strong>
+                                    <span class="badge bg-primary ms-1 text-uppercase" style="font-size: 0.65rem;">{{ current_user.role }}</span>
+                                </span>
                             </li>
                             <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}">
-                                    <i class="bi bi-box-arrow-right me-2"></i> Sign Out
-                                </a>
-                            </li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}"><i class="bi bi-person me-2"></i> <span data-i18n="my_profile">My Profile</span></a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.alert_settings') }}"><i class="bi bi-bell me-2"></i> <span data-i18n="mobile_alerts">Owner Alerts</span></a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.change_password') }}"><i class="bi bi-key me-2"></i> <span data-i18n="change_password">Change Password</span></a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}"><i class="bi bi-box-arrow-right me-2"></i> <span data-i18n="sign_out">Logout</span></a></li>
+                            {% else %}
+                            <li><a class="dropdown-item" href="{{ url_for('auth.login') }}"><i class="bi bi-box-arrow-in-right me-2"></i> <span data-i18n="sign_in">Login</span></a></li>
+                            {% endif %}
                         </ul>
                     </div>
                 </div>
             </nav>
 
-            <!-- Page Content -->
-            <div class="container-fluid p-4">
-                <!-- Flash Messages -->
+            <!-- Flash Messages -->
+            <div class="px-3 px-md-4 pt-3">
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
                         {% for category, message in messages %}
-                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show"
-                                 role="alert">
+                            <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show shadow-xs" role="alert">
                                 {{ message }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                             </div>
                         {% endfor %}
                     {% endif %}
                 {% endwith %}
+            </div>
 
+            <!-- Page Content Block -->
+            <div class="p-3 p-md-4">
                 {% block content %}{% endblock %}
             </div>
         </div>
     </div>
 
+    <!-- PWA Install Modal for iOS / Browser Guidance -->
+    <div class="modal fade" id="pwaInstallModal" tabindex="-1" aria-labelledby="pwaInstallModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-slate-800 d-flex align-items-center gap-2" id="pwaInstallModalLabel">
+                        <img src="{{ url_for('static', filename='img/icon-192.png') }}" class="rounded-3" style="width: 32px; height: 32px;">
+                        <span>Install FlyAsh ERP App</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pt-3">
+                    <p class="text-muted small">Install our high-speed mobile app directly on your phone home screen for instant access to plant dispatch, expenses, wages & party balances without opening a browser.</p>
+                    
+                    <div id="androidInstallSection" class="text-center py-2">
+                        <button class="btn btn-primary btn-lg w-100 rounded-pill fw-bold shadow-sm" id="modalInstallAppBtn">
+                            <i class="bi bi-download me-2"></i> Install App Now
+                        </button>
+                    </div>
+
+                    <div id="iosInstallSection" class="bg-light p-3 rounded-3 border mt-2">
+                        <div class="fw-bold text-dark mb-1"><i class="bi bi-apple me-1"></i> For iPhone / iPad (Safari):</div>
+                        <ol class="small text-muted mb-0 ps-3">
+                            <li class="mb-1">Tap the <strong>Share</strong> button <i class="bi bi-box-arrow-up text-primary"></i> at the bottom of Safari.</li>
+                            <li class="mb-1">Scroll down and tap <strong>Add to Home Screen</strong> <i class="bi bi-plus-square text-primary"></i>.</li>
+                            <li>Tap <strong>Add</strong> in the top right corner.</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/i18n_dict.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    
+    <!-- PWA Service Worker & Install Prompt Handler -->
+    <script>
+    let deferredInstallPrompt = null;
+
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                .then(reg => console.log('PWA Service Worker registered:', reg.scope))
+                .catch(err => console.warn('PWA Service Worker registration failed:', err));
+        });
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredInstallPrompt = e;
+        const sideItem = document.getElementById('sidebarPwaInstallItem');
+        if (sideItem) sideItem.classList.remove('d-none');
+    });
+
+    function triggerPwaInstall() {
+        if (deferredInstallPrompt) {
+            deferredInstallPrompt.prompt();
+            deferredInstallPrompt.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') {
+                    console.log('User accepted the PWA install prompt');
+                }
+                deferredInstallPrompt = null;
+            });
+        } else {
+            // Show modal guide
+            const modalEl = document.getElementById('pwaInstallModal');
+            if (modalEl) {
+                const modal = new bootstrap.Modal(modalEl);
+                modal.show();
+            }
+        }
+    }
+
+    document.getElementById('headerPwaInstallBtn')?.addEventListener('click', triggerPwaInstall);
+    document.getElementById('sidebarPwaInstallBtn')?.addEventListener('click', triggerPwaInstall);
+    document.getElementById('modalInstallAppBtn')?.addEventListener('click', triggerPwaInstall);
+
+    window.addEventListener('appinstalled', () => {
+        console.log('FlyAsh ERP app installed successfully!');
+        const sideItem = document.getElementById('sidebarPwaInstallItem');
+        if (sideItem) sideItem.classList.add('d-none');
+        const headerBtn = document.getElementById('headerPwaInstallBtn');
+        if (headerBtn) headerBtn.style.display = 'none';
+    });
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
