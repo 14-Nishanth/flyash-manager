@@ -23,6 +23,11 @@ LANGUAGE_MAP = {
 TRANSLATIONS = {
     'en': {
         'dashboard': 'Dashboard',
+        'yard_stock': 'Yard Stock Detail',
+        'stock_inventory': 'Stock & Yard Inventory',
+        'stock_title': 'Plant Stock & Yard Inventory',
+        'stock_subtitle': 'Real-time stock tracking: Daily Production adds to stock (+), Outward Dispatches minus from stock (-)',
+
         'employees': 'Employees',
         'attendance': 'Attendance',
         'piece_rate_jobs': 'Piece-Rate Jobs',
