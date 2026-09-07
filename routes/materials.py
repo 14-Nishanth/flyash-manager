@@ -6,9 +6,12 @@ from sqlalchemy import distinct
 
 bp = Blueprint('materials', __name__, url_prefix='/materials')
 
-# Comprehensive standard list of materials (Power Plants, Fly Ash, Cement, Minerals, Byproducts)
+# Comprehensive standard list of materials
 MATERIAL_TYPES = [
-    # --- Core Daily Raw Materials (Top Priority) ---
+    # --- Core Daily Raw Materials ---
+    'Fly Ash',
+    'Class F Fly Ash',
+    'Class C Fly Ash',
     'Cement',
     'Cement (OPC 53 Grade)',
     'Cement (OPC 43 Grade)',
@@ -20,21 +23,13 @@ MATERIAL_TYPES = [
     'Jelly 12mm (1/2" Jelly)',
     'Jelly 40mm (1.5" Jelly)',
     'Baby Jelly (6mm / 8mm Grit)',
-    'Cooldust / Coal Dust',
     'Stone Dust / Quarry Dust',
-    'Fly Ash',
-    'Mettur Flyash',
-    'Tirupur Flyash',
-    'Tuticorin Ash (TTPS)',
-    'Neyveli Ash (NLC)',
-    'North Chennai Ash (NCTPS)',
-    'Ennore Ash (ETPS)',
+    'Cooldust / Coal Dust',
     'M-Sand (Manufactured Sand)',
     'P-Sand (Plastering Sand)',
     'River Sand / Natural Sand',
     'Crushed Aggregate 10mm',
     'Crushed Aggregate 20mm',
-    'Crushed Aggregate 40mm',
     'Grit (6mm / 8mm)',
     'Gypsum (Mineral / Chemical / FGD)',
     'Quicklime',
@@ -43,12 +38,8 @@ MATERIAL_TYPES = [
     'GGBS (Ground Granulated Blast-furnace Slag)',
     'GGBFS Slag',
     'Micro Silica / Silica Fume',
-    'Metakaolin',
-    'Calcined Clay (LC3)',
-    'Clinker (Grey / White)',
-    'Dolomite Powder',
 
-    # --- Your Finished Products: Hollow Blocks (All Sizes) ---
+    # --- Finished Products: Hollow & Solid Blocks ---
     'Hollow Block 4" (400 x 200 x 100 mm)',
     'Hollow Block 6" (400 x 200 x 150 mm)',
     'Hollow Block 8" (400 x 200 x 200 mm)',
@@ -59,7 +50,7 @@ MATERIAL_TYPES = [
     'Solid Block 8" (400 x 200 x 200 mm)',
     'Corner / Lintel Hollow Block',
 
-    # --- Your Finished Products: Fly Ash Bricks (All Sizes) ---
+    # --- Finished Products: Fly Ash Bricks ---
     'Fly Ash Brick 9"x4"x3" (230 x 110 x 75 mm)',
     'Fly Ash Brick Modular (190 x 90 x 90 mm)',
     'Fly Ash Brick (230 x 110 x 70 mm)',
@@ -68,7 +59,13 @@ MATERIAL_TYPES = [
     'Fly Ash Paver Blocks (60mm / 80mm)',
     'AAC Blocks',
 
-    # --- Regional & Thermal Power Plant Fly Ash ---
+    # --- Regional Power Plant Ash ---
+    'Mettur Flyash',
+    'Tirupur Flyash',
+    'Tuticorin Ash (TTPS)',
+    'Neyveli Ash (NLC)',
+    'North Chennai Ash (NCTPS)',
+    'Ennore Ash (ETPS)',
     'Vallur Ash (NTECL)',
     'Bellary Ash (BTPS)',
     'Raichur Ash (RTPS)',
@@ -81,129 +78,27 @@ MATERIAL_TYPES = [
     'Talcher Ash (NTPC)',
     'Jharsuguda Ash',
     'Vindhyachal Ash (NTPC)',
-    'Singrauli Ash',
     'Korba Ash (NTPC)',
-    'Sipat Ash (NTPC)',
-    'Rihand Ash (NTPC)',
-    'Dadri Ash (NTPC)',
-    'Unchahar Ash',
-    'Badarpur Ash',
-    'Ropar Ash',
-    'Panipat Ash',
-    'Kota Ash',
-    'Suratgarh Ash',
-    'Chhabra Ash',
-    'Mundra Ash',
-    'Sasan Ash',
-    'Wanakbori Ash',
-    'Ukai Ash',
-    'Gandhinagar Ash',
-    'Chandrapur Ash',
-    'Koradi Ash',
-    'Khaperkheda Ash',
-    'Bhusawal Ash',
-    'Trombay Ash',
-    'Kolaghat Ash',
-    'Bakreswar Ash',
-    'Farakka Ash (NTPC)',
-    'Kahalgaon Ash (NTPC)',
-
-    # --- Ash Classifications & Byproducts ---
-    'Class F Fly Ash',
-    'Class C Fly Ash',
-    'Pond Ash',
-    'Bottom Ash',
-    'Cenospheres (Hollow Ash)',
-    'Low Carbon Fly Ash',
-    'High Carbon Fly Ash',
-    'Dry Fly Ash',
-    'Wet Fly Ash',
-    'Micro / Ultrafine Fly Ash',
-    'Rice Husk Ash (RHA)',
-    'Biomass Ash / Wood Ash',
-    'Bagasse Ash',
-    'Coal Ash',
-
-    # --- Coal, Dust & Carbon Materials ---
-    'Mineral Dust',
-    'Silica Dust',
-    'Foundry Dust',
-    'Boiler Ash Dust',
-    'Raw Coal',
-    'Thermal Steam Coal',
-    'Imported Coal',
-    'Indian G-Grade Coal',
-    'Lignite',
-    'Petcoke',
-    'Anthracite',
-    'Met Coke / Charcoal',
-    'Carbon Black',
-    'GSB (Granular Sub Base)',
-    'WMM (Wet Mix Macadam)',
-    'Bentonite',
-    'Calcite Powder',
-    'Marble Powder',
-    'Red Mud',
-    'Copper Slag (Grit)',
-    'Iron / Steel Slag',
-    'Other'
+    'Sipat Ash (NTPC)'
 ]
 
-# Comprehensive standard list of measuring units worldwide
 QUANTITY_UNITS = [
-    # Weight Units
-    'Ton',
-    'MT (Metric Tonne)',
-    'KG (Kilogram)',
-    'Quintal (100 KG)',
-    'Gram (g)',
-    'Pound (lbs)',
-
-    # Bags & Packaging Units
-    'Bags',
-    'Bags (50 KG)',
-    'Bags (25 KG)',
-    'Bags (40 KG)',
-    'Jumbo Bags (1 Ton FIBC)',
-    'Sacks',
     'Pieces / Pcs',
-    'Nos (Numbers)',
-    'Unit',
-    'Packets',
-    'Bundles',
-    'Boxes',
-    'Pallets',
-    'Barrels',
-    'Drums',
-
-    # Volume & Bulk Transport Units
-    'CFT (Cubic Feet)',
-    'Cubic Meter (m³)',
-    'Brass (100 CFT)',
-    'Trolley',
-    'Tipper (10 Wheeler)',
-    'Tipper (12 Wheeler)',
-    'Tipper (14 Wheeler)',
-    'Tipper (16 Wheeler)',
-    'Dumper',
-    'Hyva (18 Wheeler)',
-    'Hyva (22 Wheeler)',
-    'Bulker (Tanker)',
-    'Tanker / Capsule',
-    'Load',
-    'Trip',
-    'Truckload',
-    'Lorry Load',
-
-    # Liquid Units
-    'Liter (L)',
-    'KL (Kilo Liter)',
-    'Gallon'
+    'Ton',
+    'Load / Trip',
+    'Bags (50kg)',
+    'Bags (40kg)',
+    'CFT',
+    'Cu.m',
+    'Kg',
+    'Quintal',
+    'Truck Load',
+    'Tractor Load',
+    'Liters'
 ]
 
 
 def get_available_materials():
-    """Returns combined list of predefined materials + any custom materials saved in database."""
     materials_set = set(MATERIAL_TYPES)
     try:
         inward_mats = [r[0] for r in db.session.query(distinct(MaterialInward.material_type)).all() if r[0]]
@@ -212,13 +107,11 @@ def get_available_materials():
         materials_set.update(outward_mats)
     except Exception:
         pass
-    # Keep predefined in order, then append custom
     custom = sorted([m for m in materials_set if m not in MATERIAL_TYPES])
     return MATERIAL_TYPES + custom
 
 
 def get_available_units():
-    """Returns combined list of predefined units + any custom units saved in database."""
     units_set = set(QUANTITY_UNITS)
     try:
         inward_units = [r[0] for r in db.session.query(distinct(MaterialInward.quantity_unit)).all() if r[0]]
@@ -262,6 +155,9 @@ def inward_list():
     total_qty = sum(entry.quantity_mt for entry in entries if entry.quantity_mt)
     total_amount = sum(entry.amount for entry in entries if entry.amount)
     
+    total_tons = sum(e.quantity_mt for e in entries if e.quantity_mt and ('ton' in (e.quantity_unit or '').lower() or 'mt' in (e.quantity_unit or '').lower()))
+    total_loads = sum(e.quantity_mt for e in entries if e.quantity_mt and ('load' in (e.quantity_unit or '').lower() or 'trip' in (e.quantity_unit or '').lower()))
+    
     parties = Party.query.order_by(Party.name).all()
     
     return render_template('materials/inward_list.html',
@@ -272,6 +168,8 @@ def inward_list():
                            material_type=material_type,
                            parties=parties,
                            total_qty=total_qty,
+                           total_tons=total_tons,
+                           total_loads=total_loads,
                            total_amount=total_amount,
                            material_types=get_available_materials())
 
@@ -304,7 +202,9 @@ def inward_add():
     return render_template('materials/inward_form.html',
                            parties=parties,
                            material_types=get_available_materials(),
-                           quantity_units=get_available_units())
+                           quantity_units=get_available_units(),
+                           today=date.today().strftime('%Y-%m-%d'),
+                           entry=None)
 
 
 @bp.route('/inward/<int:id>/edit', methods=['GET', 'POST'])
@@ -336,7 +236,8 @@ def inward_edit(id):
                            entry=entry,
                            parties=parties,
                            material_types=get_available_materials(),
-                           quantity_units=get_available_units())
+                           quantity_units=get_available_units(),
+                           today=date.today().strftime('%Y-%m-%d'))
 
 
 @bp.route('/inward/<int:id>/delete', methods=['POST'])
@@ -384,6 +285,10 @@ def outward_list():
     total_qty = sum(entry.quantity_mt for entry in entries if entry.quantity_mt)
     total_amount = sum(entry.amount for entry in entries if entry.amount)
     
+    total_pieces = sum(e.quantity_mt for e in entries if e.quantity_mt and ('piece' in (e.quantity_unit or '').lower() or 'pcs' in (e.quantity_unit or '').lower() or 'nos' in (e.quantity_unit or '').lower()))
+    total_tons = sum(e.quantity_mt for e in entries if e.quantity_mt and ('ton' in (e.quantity_unit or '').lower() or 'mt' in (e.quantity_unit or '').lower()))
+    total_loads = sum(e.quantity_mt for e in entries if e.quantity_mt and ('load' in (e.quantity_unit or '').lower() or 'trip' in (e.quantity_unit or '').lower()))
+    
     parties = Party.query.order_by(Party.name).all()
     
     return render_template('materials/outward_list.html',
@@ -394,6 +299,9 @@ def outward_list():
                            material_type=material_type,
                            parties=parties,
                            total_qty=total_qty,
+                           total_pieces=total_pieces,
+                           total_tons=total_tons,
+                           total_loads=total_loads,
                            total_amount=total_amount,
                            material_types=get_available_materials())
 
@@ -408,7 +316,7 @@ def outward_add():
                 party_id=request.form['party_id'],
                 material_type=request.form.get('material_type'),
                 quantity_mt=float(request.form['quantity_mt']) if request.form.get('quantity_mt') else 0.0,
-                quantity_unit=request.form.get('quantity_unit', 'Ton'),
+                quantity_unit=request.form.get('quantity_unit', 'Pieces / Pcs'),
                 vehicle_no=request.form.get('vehicle_no'),
                 rate=float(request.form['rate']) if request.form.get('rate') else 0.0,
                 amount=float(request.form['amount']) if request.form.get('amount') else 0.0,
@@ -416,7 +324,7 @@ def outward_add():
             )
             db.session.add(entry)
             db.session.commit()
-            flash('Outward entry added successfully.', 'success')
+            flash('Outward dispatch entry added successfully.', 'success')
             return redirect(url_for('materials.outward_list'))
         except Exception as e:
             db.session.rollback()
@@ -426,7 +334,9 @@ def outward_add():
     return render_template('materials/outward_form.html',
                            parties=parties,
                            material_types=get_available_materials(),
-                           quantity_units=get_available_units())
+                           quantity_units=get_available_units(),
+                           today=date.today().strftime('%Y-%m-%d'),
+                           entry=None)
 
 
 @bp.route('/outward/<int:id>/edit', methods=['GET', 'POST'])
@@ -440,7 +350,7 @@ def outward_edit(id):
             entry.party_id = request.form['party_id']
             entry.material_type = request.form.get('material_type')
             entry.quantity_mt = float(request.form['quantity_mt']) if request.form.get('quantity_mt') else 0.0
-            entry.quantity_unit = request.form.get('quantity_unit', 'Ton')
+            entry.quantity_unit = request.form.get('quantity_unit', 'Pieces / Pcs')
             entry.vehicle_no = request.form.get('vehicle_no')
             entry.rate = float(request.form['rate']) if request.form.get('rate') else 0.0
             entry.amount = float(request.form['amount']) if request.form.get('amount') else 0.0
@@ -458,7 +368,8 @@ def outward_edit(id):
                            entry=entry,
                            parties=parties,
                            material_types=get_available_materials(),
-                           quantity_units=get_available_units())
+                           quantity_units=get_available_units(),
+                           today=date.today().strftime('%Y-%m-%d'))
 
 
 @bp.route('/outward/<int:id>/delete', methods=['POST'])

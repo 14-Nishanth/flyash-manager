@@ -1,120 +1,282 @@
 {% extends "base.html" %}
-{% block title %}{% if entry %}Edit Outward Entry{% else %}Add Outward Entry{% endif %}{% endblock %}
-{% block page_title %}{% if entry %}Edit Outward Entry{% else %}Add Outward Entry{% endif %}{% endblock %}
+{% block title %}{% if entry %}Edit Outward Entry{% else %}Add Outward Dispatch{% endif %} - FlyAsh ERP{% endblock %}
+{% block page_title %}{% if entry %}Edit Material Outward{% else %}Material Outward Dispatch{% endif %}{% endblock %}
+
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="form-card card">
-            <div class="card-header">
-                <h4 class="mb-0">{% if entry %}Edit{% else %}Add{% endif %} Material Outward</h4>
-            </div>
-            <div class="card-body">
-                <form method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="date" class="form-label">Date *</label>
-                            <input type="date" class="form-control" id="date" name="date" required 
-                                   value="{{ entry.date.strftime('%Y-%m-%d') if entry else '' }}">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="party_id" class="form-label">Party *</label>
-                            <select class="form-select" id="party_id" name="party_id" required>
-                                <option value="">Select Party</option>
-                                {% for party in parties %}
-                                <option value="{{ party.id }}" {% if entry and entry.party_id == party.id %}selected{% endif %}>
-                                    {{ party.name }}{% if party.party_type == 'both' %} (Customer){% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="material_type" class="form-label">Material Type</label>
-                            <input type="text" class="form-control" id="material_type" name="material_type" 
-                                   list="material_list" placeholder="Type or select material"
-                                   value="{{ entry.material_type if entry else '' }}">
-                            <datalist id="material_list">
-                                {% for mat in material_types %}
-                                <option value="{{ mat }}">
-                                {% endfor %}
-                            </datalist>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="vehicle_no" class="form-label">Vehicle No</label>
-                            <input type="text" class="form-control" id="vehicle_no" name="vehicle_no" 
-                                   value="{{ entry.vehicle_no if entry else '' }}">
-                        </div>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-4">
-                            <label for="quantity_mt" class="form-label">Quantity *</label>
-                            <div class="input-group">
-                                <input type="text" class="form-control" id="quantity_mt" name="quantity_mt" required 
-                                       placeholder="Enter quantity"
-                                       value="{{ entry.quantity_mt if entry else '' }}">
-                                <input type="text" class="form-control" id="quantity_unit" name="quantity_unit" list="units_list" 
-                                       style="max-width: 140px;" placeholder="Unit"
-                                       value="{{ entry.quantity_unit if entry else 'Ton' }}">
-                                <datalist id="units_list">
-                                    {% for unit in quantity_units %}
-                                    <option value="{{ unit }}">
-                                    {% endfor %}
-                                </datalist>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <label for="rate" class="form-label">Rate (₹)</label>
-                            <input type="text" class="form-control" id="rate" name="rate" 
-                                   placeholder="Enter rate"
-                                   value="{{ entry.rate if entry else '' }}">
-                        </div>
-                        <div class="col-md-4">
-                            <label for="amount" class="form-label">Amount (₹)</label>
-                            <input type="text" class="form-control" id="amount" name="amount" readonly 
-                                   placeholder="Auto calculated"
-                                   value="{{ entry.amount if entry else '' }}">
-                        </div>
-                    </div>
-                    
-                    <div class="mb-4">
-                        <label for="notes" class="form-label">Notes</label>
-                        <textarea class="form-control" id="notes" name="notes" rows="3">{{ entry.notes if entry else '' }}</textarea>
-                    </div>
-                    
-                    <div class="d-flex justify-content-end">
-                        <a href="{{ url_for('materials.outward_list') }}" class="btn btn-secondary me-2">Cancel</a>
-                        <button type="submit" class="btn btn-primary">{% if entry %}Update{% else %}Save{% endif %}</button>
-                    </div>
-                </form>
-            </div>
+<div class="container-fluid py-3" style="max-width: 850px;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h3 class="fw-bold mb-0 text-slate-800 d-flex align-items-center gap-2">
+                <i class="bi bi-box-arrow-up text-info"></i>
+                <span>{% if entry %}Edit Outward Dispatch Entry{% else %}Add Material Outward / Sales Dispatch{% endif %}</span>
+            </h3>
+            <p class="text-muted small mb-0">Record brick/block sales in Pieces, or raw flyash/aggregates in Tons or Loads</p>
         </div>
+        <a href="{{ url_for('materials.outward_list') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Back to Outward List
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-3 bg-white p-4">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="row g-3">
+                <!-- Date & Party -->
+                <div class="col-12 col-md-6">
+                    <label for="date" class="form-label fw-semibold text-slate-700">Dispatch Date <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="date" name="date" required 
+                           value="{{ entry.date.strftime('%Y-%m-%d') if entry else today }}">
+                </div>
+                <div class="col-12 col-md-6">
+                    <label for="party_id" class="form-label fw-semibold text-slate-700">Customer / Party <span class="text-danger">*</span></label>
+                    <select class="form-select" id="party_id" name="party_id" required>
+                        <option value="">-- Choose Customer --</option>
+                        {% for party in parties %}
+                        <option value="{{ party.id }}" {% if entry and entry.party_id == party.id %}selected{% endif %}>
+                            {{ party.name }}{% if party.phone %} ({{ party.phone }}){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Material Type & Vehicle No -->
+                <div class="col-12 col-md-7">
+                    <label for="material_type" class="form-label fw-semibold text-slate-700">
+                        Material / Product Type <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" class="form-control" id="material_type" name="material_type" 
+                           list="material_list" placeholder="Select or type (e.g. Fly Ash Brick / Raw Fly Ash / Solid Block)"
+                           value="{{ entry.material_type if entry else '' }}" required autocomplete="off">
+                    <datalist id="material_list">
+                        {% for mat in material_types %}
+                        <option value="{{ mat }}">
+                        {% endfor %}
+                    </datalist>
+                    <div class="form-text small text-muted">
+                        💡 Choosing a Brick/Block auto-selects <strong>Pieces</strong>; choosing Raw Fly Ash/Cement auto-selects <strong>Ton</strong>.
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-5">
+                    <label for="vehicle_no" class="form-label fw-semibold text-slate-700">Vehicle / Truck No</label>
+                    <input type="text" class="form-control text-uppercase" id="vehicle_no" name="vehicle_no" 
+                           placeholder="e.g. TN-38-AB-1234 / Tractor"
+                           value="{{ entry.vehicle_no if entry else '' }}">
+                </div>
+
+                <!-- Unit Presets & Default Setter -->
+                <div class="col-12 bg-light p-3 rounded-3 border">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                        <label class="form-label fw-bold text-dark small mb-0 text-uppercase">
+                            <i class="bi bi-sliders me-1 text-primary"></i> Unit Selection & Default Preference:
+                        </label>
+                        <button type="button" class="btn btn-sm btn-outline-dark py-0 px-2 fw-normal" id="saveDefaultUnitBtn" title="Save currently selected unit as your default for all new outward entries">
+                            <i class="bi bi-star-fill text-warning me-1"></i> <span id="defaultUnitBtnText">Set Current as Default</span>
+                        </button>
+                    </div>
+
+                    <!-- Quick Unit Pills -->
+                    <div class="d-flex flex-wrap gap-2 align-items-center" id="unitPillsContainer">
+                        <button type="button" class="btn btn-sm rounded-pill unit-pill btn-outline-primary" data-unit="Pieces / Pcs">
+                            🧱 Pieces / Pcs
+                        </button>
+                        <button type="button" class="btn btn-sm rounded-pill unit-pill btn-outline-primary" data-unit="Ton">
+                            ⚖️ Ton (MT)
+                        </button>
+                        <button type="button" class="btn btn-sm rounded-pill unit-pill btn-outline-primary" data-unit="Load / Trip">
+                            🚛 Load / Trip
+                        </button>
+                        <button type="button" class="btn btn-sm rounded-pill unit-pill btn-outline-primary" data-unit="Bags (50kg)">
+                            📦 Bags (50kg)
+                        </button>
+                        <button type="button" class="btn btn-sm rounded-pill unit-pill btn-outline-primary" data-unit="CFT">
+                            📐 CFT
+                        </button>
+                        <button type="button" class="btn btn-sm rounded-pill unit-pill btn-outline-primary" data-unit="Kg">
+                            ⚖️ Kg
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quantity, Unit, Rate, Amount -->
+                <div class="col-12 col-md-4">
+                    <label for="quantity_mt" class="form-label fw-semibold text-slate-700" id="quantityLabel">
+                        Quantity <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group">
+                        <input type="number" step="any" class="form-control fw-bold" id="quantity_mt" name="quantity_mt" required 
+                               placeholder="0" value="{{ entry.quantity_mt if entry else '' }}" min="0.001">
+                        <input type="text" class="form-control text-center fw-semibold bg-white border-primary" id="quantity_unit" name="quantity_unit" 
+                               style="max-width: 130px;" placeholder="Unit" list="units_list"
+                               value="{{ entry.quantity_unit if entry else 'Pieces / Pcs' }}" required>
+                        <datalist id="units_list">
+                            {% for unit in quantity_units %}
+                            <option value="{{ unit }}">
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-4">
+                    <label for="rate" class="form-label fw-semibold text-slate-700" id="rateLabel">
+                        Rate (₹)
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light">₹</span>
+                        <input type="number" step="any" class="form-control fw-semibold" id="rate" name="rate" 
+                               placeholder="0.00" value="{{ entry.rate if entry else '' }}">
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-4">
+                    <label for="amount" class="form-label fw-semibold text-slate-700">Total Amount (₹)</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light text-primary fw-bold">₹</span>
+                        <input type="text" class="form-control fw-bold text-primary fs-6" id="amount" name="amount" readonly 
+                               placeholder="Auto calculated" value="{{ "{:,.2f}".format(entry.amount) if entry and entry.amount else '' }}">
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="col-12">
+                    <label for="notes" class="form-label fw-semibold text-slate-700">Notes / Remarks / Delivery Site</label>
+                    <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="e.g. Site: Site 2 Anna Nagar, Driver: Kumar, Unloading included...">{{ entry.notes if entry else '' }}</textarea>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="col-12 mt-4 pt-3 border-top d-flex gap-2 justify-content-end">
+                    <a href="{{ url_for('materials.outward_list') }}" class="btn btn-light px-4">Cancel</a>
+                    <button type="submit" class="btn btn-info px-4 fw-bold shadow-sm text-white">
+                        <i class="bi bi-check-circle-fill me-1"></i> {% if entry %}Update Dispatch Entry{% else %}Save Outward Entry{% endif %}
+                    </button>
+                </div>
+            </div>
+        </form>
     </div>
 </div>
 {% endblock %}
+
 {% block scripts %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const qtyInput = document.getElementById('quantity_mt');
-        const rateInput = document.getElementById('rate');
-        const amountInput = document.getElementById('amount');
+document.addEventListener('DOMContentLoaded', function() {
+    const qtyInput = document.getElementById('quantity_mt');
+    const unitInput = document.getElementById('quantity_unit');
+    const rateInput = document.getElementById('rate');
+    const amountInput = document.getElementById('amount');
+    const materialInput = document.getElementById('material_type');
+    const qtyLabel = document.getElementById('quantityLabel');
+    const rateLabel = document.getElementById('rateLabel');
+    const unitPills = document.querySelectorAll('.unit-pill');
+    const saveDefaultBtn = document.getElementById('saveDefaultUnitBtn');
+    const isEdit = {{ 'true' if entry else 'false' }};
+
+    // Load saved default unit preference on page load if adding new entry
+    const savedDefaultUnit = localStorage.getItem('flyash_default_outward_unit');
+    if (!isEdit) {
+        if (savedDefaultUnit) {
+            unitInput.value = savedDefaultUnit;
+        } else {
+            unitInput.value = 'Pieces / Pcs';
+        }
+    }
+
+    function updateUnitUI() {
+        const currentUnit = (unitInput.value || '').trim();
         
-        function calculateAmount() {
-            const qty = parseFloat(qtyInput.value) || 0;
-            const rate = parseFloat(rateInput.value) || 0;
-            if (qty > 0 || rate > 0) {
-                amountInput.value = (qty * rate).toFixed(2);
+        // Update pill active classes
+        unitPills.forEach(pill => {
+            const pillUnit = pill.getAttribute('data-unit');
+            if (currentUnit.toLowerCase().includes(pillUnit.toLowerCase()) || pillUnit.toLowerCase().includes(currentUnit.toLowerCase())) {
+                pill.classList.remove('btn-outline-primary');
+                pill.classList.add('btn-primary', 'active', 'shadow-xs');
             } else {
-                amountInput.value = '';
+                pill.classList.remove('btn-primary', 'active', 'shadow-xs');
+                pill.classList.add('btn-outline-primary');
+            }
+        });
+
+        // Update labels
+        if (currentUnit.toLowerCase().includes('piece') || currentUnit.toLowerCase().includes('pcs') || currentUnit.toLowerCase().includes('nos')) {
+            qtyLabel.innerHTML = 'Quantity (Pieces / Pcs) <span class="text-danger">*</span>';
+            rateLabel.innerHTML = 'Rate per Piece (₹)';
+        } else if (currentUnit.toLowerCase().includes('ton') || currentUnit.toLowerCase().includes('mt')) {
+            qtyLabel.innerHTML = 'Quantity (Tons / MT) <span class="text-danger">*</span>';
+            rateLabel.innerHTML = 'Rate per Ton (₹)';
+        } else if (currentUnit.toLowerCase().includes('load') || currentUnit.toLowerCase().includes('trip')) {
+            qtyLabel.innerHTML = 'Quantity (Loads / Trips) <span class="text-danger">*</span>';
+            rateLabel.innerHTML = 'Rate per Load (₹)';
+        } else if (currentUnit.toLowerCase().includes('bag')) {
+            qtyLabel.innerHTML = 'Quantity (Bags) <span class="text-danger">*</span>';
+            rateLabel.innerHTML = 'Rate per Bag (₹)';
+        } else {
+            qtyLabel.innerHTML = `Quantity (${currentUnit}) <span class="text-danger">*</span>`;
+            rateLabel.innerHTML = `Rate per ${currentUnit} (₹)`;
+        }
+
+        // Update default button text
+        const saved = localStorage.getItem('flyash_default_outward_unit');
+        const defaultBtnText = document.getElementById('defaultUnitBtnText');
+        if (defaultBtnText) {
+            if (saved && saved.toLowerCase() === currentUnit.toLowerCase()) {
+                defaultBtnText.innerText = `Default: ${currentUnit} (Active ⭐)`;
+            } else {
+                defaultBtnText.innerText = `Set "${currentUnit}" as Default ⭐`;
             }
         }
-        
-        qtyInput.addEventListener('input', calculateAmount);
-        rateInput.addEventListener('input', calculateAmount);
+    }
+
+    // Set unit when pill is clicked
+    unitPills.forEach(pill => {
+        pill.addEventListener('click', function() {
+            unitInput.value = this.getAttribute('data-unit');
+            updateUnitUI();
+            calculateAmount();
+        });
     });
+
+    // Save default unit to localStorage
+    if (saveDefaultBtn) {
+        saveDefaultBtn.addEventListener('click', function() {
+            const currentUnit = (unitInput.value || 'Pieces / Pcs').trim();
+            localStorage.setItem('flyash_default_outward_unit', currentUnit);
+            alert(`✅ "${currentUnit}" is now saved as your default unit for all Outward entries!`);
+            updateUnitUI();
+        });
+    }
+
+    // Auto-detect unit when material is selected/typed
+    if (materialInput) {
+        materialInput.addEventListener('input', function() {
+            const mat = (this.value || '').toLowerCase();
+            if (mat.includes('brick') || mat.includes('block') || mat.includes('paver') || mat.includes('aac') || mat.includes('solid') || mat.includes('hollow')) {
+                unitInput.value = 'Pieces / Pcs';
+                updateUnitUI();
+            } else if (mat.includes('flyash') || mat.includes('fly ash') || mat.includes('cement') || mat.includes('sand') || mat.includes('jelly') || mat.includes('dust') || mat.includes('slag') || mat.includes('aggregate')) {
+                unitInput.value = 'Ton';
+                updateUnitUI();
+            }
+        });
+    }
+
+    unitInput.addEventListener('input', updateUnitUI);
+
+    function calculateAmount() {
+        const qty = parseFloat(qtyInput.value) || 0;
+        const rate = parseFloat(rateInput.value) || 0;
+        if (qty > 0 && rate > 0) {
+            amountInput.value = (qty * rate).toFixed(2);
+        } else {
+            amountInput.value = '';
+        }
+    }
+    
+    qtyInput.addEventListener('input', calculateAmount);
+    rateInput.addEventListener('input', calculateAmount);
+
+    // Initial setup
+    updateUnitUI();
+    calculateAmount();
+});
 </script>
 {% endblock %}
