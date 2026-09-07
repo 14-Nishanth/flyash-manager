@@ -5,6 +5,26 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-lg-10">
+        <!-- Duplicate Warning Live Banner -->
+        <div id="duplicateWarningAlert" class="alert alert-warning border-2 shadow-sm rounded-3 d-none mb-3" role="alert">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+                <div>
+                    <div class="fw-bold text-dark fs-6 d-flex align-items-center gap-1">
+                        <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
+                        <span>Duplicate Production Entry Detected on Same Date!</span>
+                    </div>
+                    <div class="small text-dark mt-1" id="duplicateWarningText">
+                        An entry for this product and date was already recorded.
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="#" id="editExistingEntryBtn" class="btn btn-dark btn-sm fw-bold shadow-xs">
+                        <i class="bi bi-pencil-square me-1"></i> Edit Previous Entry Instead
+                    </a>
+                </div>
+            </div>
+        </div>
+
         <div class="card form-card shadow-sm border-0 rounded-3">
             <div class="card-header py-3 bg-light border-bottom d-flex justify-content-between align-items-center">
                 <h5 class="fw-bold mb-0 text-dark">
@@ -17,13 +37,14 @@
             <div class="card-body p-4">
                 <form method="POST" id="jobWageForm">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" id="entry_id" value="{{ entry.id if entry else '' }}">
 
                     <!-- Step 1: Work Date & Assigned Labor Group -->
                     <div class="row g-3 mb-4">
                         <div class="col-md-5">
                             <label for="date" class="form-label fw-semibold">Date of Work *</label>
                             <input type="date" class="form-control" id="date" name="date"
-                                   value="{{ entry.date.strftime('%Y-%m-%d') if entry else '' }}" required>
+                                   value="{{ entry.date.strftime('%Y-%m-%d') if entry else today }}" required>
                         </div>
                         <div class="col-md-7">
                             <label for="group_id" class="form-label fw-semibold">Labor Group / Team (Optional)</label>
@@ -45,7 +66,7 @@
                             <label for="product_name" class="form-label fw-semibold">Product Name *</label>
                             <input type="text" class="form-control form-control-lg" id="product_name" name="product_name" list="prodList"
                                    placeholder="e.g. Fly Ash Brick 9x4x3, Solid Block 6&quot;, Hollow Block 8&quot;"
-                                   value="{{ entry.product_name if entry else 'Fly Ash Brick 9\"x4\"x3\" (Standard)' }}" required>
+                                   value="{{ entry.product_name if entry else 'Fly Ash Brick 9"x4"x3" (Standard)' }}" required>
                             <datalist id="prodList">
                                 {% for p in job_products %}
                                     <option value="{{ p }}">
@@ -98,67 +119,72 @@
 
                     <!-- Step 4: Working Employees Selection & Equal Division -->
                     <div class="mb-4">
-                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-bold mb-0 text-dark">
+                                <i class="bi bi-people-fill text-primary me-1"></i>Select Working Workers for Equal Wage Share *
+                            </label>
                             <div>
-                                <label class="form-label fw-bold mb-0">Select Employees Working on this Job:</label>
-                                <span class="badge bg-primary ms-2" id="selectedCountBadge">0 Workers Selected</span>
-                            </div>
-                            <div>
-                                <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" id="selectAllWorkers">Select All</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" id="clearAllWorkers">Clear All</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm me-1" id="selectAllBtn">Select All</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="deselectAllBtn">Deselect All</button>
                             </div>
                         </div>
 
-                        <div class="p-3 border rounded-3 bg-light" style="max-height: 280px; overflow-y: auto;">
+                        <div class="card p-3 bg-white border rounded-3" style="max-height: 280px; overflow-y: auto;">
                             <div class="row g-2">
                                 {% for emp in employees %}
-                                <div class="col-md-6 col-lg-4">
-                                    <div class="form-check p-2 bg-white rounded border shadow-sm h-100 worker-card" id="card_emp_{{ emp.id }}">
-                                        <input class="form-check-input emp-worker-checkbox ms-1" type="checkbox" name="employee_ids" value="{{ emp.id }}" id="emp_{{ emp.id }}"
-                                               {% if entry and emp.id in assigned_emp_ids %}checked{% endif %}>
-                                        <label class="form-check-label ms-2 fw-semibold text-dark cursor-pointer d-block" for="emp_{{ emp.id }}">
-                                            {{ emp.name }}
-                                            <span class="d-block small text-muted fw-normal">{{ emp.role or 'Labor' }}</span>
-                                        </label>
+                                    <div class="col-md-6 col-lg-4">
+                                        <div class="form-check p-2 rounded hover-bg border">
+                                            <input class="form-check-input emp-checkbox" type="checkbox" name="employee_ids"
+                                                   value="{{ emp.id }}" id="emp_{{ emp.id }}"
+                                                   {% if entry and emp.id in entry_emp_ids %}checked{% elif not entry %}checked{% endif %}>
+                                            <label class="form-check-label w-100 fw-semibold text-dark cursor-pointer" for="emp_{{ emp.id }}">
+                                                {{ emp.name }}
+                                                <small class="text-muted d-block font-monospace">Role: {{ emp.role or 'Worker' }}</small>
+                                            </label>
+                                        </div>
                                     </div>
-                                </div>
-                                {% else %}
-                                <div class="col-12 text-center text-muted py-3">
-                                    No active employees found. <a href="{{ url_for('employees.add_employee') }}">Add employees first</a>.
-                                </div>
                                 {% endfor %}
                             </div>
                         </div>
                     </div>
 
-                    <!-- Step 5: Live Equal Division Breakdown Badge -->
-                    <div class="card bg-success bg-opacity-10 border-success mb-4">
-                        <div class="card-body p-3 text-center">
-                            <h5 class="fw-bold text-success mb-1" id="wageDivisionSummary">
-                                <i class="bi bi-cash-coin me-2"></i>₹0.00 Total divided by 0 Workers = ₹0.00 per worker
-                            </h5>
-                            <p class="text-muted small mb-0">The total amount will be divided equally and automatically credited to each working employee's salary sheet.</p>
+                    <!-- Step 5: Live Equal Split Summary Banner -->
+                    <div class="alert alert-primary d-flex align-items-center justify-content-between p-3 rounded-3 mb-4" role="alert">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-cash-coin fs-2 me-3 text-primary"></i>
+                            <div>
+                                <div class="fw-bold fs-6">Equal Wage Calculation:</div>
+                                <div class="text-muted small">
+                                    <span id="summaryCalc">₹0.00 total ÷ 0 workers</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <div class="text-uppercase text-muted small fw-bold">Wage per Worker</div>
+                            <div class="fs-4 fw-bold text-success" id="wagePerWorkerDisplay">₹0.00</div>
                         </div>
                     </div>
 
-                    <!-- Vehicle No & Notes -->
+                    <!-- Step 6: Vehicle No & Notes -->
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
-                            <label for="vehicle_no" class="form-label fw-semibold">Vehicle No (if Loading / Dispatch)</label>
-                            <input type="text" class="form-control" id="vehicle_no" name="vehicle_no" placeholder="e.g. TN 38 AB 1234" value="{{ entry.vehicle_no if entry else '' }}">
+                            <label for="vehicle_no" class="form-label fw-semibold">Vehicle No (For Loading/Unloading)</label>
+                            <input type="text" class="form-control text-uppercase" id="vehicle_no" name="vehicle_no"
+                                   placeholder="e.g. TN-38-A-1234" value="{{ entry.vehicle_no if entry else '' }}">
                         </div>
                         <div class="col-md-8">
                             <label for="notes" class="form-label fw-semibold">Notes / Shift Details</label>
-                            <input type="text" class="form-control" id="notes" name="notes" placeholder="e.g. Shift 1 production, 5 workers on machine" value="{{ entry.notes if entry else '' }}">
+                            <input type="text" class="form-control" id="notes" name="notes"
+                                   placeholder="e.g. Morning shift, 4th machine run, extra batch..."
+                                   value="{{ entry.notes if entry else '' }}">
                         </div>
                     </div>
 
-                    <div class="d-flex justify-content-between align-items-center pt-3 border-top">
-                        <a href="{{ url_for('employees.job_wages_list') }}" class="btn btn-outline-secondary">
-                            <i class="bi bi-arrow-left me-1"></i> Cancel
-                        </a>
-                        <button type="submit" class="btn btn-primary px-4 py-2 fw-semibold fs-6">
-                            <i class="bi bi-check-circle-fill me-1"></i> {{ 'Update Job & Re-divide' if entry else 'Save Job & Divide Wages' }}
+                    <!-- Buttons -->
+                    <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+                        <a href="{{ url_for('employees.job_wages_list') }}" class="btn btn-light px-4">Cancel</a>
+                        <button type="submit" class="btn btn-primary px-4 fw-bold shadow-sm" id="submitBtn">
+                            <i class="bi bi-check-circle me-1"></i>{{ 'Update Job Entry' if entry else 'Save Piece-Rate Job' }}
                         </button>
                     </div>
                 </form>
@@ -166,129 +192,123 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const ratesMap = {{ rates_map|tojson if rates_map else '{}' }};
-    const groupsMap = {{ groups_map|tojson if groups_map else '{}' }};
+document.addEventListener('DOMContentLoaded', function() {
+    const ratesMap = {{ rates_map | tojson }};
+    const groupsMap = {{ groups_map | tojson }};
 
-    const productInput = document.getElementById('product_name');
+    const dateInput = document.getElementById('date');
+    const prodInput = document.getElementById('product_name');
     const jobTypeSelect = document.getElementById('job_type');
-    const quantityInput = document.getElementById('quantity');
+    const qtyInput = document.getElementById('quantity');
     const rateInput = document.getElementById('rate_per_unit');
     const groupSelect = document.getElementById('group_id');
-    const totalAmountDisplay = document.getElementById('totalAmountDisplay');
-    const wageDivisionSummary = document.getElementById('wageDivisionSummary');
-    const selectedCountBadge = document.getElementById('selectedCountBadge');
-    const checkboxes = document.querySelectorAll('.emp-worker-checkbox');
-    const selectAllWorkers = document.getElementById('selectAllWorkers');
-    const clearAllWorkers = document.getElementById('clearAllWorkers');
+    const totalDisplay = document.getElementById('totalAmountDisplay');
+    const summaryCalc = document.getElementById('summaryCalc');
+    const wagePerWorkerDisplay = document.getElementById('wagePerWorkerDisplay');
+    const unitText = document.getElementById('unitText');
+    const empCheckboxes = document.querySelectorAll('.emp-checkbox');
+    const excludeId = document.getElementById('entry_id').value;
 
-    // 1. Auto-fill Rate per Piece from product and job selection
-    function autoFillRate() {
-        const prod = (productInput.value || '').trim();
-        const jtype = (jobTypeSelect.value || '').trim();
-        const key = `${prod}___${jtype}`;
+    const dupAlert = document.getElementById('duplicateWarningAlert');
+    const dupText = document.getElementById('duplicateWarningText');
+    const editBtn = document.getElementById('editExistingEntryBtn');
+
+    // Auto rate lookup
+    function updateRateFromSettings() {
+        const prod = prodInput.value.trim();
+        const job = jobTypeSelect.value.trim();
+        const key = `${prod}___${job}`;
 
         if (ratesMap[key]) {
             rateInput.value = ratesMap[key].rate;
-        } else {
-            // Fuzzy match if full key isn't exact
-            for (let k in ratesMap) {
-                if (k.includes(jtype)) {
-                    if ((prod.toLowerCase().includes('solid') && k.toLowerCase().includes('solid')) ||
-                        (prod.toLowerCase().includes('brick') && k.toLowerCase().includes('brick')) ||
-                        (prod.toLowerCase().includes('hollow') && k.toLowerCase().includes('hollow'))) {
-                        rateInput.value = ratesMap[k].rate;
-                        break;
-                    }
-                }
-            }
+            unitText.innerText = ratesMap[key].unit || 'Pieces';
         }
         recalculate();
+        checkDuplicate();
     }
 
-    if (productInput) productInput.addEventListener('input', autoFillRate);
-    if (jobTypeSelect) jobTypeSelect.addEventListener('change', autoFillRate);
+    // Duplicate Production Checker
+    let dupTimeout = null;
+    function checkDuplicate() {
+        clearTimeout(dupTimeout);
+        dupTimeout = setTimeout(() => {
+            const dt = dateInput.value;
+            const pr = prodInput.value.trim();
+            const jt = jobTypeSelect.value.trim();
 
-    // 2. Select Group auto-checks group members
-    if (groupSelect) {
-        groupSelect.addEventListener('change', function () {
-            const gid = this.value;
-            if (gid && groupsMap[gid]) {
-                const grp = groupsMap[gid];
-                checkboxes.forEach(cb => {
-                    const empId = parseInt(cb.value);
-                    cb.checked = grp.member_ids.includes(empId);
-                });
-                if (grp.default_job && jobTypeSelect) jobTypeSelect.value = grp.default_job;
-                if (grp.default_product && productInput) productInput.value = grp.default_product;
-                autoFillRate();
+            if (!dt || !pr || !jt) {
+                dupAlert.classList.add('d-none');
+                return;
             }
-            recalculate();
-        });
+
+            fetch(`/employees/api/check-duplicate-job?date=${encodeURIComponent(dt)}&product_name=${encodeURIComponent(pr)}&job_type=${encodeURIComponent(jt)}&exclude_id=${excludeId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.exists && data.entry) {
+                        dupText.innerHTML = `<strong>${data.entry.quantity.toLocaleString()} ${data.entry.unit}</strong> of <em>${data.entry.product_name} (${data.entry.job_type})</em> was already recorded on <strong>${data.entry.date}</strong> (Total: ₹${data.entry.total_amount.toLocaleString()}). You can edit it or add another batch below.`;
+                        editBtn.href = data.entry.edit_url;
+                        dupAlert.classList.remove('d-none');
+                    } else {
+                        dupAlert.classList.add('d-none');
+                    }
+                })
+                .catch(() => dupAlert.classList.add('d-none'));
+        }, 300);
     }
 
-    // 3. Select / Clear All Buttons
-    if (selectAllWorkers) {
-        selectAllWorkers.addEventListener('click', function () {
-            checkboxes.forEach(cb => cb.checked = true);
-            recalculate();
-        });
+    function recalculate() {
+        const qty = parseFloat(qtyInput.value) || 0;
+        const rate = parseFloat(rateInput.value) || 0;
+        const total = (qty * rate);
+
+        let checkedCount = 0;
+        empCheckboxes.forEach(cb => { if (cb.checked) checkedCount++; });
+
+        const perWorker = checkedCount > 0 ? (total / checkedCount) : 0;
+
+        totalDisplay.innerText = '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        summaryCalc.innerText = `₹${total.toFixed(2)} total ÷ ${checkedCount} active workers`;
+        wagePerWorkerDisplay.innerText = '₹' + perWorker.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
-    if (clearAllWorkers) {
-        clearAllWorkers.addEventListener('click', function () {
-            checkboxes.forEach(cb => cb.checked = false);
-            recalculate();
-        });
-    }
-
-    checkboxes.forEach(cb => {
-        cb.addEventListener('change', recalculate);
+    // Group select listener
+    groupSelect.addEventListener('change', function() {
+        const gid = this.value;
+        if (gid && groupsMap[gid]) {
+            const memberIds = groupsMap[gid].member_ids;
+            empCheckboxes.forEach(cb => {
+                cb.checked = memberIds.includes(parseInt(cb.value));
+            });
+            if (groupsMap[gid].default_job) jobTypeSelect.value = groupsMap[gid].default_job;
+            if (groupsMap[gid].default_product) prodInput.value = groupsMap[gid].default_product;
+            updateRateFromSettings();
+        }
+        recalculate();
     });
 
-    if (quantityInput) quantityInput.addEventListener('input', recalculate);
-    if (rateInput) rateInput.addEventListener('input', recalculate);
+    dateInput.addEventListener('change', checkDuplicate);
+    prodInput.addEventListener('input', updateRateFromSettings);
+    jobTypeSelect.addEventListener('change', updateRateFromSettings);
+    qtyInput.addEventListener('input', recalculate);
+    rateInput.addEventListener('input', recalculate);
+    empCheckboxes.forEach(cb => cb.addEventListener('change', recalculate));
 
-    // 4. Recalculate Live Division
-    function recalculate() {
-        const qty = parseFloat(quantityInput.value) || 0;
-        const rate = parseFloat(rateInput.value) || 0;
-        const total = qty * rate;
+    document.getElementById('selectAllBtn').addEventListener('click', () => {
+        empCheckboxes.forEach(cb => cb.checked = true);
+        recalculate();
+    });
+    document.getElementById('deselectAllBtn').addEventListener('click', () => {
+        empCheckboxes.forEach(cb => cb.checked = false);
+        recalculate();
+    });
 
-        let selectedWorkers = 0;
-        checkboxes.forEach(cb => {
-            const card = document.getElementById('card_' + cb.id);
-            if (cb.checked) {
-                selectedWorkers++;
-                if (card) card.classList.add('border-primary', 'bg-primary', 'bg-opacity-10');
-            } else {
-                if (card) card.classList.remove('border-primary', 'bg-primary', 'bg-opacity-10');
-            }
-        });
-
-        if (totalAmountDisplay) {
-            totalAmountDisplay.textContent = '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        }
-
-        if (selectedCountBadge) {
-            selectedCountBadge.textContent = `${selectedWorkers} Worker${selectedWorkers === 1 ? '' : 's'} Selected`;
-        }
-
-        const perWorker = selectedWorkers > 0 ? (total / selectedWorkers) : 0;
-
-        if (wageDivisionSummary) {
-            wageDivisionSummary.innerHTML = `
-                <i class="bi bi-cash-coin me-2"></i>
-                ₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Total ÷ ${selectedWorkers} Workers = 
-                <span class="text-primary fw-bold">₹${perWorker.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} per worker</span>
-            `;
-        }
-    }
-
-    // Initial calculation on page load
+    // Initial check
     recalculate();
+    checkDuplicate();
 });
 </script>
 {% endblock %}

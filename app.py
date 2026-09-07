@@ -235,6 +235,7 @@ def create_app():
     from routes.parties import bp as parties_bp
     from routes.reports import bp as reports_bp
     from routes.expenses import bp as expenses_bp
+    from routes.stock import bp as stock_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -243,6 +244,7 @@ def create_app():
     app.register_blueprint(parties_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(expenses_bp)
+    app.register_blueprint(stock_bp)
 
     # Redirect root to dashboard if no dashboard blueprint handles it
     @app.route('/favicon.ico')

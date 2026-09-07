@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+
+{% block title %}Stock & Inventory Management - FlyAsh ERP{% endblock %}
+{% block page_title %}Stock & Inventory Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2">
+        <div>
+            <h3 class="fw-bold mb-0 text-slate-800 d-flex align-items-center gap-2">
+                <i class="bi bi-boxes text-primary"></i>
+                <span data-i18n="stock_title">Plant Stock & Yard Inventory</span>
+            </h3>
+            <p class="text-muted small mb-0" data-i18n="stock_subtitle">Real-time stock tracking: Daily Production adds to stock (+), Outward Dispatches minus from stock (-)</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('stock.export_csv') }}" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 shadow-sm">
+                <i class="bi bi-download"></i> <span data-i18n="export_csv">Export CSV</span>
+            </a>
+            <a href="{{ url_for('employees.job_wages_add') }}" class="btn btn-warning btn-sm d-flex align-items-center gap-1 shadow-sm text-dark fw-semibold">
+                <i class="bi bi-plus-circle-fill"></i> + Add Production
+            </a>
+            <a href="{{ url_for('materials.outward_add') }}" class="btn btn-info btn-sm d-flex align-items-center gap-1 shadow-sm text-white fw-semibold">
+                <i class="bi bi-box-arrow-up"></i> - Add Outward Dispatch
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary KPI Cards -->
+    <div class="row g-3 mb-4">
+        <!-- Yard Bricks Stock -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-primary">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Finished Bricks & Blocks</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-primary">{{ "{:,.0f}".format(total_yard_pieces) }} <span class="fs-6 fw-normal">Pcs</span></div>
+                        <div class="small text-muted mt-1">Available in plant yard</div>
+                    </div>
+                    <div class="bg-primary bg-opacity-10 text-primary rounded-circle p-3">
+                        <i class="bi bi-bricks fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Total Production -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-success">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Total Produced (+)</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-success">{{ "{:,.0f}".format(total_produced_all) }} <span class="fs-6 fw-normal">Pcs</span></div>
+                        <div class="small text-muted mt-1">Added from daily production</div>
+                    </div>
+                    <div class="bg-success bg-opacity-10 text-success rounded-circle p-3">
+                        <i class="bi bi-plus-square-fill fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Total Dispatched -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-info">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Total Dispatched (-)</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-info">{{ "{:,.0f}".format(total_dispatched_all) }} <span class="fs-6 fw-normal">Pcs</span></div>
+                        <div class="small text-muted mt-1">Sold to customers</div>
+                    </div>
+                    <div class="bg-info bg-opacity-10 text-info rounded-circle p-3">
+                        <i class="bi bi-dash-square-fill fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Raw Materials in Stock -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-warning">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Raw Material Stock</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-warning">{{ "{:,.1f}".format(total_raw_tons) }} <span class="fs-6 fw-normal">MT</span></div>
+                        <div class="small text-muted mt-1">Ash, Cement, Sand, Jelly</div>
+                    </div>
+                    <div class="bg-warning bg-opacity-10 text-warning rounded-circle p-3">
+                        <i class="bi bi-truck fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter & Search Toolbar -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+        <div class="card-body p-3">
+            <form method="GET" action="{{ url_for('stock.index') }}" class="row g-2 align-items-end">
+                <div class="col-12 col-md-5">
+                    <label class="form-label small fw-semibold text-muted mb-1">Search Product / Material</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                        <input type="text" name="search" class="form-control" placeholder="Search Fly Ash Brick, Solid Block, Cement..." value="{{ search }}">
+                    </div>
+                </div>
+                <div class="col-6 col-md-4">
+                    <label class="form-label small fw-semibold text-muted mb-1">Stock Status Filter</label>
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Stock Status</option>
+                        <option value="in_stock" {% if status_filter == 'in_stock' %}selected{% endif %}>🟢 In Stock (> 3,000 Pcs)</option>
+                        <option value="low_stock" {% if status_filter == 'low_stock' %}selected{% endif %}>🟡 Low Stock (1 - 3,000 Pcs)</option>
+                        <option value="out_of_stock" {% if status_filter == 'out_of_stock' %}selected{% endif %}>🔴 Zero / Negative Stock</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
+                        <i class="bi bi-funnel-fill"></i> Filter
+                    </button>
+                    <a href="{{ url_for('stock.index') }}" class="btn btn-light btn-sm border" title="Reset">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 1. Finished Goods Stock Yard Table -->
+    <div class="card border-0 shadow-sm rounded-3 bg-white mb-4 overflow-hidden">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0 text-slate-800 d-flex align-items-center gap-2">
+                <i class="bi bi-bricks text-primary"></i>
+                <span>Finished Goods Yard Stock (Fly Ash Bricks & Blocks)</span>
+            </h5>
+            <span class="badge bg-primary bg-opacity-10 text-primary fw-semibold">{{ finished_goods|length }} Products Tracked</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr class="small text-muted text-uppercase">
+                        <th style="width: 50px;">#</th>
+                        <th>Product Name</th>
+                        <th class="text-end" style="width: 170px;">Total Produced (+)</th>
+                        <th class="text-end" style="width: 170px;">Total Dispatched (-)</th>
+                        <th class="text-end" style="width: 200px;">Current Balance in Yard</th>
+                        <th class="text-center" style="width: 150px;">Stock Status</th>
+                        <th class="text-center" style="width: 160px;">Quick Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in finished_goods %}
+                    <tr>
+                        <td class="text-muted small">{{ loop.index }}</td>
+                        <td>
+                            <div class="fw-bold text-dark fs-6">{{ item.name }}</div>
+                            <small class="text-muted">Unit: Pieces / Pcs</small>
+                        </td>
+                        <td class="text-end">
+                            <span class="fw-bold text-success fs-6">+{{ "{:,.0f}".format(item.produced) }}</span>
+                            <small class="d-block text-muted">Daily Production</small>
+                        </td>
+                        <td class="text-end">
+                            <span class="fw-bold text-info fs-6">-{{ "{:,.0f}".format(item.dispatched) }}</span>
+                            <small class="d-block text-muted">Customer Sales</small>
+                        </td>
+                        <td class="text-end">
+                            <div class="h5 fw-bold mb-0 {% if item.balance > 0 %}text-primary{% elif item.balance == 0 %}text-secondary{% else %}text-danger{% endif %}">
+                                {{ "{:,.0f}".format(item.balance) }} <span class="fs-7 fw-normal">Pcs</span>
+                            </div>
+                            <small class="text-muted">Available in Yard</small>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge {{ item.badge_class }} py-1 px-2.5 fw-semibold fs-7">
+                                {{ item.status }}
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('employees.job_wages_add') }}?product={{ item.name }}" class="btn btn-outline-warning btn-sm" title="Add Production (+)">
+                                    <i class="bi bi-plus-lg"></i> Produce
+                                </a>
+                                <a href="{{ url_for('materials.outward_add') }}?material={{ item.name }}" class="btn btn-outline-info btn-sm" title="Add Outward Dispatch (-)">
+                                    <i class="bi bi-box-arrow-up"></i> Dispatch
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="bi bi-box-seam fs-1 d-block mb-2 text-muted text-opacity-50"></i>
+                            <p class="mb-2">No finished products found.</p>
+                            <a href="{{ url_for('employees.job_wages_add') }}" class="btn btn-warning btn-sm text-dark">
+                                Record Daily Production
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if finished_goods %}
+                <tfoot class="table-light fw-bold border-top">
+                    <tr>
+                        <td colspan="4" class="text-end text-uppercase">Total Available Yard Stock:</td>
+                        <td class="text-end text-primary fs-5">{{ "{:,.0f}".format(total_yard_pieces) }} Pcs</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+    <!-- 2. Raw Materials Inventory & Recent Activity Grid -->
+    <div class="row g-4 mb-4">
+        <!-- Raw Materials Table -->
+        <div class="col-12 col-lg-7">
+            <div class="card border-0 shadow-sm rounded-3 bg-white h-100 overflow-hidden">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0 text-slate-800 d-flex align-items-center gap-2">
+                        <i class="bi bi-truck text-success"></i>
+                        <span>Raw Material Stock (Tons / MT)</span>
+                    </h5>
+                    <a href="{{ url_for('materials.inward_add') }}" class="btn btn-success btn-sm">
+                        <i class="bi bi-plus-circle"></i> + Add Inward
+                    </a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr class="small text-muted text-uppercase">
+                                <th>Raw Material</th>
+                                <th class="text-end">Inward (+)</th>
+                                <th class="text-end">Outward (-)</th>
+                                <th class="text-end">Balance (MT)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for mat in raw_materials %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold text-dark">{{ mat.name }}</div>
+                                </td>
+                                <td class="text-end text-success fw-semibold">{{ "{:,.2f}".format(mat.inward) }} MT</td>
+                                <td class="text-end text-info fw-semibold">{{ "{:,.2f}".format(mat.outward) }} MT</td>
+                                <td class="text-end">
+                                    <span class="badge {% if mat.balance >= 0 %}bg-success bg-opacity-10 text-success{% else %}bg-danger bg-opacity-10 text-danger{% endif %} fs-6 fw-bold">
+                                        {{ "{:,.2f}".format(mat.balance) }} MT
+                                    </span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center py-4 text-muted">No raw material stock records.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Stock Movement Activity Feed -->
+        <div class="col-12 col-lg-5">
+            <div class="card border-0 shadow-sm rounded-3 bg-white h-100">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h5 class="fw-bold mb-0 text-slate-800 d-flex align-items-center gap-2">
+                        <i class="bi bi-clock-history text-info"></i>
+                        <span>Live Stock Movements</span>
+                    </h5>
+                </div>
+                <div class="card-body p-3">
+                    <h6 class="fw-bold text-success small text-uppercase mb-2"><i class="bi bi-plus-circle me-1"></i> Recent Production Stock Additions (+)</h6>
+                    <div class="list-group list-group-flush mb-4">
+                        {% for item in recent_additions %}
+                        <div class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="fw-bold text-dark small">{{ item.product_name }}</div>
+                                <small class="text-muted">{{ item.date.strftime('%d %b %Y') }}</small>
+                            </div>
+                            <span class="badge bg-success bg-opacity-10 text-success fw-bold">
+                                +{{ "{:,.0f}".format(item.quantity) }} Pcs
+                            </span>
+                        </div>
+                        {% else %}
+                        <div class="text-muted small py-2">No recent production entries.</div>
+                        {% endfor %}
+                    </div>
+
+                    <h6 class="fw-bold text-info small text-uppercase mb-2"><i class="bi bi-box-arrow-up me-1"></i> Recent Outward Sales Deductions (-)</h6>
+                    <div class="list-group list-group-flush">
+                        {% for item in recent_deductions %}
+                        <div class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="fw-bold text-dark small">{{ item.material_type }}</div>
+                                <small class="text-muted">{{ item.party.name if item.party else '-' }} | {{ item.date.strftime('%d %b %Y') }}</small>
+                            </div>
+                            <span class="badge bg-info bg-opacity-10 text-info fw-bold">
+                                -{{ "{:,.2f}".format(item.quantity_mt) }} {{ item.quantity_unit or 'Ton' }}
+                            </span>
+                        </div>
+                        {% else %}
+                        <div class="text-muted small py-2">No recent outward dispatches.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

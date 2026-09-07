@@ -821,3 +821,48 @@ def salary_sheet_export():
     response = Response(output.getvalue(), content_type='text/csv')
     response.headers["Content-Disposition"] = f"attachment; filename=employee_salary_sheet_{from_date_str}_to_{to_date_str}.csv"
     return response
+
+@bp.route('/api/check-duplicate-job')
+@login_required
+def check_duplicate_job():
+    """API to check if a production/job entry already exists on the specified date."""
+    from flask import jsonify
+    date_str = request.args.get('date', '').strip()
+    product_name = request.args.get('product_name', '').strip()
+    job_type = request.args.get('job_type', '').strip()
+    exclude_id = request.args.get('exclude_id', type=int)
+
+    if not date_str or not product_name or not job_type:
+        return jsonify({'exists': False})
+
+    try:
+        check_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'exists': False})
+
+    query = JobWageEntry.query.filter(
+        JobWageEntry.date == check_date,
+        JobWageEntry.product_name == product_name,
+        JobWageEntry.job_type == job_type
+    )
+    if exclude_id:
+        query = query.filter(JobWageEntry.id != exclude_id)
+
+    existing = query.first()
+    if existing:
+        return jsonify({
+            'exists': True,
+            'entry': {
+                'id': existing.id,
+                'date': existing.date.strftime('%d-%b-%Y'),
+                'product_name': existing.product_name,
+                'job_type': existing.job_type,
+                'quantity': existing.quantity,
+                'unit': existing.unit,
+                'total_amount': existing.total_amount,
+                'worker_count': existing.worker_count,
+                'edit_url': url_for('employees.job_wages_edit', id=existing.id)
+            }
+        })
+
+    return jsonify({'exists': False})

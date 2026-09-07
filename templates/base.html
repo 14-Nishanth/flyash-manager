@@ -78,6 +78,14 @@
                     </a>
                 </li>
 
+                                <li class="nav-section" data-i18n="stock_inventory">Stock & Yard Inventory</li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and 'stock' in request.endpoint %}active{% endif %}"
+                       href="{{ url_for('stock.index') }}">
+                        <i class="bi bi-boxes text-warning"></i> <span data-i18n="yard_stock">Yard Stock Detail</span>
+                    </a>
+                </li>
+
                 <li class="nav-section" data-i18n="materials">Materials</li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint and 'inward' in request.endpoint %}active{% endif %}"
