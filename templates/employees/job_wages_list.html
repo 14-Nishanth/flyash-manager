@@ -157,7 +157,18 @@
                         <span class="text-muted small">Custom Pool</span>
                     {% endif %}
                 </td>
-                <td class="text-end fw-bold">{{ "{:,.0f}".format(entry.quantity) }} <small class="text-muted fw-normal">{{ entry.unit }}</small></td>
+                <td class="text-end">
+                    <div class="fw-bold text-dark">{{ "{:,.0f}".format(entry.quantity) }} <small class="text-muted fw-normal">{{ entry.unit }}</small></div>
+                    {% if entry.tray_count and entry.tray_count > 0 %}
+                        <div class="small text-muted" title="Stock: {{ '{:,.0f}'.format(entry.gross_quantity or (entry.tray_count * 105)) }} Pcs, Wastage: -{{ '{:,.0f}'.format(entry.total_wastage or (entry.tray_count * 5)) }} Pcs">
+                            <span class="badge bg-light text-dark border">
+                                <i class="bi bi-grid-3x3 text-primary me-1"></i>{{ "{:g}".format(entry.tray_count) }} Trays
+                            </span>
+                            <span class="text-success small fw-semibold">+{{ "{:,.0f}".format(entry.gross_quantity or (entry.tray_count * 105)) }}</span>
+                            <span class="text-danger small">-{{ "{:,.0f}".format(entry.total_wastage or (entry.tray_count * 5)) }}w</span>
+                        </div>
+                    {% endif %}
+                </td>
                 <td class="text-end fw-bold text-success">₹{{ "{:,.2f}".format(entry.rate_per_unit) }}</td>
                 <td class="text-end fw-bold text-primary fs-6">₹{{ "{:,.2f}".format(entry.total_amount) }}</td>
                 <td>

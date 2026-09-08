@@ -122,7 +122,10 @@ def index():
     all_products = get_all_finished_products()
     all_raw_mats = get_all_raw_materials()
 
-    produced_map = dict(db.session.query(JobWageEntry.product_name, func.sum(JobWageEntry.quantity)).filter(JobWageEntry.job_type.ilike('%Production%')).group_by(JobWageEntry.product_name).all())
+    produced_map = dict(db.session.query(
+        JobWageEntry.product_name, 
+        func.sum(func.coalesce(func.nullif(JobWageEntry.gross_quantity, 0), JobWageEntry.quantity))
+    ).filter(JobWageEntry.job_type.ilike('%Production%')).group_by(JobWageEntry.product_name).all())
     dispatched_map = dict(db.session.query(MaterialOutward.material_type, func.sum(MaterialOutward.quantity_mt)).group_by(MaterialOutward.material_type).all())
     inward_mat_map = dict(db.session.query(MaterialInward.material_type, func.sum(MaterialInward.quantity_mt)).group_by(MaterialInward.material_type).all())
 
@@ -266,24 +269,29 @@ def production_sheet():
 
     entries = query.order_by(JobWageEntry.date.desc(), JobWageEntry.id.desc()).all()
 
-    total_production_qty = sum(e.quantity for e in entries)
+    # Gross physical stock produced vs payable labor wage quantities
+    total_production_qty = sum((e.gross_quantity if (e.gross_quantity and e.gross_quantity > 0) else e.quantity) for e in entries)
+    total_wastage_qty = sum((e.total_wastage or 0.0) for e in entries)
+    total_payable_qty = sum(e.quantity for e in entries)
+    total_trays = sum((e.tray_count or 0.0) for e in entries)
     total_labor_cost = sum(e.total_amount for e in entries)
     
-    # KPI Metrics
-    today_produced = db.session.query(func.sum(JobWageEntry.quantity)).filter(
+    # KPI Metrics for physical yard stock produced
+    prod_qty_col = func.coalesce(func.nullif(JobWageEntry.gross_quantity, 0), JobWageEntry.quantity)
+    today_produced = db.session.query(func.sum(prod_qty_col)).filter(
         JobWageEntry.date == today,
         JobWageEntry.job_type.ilike('%Production%')
     ).scalar() or 0.0
 
     first_day_of_month = today.replace(day=1)
-    month_produced = db.session.query(func.sum(JobWageEntry.quantity)).filter(
+    month_produced = db.session.query(func.sum(prod_qty_col)).filter(
         JobWageEntry.date >= first_day_of_month,
         JobWageEntry.date <= today,
         JobWageEntry.job_type.ilike('%Production%')
     ).scalar() or 0.0
 
     this_week_mon = today - timedelta(days=today.weekday())
-    week_produced = db.session.query(func.sum(JobWageEntry.quantity)).filter(
+    week_produced = db.session.query(func.sum(prod_qty_col)).filter(
         JobWageEntry.date >= this_week_mon,
         JobWageEntry.date <= today,
         JobWageEntry.job_type.ilike('%Production%')
@@ -292,7 +300,8 @@ def production_sheet():
     # Product-wise breakdown in current view
     product_summary = {}
     for e in entries:
-        product_summary[e.product_name] = product_summary.get(e.product_name, 0.0) + e.quantity
+        prod_val = (e.gross_quantity if (e.gross_quantity and e.gross_quantity > 0) else e.quantity)
+        product_summary[e.product_name] = product_summary.get(e.product_name, 0.0) + prod_val
 
     # --- WEEKLY BREAKDOWN CALCULATION ---
     weekly_dict = {}
@@ -307,22 +316,29 @@ def production_sheet():
                 'week_label': f"{mon.strftime('%d %b')} – {sun.strftime('%d %b %Y')}",
                 'iso_week': f"Week {mon.isocalendar()[1]}",
                 'total_qty': 0.0,
+                'total_payable_qty': 0.0,
+                'total_wastage': 0.0,
+                'total_trays': 0.0,
                 'total_labor_cost': 0.0,
                 'runs_count': 0,
                 'dates_worked': set(),
                 'products': {}
             }
-        weekly_dict[key]['total_qty'] += e.quantity
+        prod_val = (e.gross_quantity if (e.gross_quantity and e.gross_quantity > 0) else e.quantity)
+        weekly_dict[key]['total_qty'] += prod_val
+        weekly_dict[key]['total_payable_qty'] += e.quantity
+        weekly_dict[key]['total_wastage'] += (e.total_wastage or 0.0)
+        weekly_dict[key]['total_trays'] += (e.tray_count or 0.0)
         weekly_dict[key]['total_labor_cost'] += e.total_amount
         weekly_dict[key]['runs_count'] += 1
         weekly_dict[key]['dates_worked'].add(e.date)
-        weekly_dict[key]['products'][e.product_name] = weekly_dict[key]['products'].get(e.product_name, 0.0) + e.quantity
+        weekly_dict[key]['products'][e.product_name] = weekly_dict[key]['products'].get(e.product_name, 0.0) + prod_val
 
     weekly_summary = []
     for key, data in sorted(weekly_dict.items(), key=lambda x: x[0][0], reverse=True):
         days_cnt = len(data['dates_worked'])
         avg_daily = data['total_qty'] / days_cnt if days_cnt else 0.0
-        avg_labor_per_pc = data['total_labor_cost'] / data['total_qty'] if data['total_qty'] else 0.0
+        avg_labor_per_pc = data['total_labor_cost'] / data['total_payable_qty'] if data['total_payable_qty'] else 0.0
         top_prod = max(data['products'].items(), key=lambda x: x[1])[0] if data['products'] else 'N/A'
         weekly_summary.append({
             'week_label': data['week_label'],
@@ -330,6 +346,9 @@ def production_sheet():
             'week_start': data['week_start'].strftime('%Y-%m-%d'),
             'week_end': data['week_end'].strftime('%Y-%m-%d'),
             'total_qty': data['total_qty'],
+            'total_payable_qty': data['total_payable_qty'],
+            'total_wastage': data['total_wastage'],
+            'total_trays': data['total_trays'],
             'total_labor_cost': data['total_labor_cost'],
             'runs_count': data['runs_count'],
             'days_worked': days_cnt,
@@ -349,22 +368,29 @@ def production_sheet():
                 'month': e.date.month,
                 'month_label': datetime(e.date.year, e.date.month, 1).strftime('%B %Y'),
                 'total_qty': 0.0,
+                'total_payable_qty': 0.0,
+                'total_wastage': 0.0,
+                'total_trays': 0.0,
                 'total_labor_cost': 0.0,
                 'runs_count': 0,
                 'dates_worked': set(),
                 'products': {}
             }
-        monthly_dict[key]['total_qty'] += e.quantity
+        prod_val = (e.gross_quantity if (e.gross_quantity and e.gross_quantity > 0) else e.quantity)
+        monthly_dict[key]['total_qty'] += prod_val
+        monthly_dict[key]['total_payable_qty'] += e.quantity
+        monthly_dict[key]['total_wastage'] += (e.total_wastage or 0.0)
+        monthly_dict[key]['total_trays'] += (e.tray_count or 0.0)
         monthly_dict[key]['total_labor_cost'] += e.total_amount
         monthly_dict[key]['runs_count'] += 1
         monthly_dict[key]['dates_worked'].add(e.date)
-        monthly_dict[key]['products'][e.product_name] = monthly_dict[key]['products'].get(e.product_name, 0.0) + e.quantity
+        monthly_dict[key]['products'][e.product_name] = monthly_dict[key]['products'].get(e.product_name, 0.0) + prod_val
 
     monthly_summary = []
     for key, data in sorted(monthly_dict.items(), key=lambda x: (x[0][0], x[0][1]), reverse=True):
         days_cnt = len(data['dates_worked'])
         avg_daily = data['total_qty'] / days_cnt if days_cnt else 0.0
-        avg_labor_per_pc = data['total_labor_cost'] / data['total_qty'] if data['total_qty'] else 0.0
+        avg_labor_per_pc = data['total_labor_cost'] / data['total_payable_qty'] if data['total_payable_qty'] else 0.0
         top_prod = max(data['products'].items(), key=lambda x: x[1])[0] if data['products'] else 'N/A'
         first_day_m = date(data['year'], data['month'], 1)
         last_day_m = date(data['year'], data['month'], calendar.monthrange(data['year'], data['month'])[1])
@@ -373,6 +399,9 @@ def production_sheet():
             'from_date': first_day_m.strftime('%Y-%m-%d'),
             'to_date': last_day_m.strftime('%Y-%m-%d'),
             'total_qty': data['total_qty'],
+            'total_payable_qty': data['total_payable_qty'],
+            'total_wastage': data['total_wastage'],
+            'total_trays': data['total_trays'],
             'total_labor_cost': data['total_labor_cost'],
             'runs_count': data['runs_count'],
             'days_worked': days_cnt,
@@ -389,6 +418,9 @@ def production_sheet():
         'stock/production_sheet.html',
         entries=entries,
         total_production_qty=total_production_qty,
+        total_wastage_qty=total_wastage_qty,
+        total_payable_qty=total_payable_qty,
+        total_trays=total_trays,
         total_labor_cost=total_labor_cost,
         today_produced=today_produced,
         week_produced=week_produced,
@@ -706,7 +738,7 @@ def export_production_csv():
     writer = csv.writer(output)
 
     if view_mode == 'weekly':
-        writer.writerow(['Week Period', 'ISO Week', 'Total Produced (Pcs)', 'Working Days', 'Avg Daily Output (Pcs/Day)', 'Total Labor Cost (INR)', 'Labor Cost Per Pc (INR)', 'Top Product Produced'])
+        writer.writerow(['Week Period', 'ISO Week', 'Gross Produced Stock (Pcs)', 'Total Trays', 'Wastage (Pcs)', 'Wage Payable Output (Pcs)', 'Working Days', 'Avg Daily Output (Pcs/Day)', 'Total Labor Cost (INR)', 'Labor Cost Per Pc (INR)', 'Top Product Produced'])
         weekly_dict = {}
         for e in entries:
             mon = e.date - timedelta(days=e.date.weekday())
@@ -716,56 +748,74 @@ def export_production_csv():
                 weekly_dict[key] = {
                     'label': f"{mon.strftime('%d %b %Y')} to {sun.strftime('%d %b %Y')}",
                     'iso_week': f"Week {mon.isocalendar()[1]}",
-                    'qty': 0.0,
+                    'gross_qty': 0.0,
+                    'payable_qty': 0.0,
+                    'wastage': 0.0,
+                    'trays': 0.0,
                     'cost': 0.0,
                     'dates': set(),
                     'prods': {}
                 }
-            weekly_dict[key]['qty'] += e.quantity
+            prod_val = (e.gross_quantity if (e.gross_quantity and e.gross_quantity > 0) else e.quantity)
+            weekly_dict[key]['gross_qty'] += prod_val
+            weekly_dict[key]['payable_qty'] += e.quantity
+            weekly_dict[key]['wastage'] += (e.total_wastage or 0.0)
+            weekly_dict[key]['trays'] += (e.tray_count or 0.0)
             weekly_dict[key]['cost'] += e.total_amount
             weekly_dict[key]['dates'].add(e.date)
-            weekly_dict[key]['prods'][e.product_name] = weekly_dict[key]['prods'].get(e.product_name, 0.0) + e.quantity
+            weekly_dict[key]['prods'][e.product_name] = weekly_dict[key]['prods'].get(e.product_name, 0.0) + prod_val
 
         for key, data in sorted(weekly_dict.items(), key=lambda x: x[0][0], reverse=True):
             days = len(data['dates'])
-            avg_d = data['qty'] / days if days else 0
-            avg_c = data['cost'] / data['qty'] if data['qty'] else 0
+            avg_d = data['gross_qty'] / days if days else 0
+            avg_c = data['cost'] / data['payable_qty'] if data['payable_qty'] else 0
             top_p = max(data['prods'].items(), key=lambda x: x[1])[0] if data['prods'] else 'N/A'
-            writer.writerow([data['label'], data['iso_week'], f"{data['qty']:.0f}", days, f"{avg_d:.0f}", f"{data['cost']:.2f}", f"{avg_c:.2f}", top_p])
+            writer.writerow([data['label'], data['iso_week'], f"{data['gross_qty']:.0f}", f"{data['trays']:.0f}", f"{data['wastage']:.0f}", f"{data['payable_qty']:.0f}", days, f"{avg_d:.0f}", f"{data['cost']:.2f}", f"{avg_c:.2f}", top_p])
 
     elif view_mode == 'monthly':
-        writer.writerow(['Month', 'Total Produced (Pcs)', 'Working Days', 'Avg Daily Output (Pcs/Day)', 'Total Labor Cost (INR)', 'Labor Cost Per Pc (INR)', 'Top Product Produced'])
+        writer.writerow(['Month', 'Gross Produced Stock (Pcs)', 'Total Trays', 'Wastage (Pcs)', 'Wage Payable Output (Pcs)', 'Working Days', 'Avg Daily Output (Pcs/Day)', 'Total Labor Cost (INR)', 'Labor Cost Per Pc (INR)', 'Top Product Produced'])
         monthly_dict = {}
         for e in entries:
             key = (e.date.year, e.date.month)
             if key not in monthly_dict:
                 monthly_dict[key] = {
                     'label': datetime(e.date.year, e.date.month, 1).strftime('%B %Y'),
-                    'qty': 0.0,
+                    'gross_qty': 0.0,
+                    'payable_qty': 0.0,
+                    'wastage': 0.0,
+                    'trays': 0.0,
                     'cost': 0.0,
                     'dates': set(),
                     'prods': {}
                 }
-            monthly_dict[key]['qty'] += e.quantity
+            prod_val = (e.gross_quantity if (e.gross_quantity and e.gross_quantity > 0) else e.quantity)
+            monthly_dict[key]['gross_qty'] += prod_val
+            monthly_dict[key]['payable_qty'] += e.quantity
+            monthly_dict[key]['wastage'] += (e.total_wastage or 0.0)
+            monthly_dict[key]['trays'] += (e.tray_count or 0.0)
             monthly_dict[key]['cost'] += e.total_amount
             monthly_dict[key]['dates'].add(e.date)
-            monthly_dict[key]['prods'][e.product_name] = monthly_dict[key]['prods'].get(e.product_name, 0.0) + e.quantity
+            monthly_dict[key]['prods'][e.product_name] = monthly_dict[key]['prods'].get(e.product_name, 0.0) + prod_val
 
         for key, data in sorted(monthly_dict.items(), key=lambda x: (x[0][0], x[0][1]), reverse=True):
             days = len(data['dates'])
-            avg_d = data['qty'] / days if days else 0
-            avg_c = data['cost'] / data['qty'] if data['qty'] else 0
+            avg_d = data['gross_qty'] / days if days else 0
+            avg_c = data['cost'] / data['payable_qty'] if data['payable_qty'] else 0
             top_p = max(data['prods'].items(), key=lambda x: x[1])[0] if data['prods'] else 'N/A'
-            writer.writerow([data['label'], f"{data['qty']:.0f}", days, f"{avg_d:.0f}", f"{data['cost']:.2f}", f"{avg_c:.2f}", top_p])
+            writer.writerow([data['label'], f"{data['gross_qty']:.0f}", f"{data['trays']:.0f}", f"{data['wastage']:.0f}", f"{data['payable_qty']:.0f}", days, f"{avg_d:.0f}", f"{data['cost']:.2f}", f"{avg_c:.2f}", top_p])
 
     else:
-        writer.writerow(['ID', 'Date', 'Product Name', 'Operation Type', 'Quantity Produced (Pcs)', 'Piece Rate (INR)', 'Total Labor Cost (INR)', 'Workers Count', 'Wage Per Worker (INR)', 'Labor Group', 'Notes / Shift'])
+        writer.writerow(['ID', 'Date', 'Product Name', 'Operation Type', 'Trays/Tracks', 'Gross Stock Produced (Pcs)', 'Wastage (Pcs)', 'Wage Payable Qty (Pcs)', 'Piece Rate (INR)', 'Total Labor Cost (INR)', 'Workers Count', 'Wage Per Worker (INR)', 'Labor Group', 'Notes / Shift'])
         for e in entries:
+            gross_val = (e.gross_quantity if (e.gross_quantity and e.gross_quantity > 0) else e.quantity)
             writer.writerow([
                 e.id,
                 e.date.strftime('%Y-%m-%d'),
                 e.product_name,
                 e.job_type,
+                f'{e.tray_count:.0f}' if e.tray_count else '0',
+                f'{gross_val:.0f}',
+                f'{e.total_wastage or 0:.0f}',
                 f'{e.quantity:.0f}',
                 f'{e.rate_per_unit:.2f}',
                 f'{e.total_amount:.2f}',

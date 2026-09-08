@@ -20,6 +20,11 @@ def _migrate_db():
                 conn.execute(db.text('ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS alert_on_owner_login BOOLEAN DEFAULT FALSE;'))
                 conn.execute(db.text('ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS alert_on_staff_login BOOLEAN DEFAULT TRUE;'))
                 conn.execute(db.text('ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS alert_on_failed_attempts BOOLEAN DEFAULT TRUE;'))
+                conn.execute(db.text('ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS tray_count DOUBLE PRECISION DEFAULT 0.0;'))
+                conn.execute(db.text('ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS pieces_per_tray DOUBLE PRECISION DEFAULT 105.0;'))
+                conn.execute(db.text('ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS wastage_per_tray DOUBLE PRECISION DEFAULT 5.0;'))
+                conn.execute(db.text('ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS total_wastage DOUBLE PRECISION DEFAULT 0.0;'))
+                conn.execute(db.text('ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS gross_quantity DOUBLE PRECISION DEFAULT 0.0;'))
                 conn.execute(db.text('''
                     CREATE TABLE IF NOT EXISTS "expense" (
                         id SERIAL PRIMARY KEY,
@@ -63,7 +68,12 @@ def _migrate_db():
                 ('user_role', "VARCHAR(30)")
             ],
             'job_wage_entry': [
-                ('group_id', "INTEGER")
+                ('group_id', "INTEGER"),
+                ('tray_count', "FLOAT DEFAULT 0.0"),
+                ('pieces_per_tray', "FLOAT DEFAULT 105.0"),
+                ('wastage_per_tray', "FLOAT DEFAULT 5.0"),
+                ('total_wastage', "FLOAT DEFAULT 0.0"),
+                ('gross_quantity', "FLOAT DEFAULT 0.0")
             ],
             'alert_settings': [
                 ('owner_name', "VARCHAR(100) DEFAULT 'Nishanth (Owner)'"),

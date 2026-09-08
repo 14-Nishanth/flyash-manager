@@ -610,7 +610,26 @@ def job_wages_add():
             group_id = request.form.get('group_id')
             job_type = request.form.get('job_type')
             product_name = request.form.get('product_name')
+            
+            # Tray & Wastage fields
+            tray_count = float(request.form.get('tray_count') or 0.0)
+            pieces_per_tray = float(request.form.get('pieces_per_tray') or 105.0)
+            wastage_per_tray = float(request.form.get('wastage_per_tray') or 5.0)
+            gross_quantity = float(request.form.get('gross_quantity') or 0.0)
+            total_wastage = float(request.form.get('total_wastage') or 0.0)
             quantity = float(request.form.get('quantity') or 0.0)
+
+            if tray_count > 0:
+                if gross_quantity <= 0:
+                    gross_quantity = round(tray_count * pieces_per_tray, 2)
+                if total_wastage <= 0:
+                    total_wastage = round(tray_count * wastage_per_tray, 2)
+                if quantity <= 0:
+                    quantity = round(max(0, gross_quantity - total_wastage), 2)
+            else:
+                if gross_quantity <= 0:
+                    gross_quantity = quantity
+
             unit = request.form.get('unit', 'Pieces / Pcs')
             rate_per_unit = float(request.form.get('rate_per_unit') or 0.0)
             vehicle_no = request.form.get('vehicle_no')
@@ -638,6 +657,11 @@ def job_wages_add():
                 group_id=int(group_id) if (group_id and group_id.isdigit()) else None,
                 job_type=job_type,
                 product_name=product_name,
+                tray_count=tray_count,
+                pieces_per_tray=pieces_per_tray,
+                wastage_per_tray=wastage_per_tray,
+                total_wastage=total_wastage,
+                gross_quantity=gross_quantity,
                 quantity=quantity,
                 unit=unit,
                 rate_per_unit=rate_per_unit,
@@ -660,7 +684,10 @@ def job_wages_add():
                 db.session.add(alloc)
 
             db.session.commit()
-            flash(f'✅ Job Recorded: ₹{total_amount:,.2f} total divided equally among {worker_count} working employees (₹{wage_per_worker:,.2f} per employee).', 'success')
+            if tray_count > 0:
+                flash(f'✅ Production Recorded: {tray_count:g} Trays = {gross_quantity:,.0f} Bricks added to Stock. Deducted {total_wastage:,.0f} wastage -> Salary calculated for {quantity:,.0f} Bricks (₹{total_amount:,.2f} total, ₹{wage_per_worker:,.2f}/worker).', 'success')
+            else:
+                flash(f'✅ Job Recorded: ₹{total_amount:,.2f} total divided equally among {worker_count} working employees (₹{wage_per_worker:,.2f} per employee).', 'success')
             return redirect(url_for('employees.job_wages_list'))
 
         except Exception as e:
@@ -697,7 +724,25 @@ def job_wages_edit(id):
             entry.group_id = int(group_id) if (group_id and group_id.isdigit()) else None
             entry.job_type = request.form.get('job_type')
             entry.product_name = request.form.get('product_name')
+            
+            entry.tray_count = float(request.form.get('tray_count') or 0.0)
+            entry.pieces_per_tray = float(request.form.get('pieces_per_tray') or 105.0)
+            entry.wastage_per_tray = float(request.form.get('wastage_per_tray') or 5.0)
+            entry.gross_quantity = float(request.form.get('gross_quantity') or 0.0)
+            entry.total_wastage = float(request.form.get('total_wastage') or 0.0)
             entry.quantity = float(request.form.get('quantity') or 0.0)
+
+            if entry.tray_count > 0:
+                if entry.gross_quantity <= 0:
+                    entry.gross_quantity = round(entry.tray_count * entry.pieces_per_tray, 2)
+                if entry.total_wastage <= 0:
+                    entry.total_wastage = round(entry.tray_count * entry.wastage_per_tray, 2)
+                if entry.quantity <= 0:
+                    entry.quantity = round(max(0, entry.gross_quantity - entry.total_wastage), 2)
+            else:
+                if entry.gross_quantity <= 0:
+                    entry.gross_quantity = entry.quantity
+
             entry.unit = request.form.get('unit', 'Pieces / Pcs')
             entry.rate_per_unit = float(request.form.get('rate_per_unit') or 0.0)
             entry.vehicle_no = request.form.get('vehicle_no')

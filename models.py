@@ -122,7 +122,12 @@ class JobWageEntry(db.Model):
     group_id = db.Column(db.Integer, db.ForeignKey('employee_group.id'), nullable=True) # Optional assigned labor group
     job_type = db.Column(db.String(50), nullable=False)  # Production, Loading Only, Both Loading & Unloading, Unloading Only, Custom
     product_name = db.Column(db.String(100), nullable=False)  # e.g., Hollow Block 6", Fly Ash Brick 9x4x3, Solid Block 6"
-    quantity = db.Column(db.Float, nullable=False)
+    tray_count = db.Column(db.Float, default=0.0)             # Number of trays/tracks (e.g. 36)
+    pieces_per_tray = db.Column(db.Float, default=105.0)       # Standard stack per tray (e.g. 105)
+    wastage_per_tray = db.Column(db.Float, default=5.0)        # Wastage pieces deducted per tray (e.g. 5)
+    total_wastage = db.Column(db.Float, default=0.0)          # Total wastage pieces (e.g. 36 * 5 = 180)
+    gross_quantity = db.Column(db.Float, default=0.0)         # Actual physical stock produced (e.g. 36 * 105 = 3780)
+    quantity = db.Column(db.Float, nullable=False)            # Payable wage quantity (e.g. 3780 - 180 = 3600)
     unit = db.Column(db.String(30), default='Pieces / Pcs')
     rate_per_unit = db.Column(db.Float, nullable=False, default=0.0)
     total_amount = db.Column(db.Float, nullable=False, default=0.0)
