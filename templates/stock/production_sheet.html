@@ -274,18 +274,21 @@
                             <span class="badge bg-success bg-opacity-15 text-success fs-6 fw-bold px-2 py-1">
                                 + {{ "{:,.0f}".format(e.gross_quantity if (e.gross_quantity and e.gross_quantity > 0) else e.quantity) }} Pcs
                             </span>
+                            <div class="small text-success fw-semibold mt-0.5">₹{{ "{:,.2f}".format(e.calculated_gross_amount) }}</div>
                         </td>
                         <td class="text-end">
                             {% if e.total_wastage and e.total_wastage > 0 %}
                                 <span class="badge bg-danger bg-opacity-10 text-danger fw-bold">
                                     - {{ "{:,.0f}".format(e.total_wastage) }} Pcs
                                 </span>
+                                <div class="small text-danger fw-semibold mt-0.5">-₹{{ "{:,.2f}".format(e.calculated_wastage_amount) }}</div>
                             {% else %}
                                 <span class="text-muted small">-</span>
                             {% endif %}
                         </td>
                         <td class="text-end fw-bold text-primary">
-                            {{ "{:,.0f}".format(e.quantity) }} Pcs
+                            <div>{{ "{:,.0f}".format(e.quantity) }} Pcs</div>
+                            <small class="text-muted fw-normal">Net Salary</small>
                         </td>
                         <td>
                             {% if e.group %}
@@ -297,7 +300,10 @@
                             {% endif %}
                         </td>
                         <td class="text-end text-muted">₹{{ "{:,.2f}".format(e.rate_per_unit) }}</td>
-                        <td class="text-end fw-bold text-dark">₹{{ "{:,.2f}".format(e.total_amount) }}</td>
+                        <td class="text-end">
+                            <div class="fw-bold text-dark fs-6">₹{{ "{:,.2f}".format(e.total_amount) }}</div>
+                            <small class="text-muted">Net Payout</small>
+                        </td>
                         <td>
                             <div class="small text-muted">{{ e.worker_count }} workers</div>
                             <div class="small fw-semibold text-primary">₹{{ "{:,.2f}".format(e.wage_per_worker) }} / worker</div>
@@ -322,12 +328,21 @@
                     <tr>
                         <td colspan="2" class="text-end">TOTALS:</td>
                         <td>{{ "{:g}".format(total_trays) }} Trays</td>
-                        <td class="text-end text-success fs-6">+ {{ "{:,.0f}".format(total_production_qty) }} Pcs (Stock)</td>
-                        <td class="text-end text-danger fs-6">- {{ "{:,.0f}".format(total_wastage_qty) }} Pcs</td>
+                        <td class="text-end text-success fs-6">
+                            + {{ "{:,.0f}".format(total_production_qty) }} Pcs
+                            <div class="small text-success fw-normal">₹{{ "{:,.2f}".format(total_gross_cost) }} Full Value</div>
+                        </td>
+                        <td class="text-end text-danger fs-6">
+                            - {{ "{:,.0f}".format(total_wastage_qty) }} Pcs
+                            <div class="small text-danger fw-normal">-₹{{ "{:,.2f}".format(total_wastage_cost) }} Wastage Cut</div>
+                        </td>
                         <td class="text-end text-primary fs-6">{{ "{:,.0f}".format(total_payable_qty) }} Pcs (Salary)</td>
                         <td></td>
                         <td class="text-end">-</td>
-                        <td class="text-end text-primary fs-6">₹{{ "{:,.2f}".format(total_labor_cost) }}</td>
+                        <td class="text-end text-primary fs-6">
+                            ₹{{ "{:,.2f}".format(total_labor_cost) }}
+                            <div class="small text-muted fw-normal">Net Wage Payout</div>
+                        </td>
                         <td colspan="2"></td>
                     </tr>
                 </tfoot>

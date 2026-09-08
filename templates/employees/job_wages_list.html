@@ -160,7 +160,7 @@
                 <td class="text-end">
                     <div class="fw-bold text-dark">{{ "{:,.0f}".format(entry.quantity) }} <small class="text-muted fw-normal">{{ entry.unit }}</small></div>
                     {% if entry.tray_count and entry.tray_count > 0 %}
-                        <div class="small text-muted" title="Stock: {{ '{:,.0f}'.format(entry.gross_quantity or (entry.tray_count * 105)) }} Pcs, Wastage: -{{ '{:,.0f}'.format(entry.total_wastage or (entry.tray_count * 5)) }} Pcs">
+                        <div class="small text-muted mt-0.5" title="Gross Stack: {{ '{:,.0f}'.format(entry.gross_quantity or (entry.tray_count * 105)) }} Pcs (₹{{ '{:,.2f}'.format(entry.calculated_gross_amount) }}), Wastage Cut: -{{ '{:,.0f}'.format(entry.total_wastage or (entry.tray_count * 5)) }} Pcs (-₹{{ '{:,.2f}'.format(entry.calculated_wastage_amount) }})">
                             <span class="badge bg-light text-dark border">
                                 <i class="bi bi-grid-3x3 text-primary me-1"></i>{{ "{:g}".format(entry.tray_count) }} Trays
                             </span>
@@ -170,7 +170,14 @@
                     {% endif %}
                 </td>
                 <td class="text-end fw-bold text-success">₹{{ "{:,.2f}".format(entry.rate_per_unit) }}</td>
-                <td class="text-end fw-bold text-primary fs-6">₹{{ "{:,.2f}".format(entry.total_amount) }}</td>
+                <td class="text-end">
+                    <div class="fw-bold text-primary fs-6">₹{{ "{:,.2f}".format(entry.total_amount) }}</div>
+                    {% if entry.tray_count and entry.tray_count > 0 and entry.calculated_wastage_amount > 0 %}
+                        <div class="small text-danger" title="Gross Value: ₹{{ '{:,.2f}'.format(entry.calculated_gross_amount) }} - Wastage Cut: ₹{{ '{:,.2f}'.format(entry.calculated_wastage_amount) }}">
+                            <small>-₹{{ "{:,.2f}".format(entry.calculated_wastage_amount) }} cut</small>
+                        </div>
+                    {% endif %}
+                </td>
                 <td>
                     <div class="d-flex flex-wrap gap-1 mb-1">
                         {% for alloc in entry.allocations %}

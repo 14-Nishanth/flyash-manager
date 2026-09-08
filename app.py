@@ -25,6 +25,8 @@ def _migrate_db():
                 conn.execute(db.text('ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS wastage_per_tray DOUBLE PRECISION DEFAULT 5.0;'))
                 conn.execute(db.text('ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS total_wastage DOUBLE PRECISION DEFAULT 0.0;'))
                 conn.execute(db.text('ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS gross_quantity DOUBLE PRECISION DEFAULT 0.0;'))
+                conn.execute(db.text('ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS gross_amount DOUBLE PRECISION DEFAULT 0.0;'))
+                conn.execute(db.text('ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS wastage_amount DOUBLE PRECISION DEFAULT 0.0;'))
                 conn.execute(db.text('ALTER TABLE "job_rate_setting" ADD COLUMN IF NOT EXISTS pieces_per_tray DOUBLE PRECISION DEFAULT 105.0;'))
                 conn.execute(db.text('ALTER TABLE "job_rate_setting" ADD COLUMN IF NOT EXISTS wastage_per_tray DOUBLE PRECISION DEFAULT 5.0;'))
                 conn.execute(db.text('ALTER TABLE "job_rate_setting" ADD COLUMN IF NOT EXISTS opening_stock DOUBLE PRECISION DEFAULT 0.0;'))
@@ -81,7 +83,9 @@ def _migrate_db():
                 ('pieces_per_tray', "FLOAT DEFAULT 105.0"),
                 ('wastage_per_tray', "FLOAT DEFAULT 5.0"),
                 ('total_wastage', "FLOAT DEFAULT 0.0"),
-                ('gross_quantity', "FLOAT DEFAULT 0.0")
+                ('gross_quantity', "FLOAT DEFAULT 0.0"),
+                ('gross_amount', "FLOAT DEFAULT 0.0"),
+                ('wastage_amount', "FLOAT DEFAULT 0.0")
             ],
             'alert_settings': [
                 ('owner_name', "VARCHAR(100) DEFAULT 'Nishanth (Owner)'"),

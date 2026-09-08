@@ -141,22 +141,25 @@
                             </div>
 
                             <!-- Live Stock vs Salary Output Summary Banner -->
-                            <div id="traySummaryBanner" class="p-2.5 rounded-3 bg-light border mt-3 {% if entry and not entry.tray_count %}d-none{% endif %}">
+                            <div id="traySummaryBanner" class="p-3 rounded-3 bg-light border mt-3 {% if entry and not entry.tray_count %}d-none{% endif %}">
                                 <div class="row g-2 text-center align-items-center">
                                     <div class="col-4 border-end">
-                                        <div class="small text-muted text-uppercase fw-semibold">Added to Stock (+)</div>
+                                        <div class="small text-muted text-uppercase fw-semibold">1. Added to Stock (+)</div>
                                         <div class="h4 fw-bold text-success mb-0" id="displayGrossStock">3,780 <small class="fs-6 fw-normal text-muted">Pcs</small></div>
-                                        <small class="text-muted" id="calcGrossDetail">36 Trays × 105</small>
+                                        <div class="small text-success fw-semibold" id="displayGrossAmount">₹2,268.00 Full Value</div>
+                                        <small class="text-muted d-block" id="calcGrossDetail">36 Trays × 105 pcs</small>
                                     </div>
                                     <div class="col-4 border-end">
-                                        <div class="small text-muted text-uppercase fw-semibold">Daily Wastage (-)</div>
+                                        <div class="small text-muted text-uppercase fw-semibold">2. Wastage Cut (-)</div>
                                         <div class="h4 fw-bold text-danger mb-0" id="displayWastage">- 180 <small class="fs-6 fw-normal text-muted">Pcs</small></div>
-                                        <small class="text-muted" id="calcWastageDetail">36 Trays × 5</small>
+                                        <div class="small text-danger fw-semibold" id="displayWastageAmount">- ₹108.00 Cut from Workers</div>
+                                        <small class="text-muted d-block" id="calcWastageDetail">36 Trays × 5 pcs</small>
                                     </div>
                                     <div class="col-4">
-                                        <div class="small text-muted text-uppercase fw-semibold">Wage Payable Qty</div>
+                                        <div class="small text-muted text-uppercase fw-semibold">3. Net Salary Basis</div>
                                         <div class="h4 fw-bold text-primary mb-0" id="displayWagePayable">3,600 <small class="fs-6 fw-normal text-muted">Pcs</small></div>
-                                        <small class="text-muted">Salary Output</small>
+                                        <div class="small text-primary fw-semibold" id="displayNetSalary">₹2,160.00 Worker Salary</div>
+                                        <small class="text-muted d-block">36 Trays × 100 pcs</small>
                                     </div>
                                 </div>
                             </div>
@@ -308,6 +311,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const displayGrossStock = document.getElementById('displayGrossStock');
     const displayWastage = document.getElementById('displayWastage');
     const displayWagePayable = document.getElementById('displayWagePayable');
+    const displayGrossAmount = document.getElementById('displayGrossAmount');
+    const displayWastageAmount = document.getElementById('displayWastageAmount');
+    const displayNetSalary = document.getElementById('displayNetSalary');
     const calcGrossDetail = document.getElementById('calcGrossDetail');
     const calcWastageDetail = document.getElementById('calcWastageDetail');
     const qtyHelpText = document.getElementById('qtyHelpText');
@@ -346,10 +352,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const trays = parseFloat(trayCountInput.value) || 0;
         const stackCap = parseFloat(piecesPerTrayInput.value) || 105;
         const wastePerTray = parseFloat(wastagePerTrayInput.value) || 0;
+        const rate = parseFloat(rateInput.value) || 0;
 
         const gross = Math.round(trays * stackCap);
         const wastage = Math.round(trays * wastePerTray);
         const payable = Math.max(0, gross - wastage);
+
+        const grossAmt = gross * rate;
+        const wasteAmt = wastage * rate;
+        const netAmt = payable * rate;
 
         grossQtyInput.value = gross;
         totalWastageInput.value = wastage;
@@ -359,8 +370,12 @@ document.addEventListener('DOMContentLoaded', function() {
         displayWastage.innerHTML = `- ${wastage.toLocaleString()} <small class="fs-6 fw-normal text-muted">Pcs</small>`;
         displayWagePayable.innerHTML = `${payable.toLocaleString()} <small class="fs-6 fw-normal text-muted">Pcs</small>`;
         
-        calcGrossDetail.innerText = `${trays} Trays × ${stackCap}`;
-        calcWastageDetail.innerText = `${trays} Trays × ${wastePerTray}`;
+        if (displayGrossAmount) displayGrossAmount.innerText = `₹${grossAmt.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Full Value`;
+        if (displayWastageAmount) displayWastageAmount.innerText = `- ₹${wasteAmt.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Cut from Workers`;
+        if (displayNetSalary) displayNetSalary.innerText = `₹${netAmt.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Worker Salary`;
+
+        calcGrossDetail.innerText = `${trays} Trays × ${stackCap} pcs`;
+        calcWastageDetail.innerText = `${trays} Trays × ${wastePerTray} pcs`;
 
         recalculate();
     }

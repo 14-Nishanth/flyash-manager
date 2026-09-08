@@ -133,7 +133,9 @@ class JobWageEntry(db.Model):
     quantity = db.Column(db.Float, nullable=False)            # Payable wage quantity (e.g. 3780 - 180 = 3600)
     unit = db.Column(db.String(30), default='Pieces / Pcs')
     rate_per_unit = db.Column(db.Float, nullable=False, default=0.0)
-    total_amount = db.Column(db.Float, nullable=False, default=0.0)
+    gross_amount = db.Column(db.Float, default=0.0)           # Full production expense value (e.g. 3780 * 0.60 = ₹2268.00)
+    wastage_amount = db.Column(db.Float, default=0.0)         # Amount cut from workers for wastage (e.g. 180 * 0.60 = ₹108.00)
+    total_amount = db.Column(db.Float, nullable=False, default=0.0) # Net salary paid to workers (e.g. 3600 * 0.60 = ₹2160.00)
     worker_count = db.Column(db.Integer, nullable=False, default=1)
     wage_per_worker = db.Column(db.Float, nullable=False, default=0.0)
     vehicle_no = db.Column(db.String(30))
@@ -144,8 +146,22 @@ class JobWageEntry(db.Model):
     allocations = db.relationship('EmployeeJobAllocation', backref='job_entry', lazy=True,
                                   cascade='all, delete-orphan')
 
+    @property
+    def calculated_gross_amount(self):
+        if self.gross_amount and self.gross_amount > 0:
+            return self.gross_amount
+        g_qty = self.gross_quantity if (self.gross_quantity and self.gross_quantity > 0) else self.quantity
+        return round(g_qty * self.rate_per_unit, 2)
+
+    @property
+    def calculated_wastage_amount(self):
+        if self.wastage_amount and self.wastage_amount > 0:
+            return self.wastage_amount
+        w_qty = self.total_wastage or 0.0
+        return round(w_qty * self.rate_per_unit, 2)
+
     def __repr__(self):
-        return f'<JobWageEntry {self.date} {self.job_type} ₹{self.total_amount}>'
+        return f'<JobWageEntry {self.date} {self.job_type} Gross:₹{self.calculated_gross_amount} WasteCut:₹{self.calculated_wastage_amount} NetSalary:₹{self.total_amount}>'
 
 
 class Employee(db.Model):
