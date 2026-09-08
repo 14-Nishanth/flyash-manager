@@ -274,6 +274,8 @@ def production_sheet():
     total_wastage_qty = sum((e.total_wastage or 0.0) for e in entries)
     total_payable_qty = sum(e.quantity for e in entries)
     total_trays = sum((e.tray_count or 0.0) for e in entries)
+    total_gross_cost = sum(e.calculated_gross_amount for e in entries)
+    total_wastage_cost = sum(e.calculated_wastage_amount for e in entries)
     total_labor_cost = sum(e.total_amount for e in entries)
     
     # KPI Metrics for physical yard stock produced
@@ -421,6 +423,8 @@ def production_sheet():
         total_wastage_qty=total_wastage_qty,
         total_payable_qty=total_payable_qty,
         total_trays=total_trays,
+        total_gross_cost=total_gross_cost,
+        total_wastage_cost=total_wastage_cost,
         total_labor_cost=total_labor_cost,
         today_produced=today_produced,
         week_produced=week_produced,

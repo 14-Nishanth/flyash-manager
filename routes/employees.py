@@ -651,6 +651,8 @@ def job_wages_add():
                                        job_units=JOB_UNITS)
 
             worker_count = len(selected_emp_ids)
+            gross_amount = round(gross_quantity * rate_per_unit, 2)
+            wastage_amount = round(total_wastage * rate_per_unit, 2)
             total_amount = round(quantity * rate_per_unit, 2)
             wage_per_worker = round(total_amount / worker_count, 2) if worker_count > 0 else 0.0
 
@@ -667,6 +669,8 @@ def job_wages_add():
                 quantity=quantity,
                 unit=unit,
                 rate_per_unit=rate_per_unit,
+                gross_amount=gross_amount,
+                wastage_amount=wastage_amount,
                 total_amount=total_amount,
                 worker_count=worker_count,
                 wage_per_worker=wage_per_worker,
@@ -772,9 +776,13 @@ def job_wages_edit(id):
                                        job_units=JOB_UNITS)
 
             worker_count = len(selected_emp_ids)
+            gross_amount = round(entry.gross_quantity * entry.rate_per_unit, 2)
+            wastage_amount = round(entry.total_wastage * entry.rate_per_unit, 2)
             total_amount = round(entry.quantity * entry.rate_per_unit, 2)
             wage_per_worker = round(total_amount / worker_count, 2) if worker_count > 0 else 0.0
 
+            entry.gross_amount = gross_amount
+            entry.wastage_amount = wastage_amount
             entry.total_amount = total_amount
             entry.worker_count = worker_count
             entry.wage_per_worker = wage_per_worker
