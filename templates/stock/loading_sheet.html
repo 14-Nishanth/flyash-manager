@@ -203,7 +203,7 @@
                 <i class="bi bi-people-fill text-warning"></i>
                 <span>Vehicle Loading Labor Wages Register</span>
             </h6>
-            <span class="badge bg-warning bg-opacity-20 text-dark fw-semibold px-2.5 py-1.5">{{ loading_entries|length }} Loading Jobs</span>
+            <span class="badge bg-warning bg-opacity-20 text-dark fw-semibold px-2.5 py-1.5">{{ loading_entries|length }} Loading/Unloading Jobs</span>
         </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
@@ -211,9 +211,10 @@
                     <tr>
                         <th style="width: 100px;">Date</th>
                         <th>Vehicle / Lorry No</th>
-                        <th>Product Loaded</th>
+                        <th>Product</th>
+                        <th>Operation Type</th>
                         <th>Labor Gang / Group</th>
-                        <th class="text-end">Quantity Loaded</th>
+                        <th class="text-end">Quantity</th>
                         <th class="text-end">Rate</th>
                         <th class="text-end">Total Wage (₹)</th>
                         <th>Worker Split</th>
@@ -231,6 +232,21 @@
                         </td>
                         <td class="fw-bold text-dark">{{ l.product_name }}</td>
                         <td>
+                            {% if 'Unloading' in l.job_type %}
+                                <span class="badge bg-warning bg-opacity-15 text-dark fw-bold border border-warning">
+                                    <i class="bi bi-box-arrow-down me-1 text-warning"></i>Unloading Only
+                                </span>
+                            {% elif 'Both' in l.job_type %}
+                                <span class="badge bg-primary bg-opacity-15 text-primary fw-bold border border-primary">
+                                    <i class="bi bi-arrow-left-right me-1"></i>Both Load & Unload
+                                </span>
+                            {% else %}
+                                <span class="badge bg-info bg-opacity-15 text-dark fw-bold border border-info">
+                                    <i class="bi bi-box-arrow-up me-1 text-info"></i>Loading Only
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
                             {% if l.group %}
                                 <span class="badge bg-primary bg-opacity-10 text-primary fw-bold">{{ l.group.name }}</span>
                             {% else %}
@@ -238,7 +254,7 @@
                             {% endif %}
                         </td>
                         <td class="text-end">
-                            <span class="badge bg-info bg-opacity-15 text-dark fw-bold px-2 py-1">
+                            <span class="badge bg-light text-dark border fw-bold px-2 py-1">
                                 {{ "{:,.0f}".format(l.quantity) }} {{ l.unit }}
                             </span>
                         </td>
@@ -256,7 +272,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="9" class="text-center py-4 text-muted">
+                        <td colspan="10" class="text-center py-4 text-muted">
                             <i class="bi bi-inbox fs-2 d-block mb-1 text-secondary"></i>
                             No vehicle loading labor entries found for this period.
                         </td>
@@ -266,8 +282,8 @@
                 {% if loading_entries %}
                 <tfoot class="table-light fw-bold">
                     <tr>
-                        <td colspan="4" class="text-end">TOTAL LOADING LABOR PAID:</td>
-                        <td class="text-end text-info">{{ "{:,.0f}".format(total_loaded_pcs) }} Pcs</td>
+                        <td colspan="5" class="text-end">TOTAL LABOR PAID & NET BRICKS HANDLED:</td>
+                        <td class="text-end text-info fs-6" title="Deduplicated: Group loading + group unloading the same load counts as 1x volume">{{ "{:,.0f}".format(total_loaded_pcs) }} Pcs</td>
                         <td class="text-end">-</td>
                         <td class="text-end text-warning fs-6">₹{{ "{:,.2f}".format(total_loading_wages) }}</td>
                         <td colspan="2"></td>

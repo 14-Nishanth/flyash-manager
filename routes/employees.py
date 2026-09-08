@@ -482,6 +482,51 @@ def employee_group_delete(id):
 # PIECE-RATE DAILY JOB ENTRIES & EQUAL WAGE DIVISION
 # ==============================================================================
 
+def calculate_net_job_quantity(entries):
+    """
+    Calculates the true net physical quantity of bricks/blocks produced or handled
+    without double-counting when one group loads and another group unloads the same batch.
+    """
+    if not entries:
+        return 0.0
+
+    non_loading_qty = 0.0
+    load_groups = {}
+
+    for e in entries:
+        jt = (e.job_type or '').lower()
+        if 'loading' in jt or 'unloading' in jt:
+            v_norm = (e.vehicle_no or '').strip().upper()
+            p_norm = (e.product_name or '').strip().lower()
+            key = (e.date, v_norm, p_norm) if v_norm else (e.date, '__direct__', p_norm)
+            
+            if key not in load_groups:
+                load_groups[key] = {
+                    'loading': 0.0,
+                    'unloading': 0.0,
+                    'both': 0.0,
+                    'other': 0.0
+                }
+            
+            qty = e.quantity
+            if 'both' in jt:
+                load_groups[key]['both'] += qty
+            elif 'unloading' in jt:
+                load_groups[key]['unloading'] += qty
+            elif 'loading' in jt:
+                load_groups[key]['loading'] += qty
+            else:
+                load_groups[key]['other'] += qty
+        else:
+            non_loading_qty += e.quantity
+
+    net_loading_qty = 0.0
+    for key, data in load_groups.items():
+        net_loading_qty += data['both'] + max(data['loading'], data['unloading']) + data['other']
+
+    return non_loading_qty + net_loading_qty
+
+
 @bp.route('/job-wages')
 @login_required
 def job_wages_list():
@@ -512,7 +557,7 @@ def job_wages_list():
 
     entries = query.order_by(JobWageEntry.date.desc(), JobWageEntry.id.desc()).all()
     total_amount = sum(e.total_amount for e in entries)
-    total_qty = sum(e.quantity for e in entries)
+    total_qty = calculate_net_job_quantity(entries)
     
     employees = Employee.query.filter_by(is_active=True).order_by(Employee.name).all()
     groups = EmployeeGroup.query.filter_by(is_active=True).all()

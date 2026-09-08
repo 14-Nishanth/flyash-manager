@@ -38,16 +38,12 @@ def index():
     today_expenses = db.session.query(func.sum(Expense.amount)).filter(Expense.date == today).scalar() or 0.0
     month_expenses = db.session.query(func.sum(Expense.amount)).filter(Expense.date >= first_of_month, Expense.date <= today).scalar() or 0.0
 
-    # 4. Piece-Rate Job Metrics
-    today_jobs_query = db.session.query(
-        func.count(JobWageEntry.id).label('count'),
-        func.sum(JobWageEntry.quantity).label('pieces'),
-        func.sum(JobWageEntry.total_amount).label('amount')
-    ).filter(JobWageEntry.date == today).first()
-
-    today_jobs_count = today_jobs_query.count or 0
-    today_jobs_pieces = today_jobs_query.pieces or 0
-    today_jobs_amount = today_jobs_query.amount or 0.0
+    # 4. Piece-Rate Job Metrics (Deduplicated so Group Loading + Group Unloading shows net physical pieces)
+    today_jobs_list = JobWageEntry.query.filter(JobWageEntry.date == today).all()
+    today_jobs_count = len(today_jobs_list)
+    from routes.employees import calculate_net_job_quantity
+    today_jobs_pieces = calculate_net_job_quantity(today_jobs_list)
+    today_jobs_amount = sum(j.total_amount for j in today_jobs_list)
 
     # 5. Fast Bulk Outstanding Calculation (4 queries total, 0 loop queries)
     parties = Party.query.all()

@@ -408,6 +408,48 @@ def production_sheet():
     )
 
 
+def calculate_net_loading_quantity(loading_entries):
+    """
+    Calculate true physical bricks loaded/dispatched without double counting
+    when Group A loads (e.g. 1000 bricks) and Group B unloads (e.g. 1000 bricks).
+    """
+    if not loading_entries:
+        return 0.0
+
+    load_groups = {}
+    for e in loading_entries:
+        v_norm = (e.vehicle_no or '').strip().upper()
+        p_norm = (e.product_name or '').strip().lower()
+        key = (e.date, v_norm, p_norm) if v_norm else (e.date, '__direct__', p_norm)
+        
+        if key not in load_groups:
+            load_groups[key] = {
+                'loading': 0.0,
+                'unloading': 0.0,
+                'both': 0.0,
+                'other': 0.0
+            }
+        
+        jt = (e.job_type or '').lower()
+        qty = e.quantity if ('piece' in (e.unit or '').lower() or 'pcs' in (e.unit or '').lower() or not e.unit) else e.quantity
+        
+        if 'both' in jt:
+            load_groups[key]['both'] += qty
+        elif 'unloading' in jt:
+            load_groups[key]['unloading'] += qty
+        elif 'loading' in jt:
+            load_groups[key]['loading'] += qty
+        else:
+            load_groups[key]['other'] += qty
+
+    total_net_pcs = 0.0
+    for key, data in load_groups.items():
+        batch_pcs = data['both'] + max(data['loading'], data['unloading']) + data['other']
+        total_net_pcs += batch_pcs
+
+    return total_net_pcs
+
+
 @bp.route('/loading')
 @login_required
 def loading_sheet():
@@ -463,7 +505,7 @@ def loading_sheet():
     outward_entries = outward_query.order_by(MaterialOutward.date.desc(), MaterialOutward.id.desc()).all()
 
     total_loading_wages = sum(e.total_amount for e in loading_entries)
-    total_loaded_pcs = sum(e.quantity for e in loading_entries if 'piece' in (e.unit or '').lower() or 'pcs' in (e.unit or '').lower())
+    total_loaded_pcs = calculate_net_loading_quantity(loading_entries)
     
     total_outward_pcs = sum(e.quantity_mt for e in outward_entries if 'piece' in (e.quantity_unit or '').lower() or 'pcs' in (e.quantity_unit or '').lower())
     total_outward_tons = sum(e.quantity_mt for e in outward_entries if 'ton' in (e.quantity_unit or '').lower() or 'mt' in (e.quantity_unit or '').lower())
