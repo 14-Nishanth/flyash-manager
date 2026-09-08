@@ -97,6 +97,12 @@
                         <i class="bi bi-truck text-info"></i> <span>Loading Sheet (-)</span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and 'wastage_settings' in request.endpoint %}active{% endif %}"
+                       href="{{ url_for('stock.wastage_settings') }}">
+                        <i class="bi bi-sliders text-success"></i> <span>Actual Stock & Wastage</span>
+                    </a>
+                </li>
 
                 <li class="nav-section" data-i18n="materials">Materials</li>
                 <li class="nav-item">

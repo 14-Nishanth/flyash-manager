@@ -25,6 +25,9 @@ def _migrate_db():
                 conn.execute(db.text('ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS wastage_per_tray DOUBLE PRECISION DEFAULT 5.0;'))
                 conn.execute(db.text('ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS total_wastage DOUBLE PRECISION DEFAULT 0.0;'))
                 conn.execute(db.text('ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS gross_quantity DOUBLE PRECISION DEFAULT 0.0;'))
+                conn.execute(db.text('ALTER TABLE "job_rate_setting" ADD COLUMN IF NOT EXISTS pieces_per_tray DOUBLE PRECISION DEFAULT 105.0;'))
+                conn.execute(db.text('ALTER TABLE "job_rate_setting" ADD COLUMN IF NOT EXISTS wastage_per_tray DOUBLE PRECISION DEFAULT 5.0;'))
+                conn.execute(db.text('ALTER TABLE "job_rate_setting" ADD COLUMN IF NOT EXISTS opening_stock DOUBLE PRECISION DEFAULT 0.0;'))
                 conn.execute(db.text('''
                     CREATE TABLE IF NOT EXISTS "expense" (
                         id SERIAL PRIMARY KEY,
@@ -54,6 +57,11 @@ def _migrate_db():
         table_migrations = {
             'material_inward': [('quantity_unit', "VARCHAR(20) DEFAULT 'Ton'")],
             'material_outward': [('quantity_unit', "VARCHAR(20) DEFAULT 'Ton'")],
+            'job_rate_setting': [
+                ('pieces_per_tray', "FLOAT DEFAULT 105.0"),
+                ('wastage_per_tray', "FLOAT DEFAULT 5.0"),
+                ('opening_stock', "FLOAT DEFAULT 0.0")
+            ],
             'user': [
                 ('name', "VARCHAR(100) DEFAULT 'Admin'"),
                 ('email', "VARCHAR(120) DEFAULT 'admin@flyash.com'"),
@@ -151,7 +159,16 @@ def _create_default_rates_and_groups():
                 ('Hollow Block 12" (400 x 200 x 300 mm)', 'Both Loading & Unloading', 1.35, 'Pieces / Pcs'),
             ]
             for prod, job, rate, unit in standard_rates:
-                db.session.add(JobRateSetting(product_name=prod, job_type=job, rate_per_piece=rate, unit=unit))
+                tray_cap = 105.0 if 'Brick' in prod else (60.0 if 'Block' in prod else 100.0)
+                waste_cap = 5.0 if 'Brick' in prod else 3.0
+                db.session.add(JobRateSetting(
+                    product_name=prod,
+                    job_type=job,
+                    rate_per_piece=rate,
+                    pieces_per_tray=tray_cap,
+                    wastage_per_tray=waste_cap,
+                    unit=unit
+                ))
             db.session.commit()
 
         if not EmployeeGroup.query.first():

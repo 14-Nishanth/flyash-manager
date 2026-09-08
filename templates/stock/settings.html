@@ -1,0 +1,442 @@
+{% extends "base.html" %}
+
+{% block title %}Actual Stock & Wastage Settings - FlyAsh ERP{% endblock %}
+{% block page_title %}Actual Stock & Wastage Configuration{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2">
+        <div>
+            <h3 class="fw-bold mb-0 text-slate-800 d-flex align-items-center gap-2">
+                <i class="bi bi-sliders text-primary"></i>
+                <span>Actual Stock & Product Wastage Settings</span>
+            </h3>
+            <p class="text-muted small mb-0">Configure stack capacity per tray (e.g. 105 pcs) and daily breakage wastage (e.g. 5 pcs) to track physical yard inventory vs employee payable salary.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 shadow-sm" onclick="window.print()">
+                <i class="bi bi-printer"></i> <span>Print Settings</span>
+            </button>
+            <button type="button" class="btn btn-primary btn-sm d-flex align-items-center gap-1 shadow-sm fw-bold px-3" data-bs-toggle="modal" data-bs-target="#addProductModal">
+                <i class="bi bi-plus-circle-fill"></i> + Add Product & Wastage Rule
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Navigation Tabs Between Sheets -->
+    <ul class="nav nav-pills mb-4 bg-white p-1.5 rounded-3 shadow-sm border">
+        <li class="nav-item">
+            <a class="nav-link fw-semibold text-dark" href="{{ url_for('stock.index') }}">
+                <i class="bi bi-boxes me-1 text-primary"></i> Yard Stock Summary
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link fw-semibold text-dark" href="{{ url_for('stock.production_sheet') }}">
+                <i class="bi bi-hammer me-1 text-warning"></i> Production Sheet (+)
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link fw-semibold text-dark" href="{{ url_for('stock.loading_sheet') }}">
+                <i class="bi bi-truck me-1 text-info"></i> Loading & Dispatch Sheet (-)
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link active fw-bold bg-primary text-white" href="{{ url_for('stock.wastage_settings') }}">
+                <i class="bi bi-sliders me-1"></i> Actual Stock & Wastage Settings
+            </a>
+        </li>
+    </ul>
+
+    <!-- KPI Summary Row -->
+    <div class="row g-3 mb-4">
+        <!-- Physical Yard Stock -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-primary">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Actual Stock in Yard</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-primary">{{ "{:,.0f}".format(grand_actual_stock) }} <span class="fs-6 fw-normal text-muted">Pcs</span></div>
+                        <div class="small text-muted mt-1">Physical finished goods available</div>
+                    </div>
+                    <div class="bg-primary bg-opacity-10 text-primary rounded-circle p-3">
+                        <i class="bi bi-boxes fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gross Manufactured Stock -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-success">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Gross Stock Produced (+)</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-success">+ {{ "{:,.0f}".format(grand_gross_produced) }} <span class="fs-6 fw-normal text-muted">Pcs</span></div>
+                        <div class="small text-muted mt-1">Total stack volume manufactured</div>
+                    </div>
+                    <div class="bg-success bg-opacity-10 text-success rounded-circle p-3">
+                        <i class="bi bi-hammer fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Breakage Wastage Deducted -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-danger">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Total Wastage Deducted (-)</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-danger">- {{ "{:,.0f}".format(grand_wastage_deducted) }} <span class="fs-6 fw-normal text-muted">Pcs</span></div>
+                        <div class="small text-muted mt-1">5 pcs/tray excluded from salary</div>
+                    </div>
+                    <div class="bg-danger bg-opacity-10 text-danger rounded-circle p-3">
+                        <i class="bi bi-scissors fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wage Payable Volume -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-info">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Salary Output Volume</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-info">{{ "{:,.0f}".format(grand_wage_output) }} <span class="fs-6 fw-normal text-muted">Pcs</span></div>
+                        <div class="small text-muted mt-1">Net payable worker pieces</div>
+                    </div>
+                    <div class="bg-info bg-opacity-10 text-info rounded-circle p-3">
+                        <i class="bi bi-cash-stack fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Bulk Default Wastage Settings Card -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white overflow-hidden border-start border-4 border-warning">
+        <div class="card-body p-3">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+                <div>
+                    <div class="fw-bold text-dark fs-6 d-flex align-items-center gap-2">
+                        <i class="bi bi-lightning-charge-fill text-warning fs-5"></i>
+                        <span>Default Standard Wastage Formula: 105 Stack Capacity – 5 Wastage = 100 Net Payable / Tray</span>
+                    </div>
+                    <p class="text-muted small mb-0 mt-1">
+                        For standard fly ash bricks, each tray has <strong>105 bricks</strong>. Minus <strong>5 bricks wastage</strong> per tray = <strong>100 payable bricks</strong> for worker wages.
+                    </p>
+                </div>
+                <form method="POST" action="{{ url_for('stock.wastage_settings') }}" class="d-flex align-items-center gap-2 flex-wrap">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="bulk_default">
+                    <div class="input-group input-group-sm" style="max-width: 140px;">
+                        <input type="number" step="1" min="1" name="default_tray" class="form-control fw-bold" value="105" title="Tray Stack Capacity">
+                        <span class="input-group-text bg-light">Cap</span>
+                    </div>
+                    <div class="input-group input-group-sm" style="max-width: 140px;">
+                        <input type="number" step="0.5" min="0" name="default_waste" class="form-control fw-bold text-danger" value="5" title="Wastage Deduction per Tray">
+                        <span class="input-group-text bg-light text-danger">Waste</span>
+                    </div>
+                    <button type="submit" class="btn btn-warning btn-sm fw-bold text-dark text-nowrap">
+                        <i class="bi bi-check2-all me-1"></i> Apply to All Bricks
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Products Wastage & Stock Management Table -->
+    <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden mb-4">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0 text-slate-800 d-flex align-items-center gap-2">
+                <i class="bi bi-table text-primary"></i>
+                <span>Product-Wise Actual Stock, Tray Capacities & Wastage Rules</span>
+            </h5>
+            <span class="badge bg-primary bg-opacity-10 text-primary fw-semibold">{{ product_data|length }} Products Configured</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                        <th>#</th>
+                        <th>Product Manufactured</th>
+                        <th class="text-center">Tray Stack Capacity</th>
+                        <th class="text-center">Wastage / Tray (-)</th>
+                        <th class="text-center">Net Payable / Tray</th>
+                        <th class="text-end">Piece Rate (₹)</th>
+                        <th class="text-end">Gross Produced (+)</th>
+                        <th class="text-end">Total Wastage (-)</th>
+                        <th class="text-end">Dispatched (-)</th>
+                        <th class="text-end">Actual Stock in Yard</th>
+                        <th class="text-center" style="width: 120px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in product_data %}
+                    <tr>
+                        <td class="text-muted small">{{ loop.index }}</td>
+                        <td>
+                            <div class="fw-bold text-dark fs-6">{{ p.product_name }}</div>
+                            {% if p.notes %}
+                                <div class="small text-muted">{{ p.notes }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-primary bg-opacity-10 text-primary fw-bold fs-7 px-2.5 py-1">
+                                <i class="bi bi-layers-fill me-1"></i>{{ "{:g}".format(p.pieces_per_tray) }} Pcs/Tray
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-danger bg-opacity-10 text-danger fw-bold fs-7 px-2.5 py-1">
+                                <i class="bi bi-scissors me-1"></i>- {{ "{:g}".format(p.wastage_per_tray) }} Pcs
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-success bg-opacity-15 text-success fw-bold fs-7 px-2.5 py-1" title="{{ '{:g}'.format(p.pieces_per_tray) }} - {{ '{:g}'.format(p.wastage_per_tray) }} = {{ '{:g}'.format(p.net_payable_per_tray) }}">
+                                = {{ "{:g}".format(p.net_payable_per_tray) }} Pcs
+                            </span>
+                            <div class="small text-muted mt-0.5 font-monospace">Salary Basis</div>
+                        </td>
+                        <td class="text-end fw-bold text-success">
+                            ₹{{ "{:,.2f}".format(p.rate_per_piece) }}
+                        </td>
+                        <td class="text-end">
+                            <span class="badge bg-success bg-opacity-10 text-success fw-bold">
+                                + {{ "{:,.0f}".format(p.gross_produced) }}
+                            </span>
+                            <div class="small text-muted">{{ "{:g}".format(p.total_trays) }} trays</div>
+                        </td>
+                        <td class="text-end text-danger fw-semibold">
+                            {% if p.total_wastage > 0 %}
+                                - {{ "{:,.0f}".format(p.total_wastage) }}
+                            {% else %}
+                                <span class="text-muted small">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end text-info fw-semibold">
+                            {% if p.dispatched > 0 %}
+                                - {{ "{:,.0f}".format(p.dispatched) }}
+                            {% else %}
+                                <span class="text-muted small">0</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <span class="fw-bold {% if p.actual_balance > 0 %}text-primary{% elif p.actual_balance == 0 %}text-muted{% else %}text-danger{% endif %} fs-6">
+                                {{ "{:,.0f}".format(p.actual_balance) }} Pcs
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1"
+                                    data-bs-toggle="modal" data-bs-target="#editModal_{{ loop.index }}">
+                                <i class="bi bi-pencil-square"></i> Set Wastage
+                            </button>
+
+                            <!-- Edit Modal for this Product -->
+                            <div class="modal fade" id="editModal_{{ loop.index }}" tabindex="-1" aria-labelledby="editModalLabel_{{ loop.index }}" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content text-start">
+                                        <div class="modal-header bg-light py-3">
+                                            <h6 class="modal-title fw-bold text-dark" id="editModalLabel_{{ loop.index }}">
+                                                <i class="bi bi-sliders text-primary me-2"></i>Edit Wastage & Stock for {{ p.product_name }}
+                                            </h6>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <form method="POST" action="{{ url_for('stock.wastage_settings') }}">
+                                            <div class="modal-body p-4">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <input type="hidden" name="action" value="save_product">
+                                                <input type="hidden" name="setting_id" value="{{ p.setting_id or '' }}">
+                                                <input type="hidden" name="product_name" value="{{ p.product_name }}">
+                                                <input type="hidden" name="job_type" value="Production (Per Piece)">
+
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-bold text-dark">Product Name</label>
+                                                    <input type="text" class="form-control bg-light" value="{{ p.product_name }}" readonly>
+                                                </div>
+
+                                                <div class="row g-3 mb-3">
+                                                    <div class="col-6">
+                                                        <label class="form-label fw-bold text-primary">Stack Capacity / Tray *</label>
+                                                        <div class="input-group">
+                                                            <input type="number" step="1" min="1" class="form-control form-control-lg fw-bold" 
+                                                                   name="pieces_per_tray" id="tray_cap_{{ loop.index }}" value="{{ '{:g}'.format(p.pieces_per_tray) }}" required>
+                                                            <span class="input-group-text bg-light">Pcs</span>
+                                                        </div>
+                                                        <div class="form-text small">Standard: 105 pcs per stack</div>
+                                                    </div>
+
+                                                    <div class="col-6">
+                                                        <label class="form-label fw-bold text-danger">Wastage / Tray (-) *</label>
+                                                        <div class="input-group">
+                                                            <input type="number" step="0.5" min="0" class="form-control form-control-lg fw-bold text-danger" 
+                                                                   name="wastage_per_tray" id="waste_cap_{{ loop.index }}" value="{{ '{:g}'.format(p.wastage_per_tray) }}" required>
+                                                            <span class="input-group-text bg-light text-danger">Pcs</span>
+                                                        </div>
+                                                        <div class="form-text small text-danger">Daily breakage deduction</div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Live Net Banner in Modal -->
+                                                <div class="alert alert-light border p-2.5 rounded-3 mb-3 text-center">
+                                                    <div class="small text-muted fw-bold text-uppercase">Net Worker Salary Basis:</div>
+                                                    <div class="h5 fw-bold text-success mb-0 mt-1" id="net_preview_{{ loop.index }}">
+                                                        {{ "{:g}".format(p.net_payable_per_tray) }} Payable Bricks / Tray
+                                                    </div>
+                                                    <small class="text-muted">Stock gets gross capacity, workers paid for net pieces.</small>
+                                                </div>
+
+                                                <div class="row g-3 mb-3">
+                                                    <div class="col-6">
+                                                        <label class="form-label fw-semibold text-dark">Piece Rate (₹ / pc)</label>
+                                                        <div class="input-group">
+                                                            <span class="input-group-text bg-light text-success fw-bold">₹</span>
+                                                            <input type="number" step="0.01" min="0" class="form-control fw-bold text-success" 
+                                                                   name="rate_per_piece" value="{{ '{:.2f}'.format(p.rate_per_piece) }}">
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <label class="form-label fw-semibold text-dark">Opening Stock (Pcs)</label>
+                                                        <input type="number" step="1" class="form-control" name="opening_stock" value="{{ '{:g}'.format(p.opening_stock) }}">
+                                                    </div>
+                                                </div>
+
+                                                <div class="mb-2">
+                                                    <label class="form-label fw-semibold text-dark">Notes / Specifications</label>
+                                                    <input type="text" class="form-control" name="notes" placeholder="e.g. Standard 9x4x3 brick size" value="{{ p.notes }}">
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer bg-light py-2">
+                                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="btn btn-primary btn-sm fw-bold px-3">
+                                                    <i class="bi bi-check-circle me-1"></i> Save Wastage Rule
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light fw-bold border-top">
+                    <tr>
+                        <td colspan="6" class="text-end text-uppercase">TOTALS:</td>
+                        <td class="text-end text-success fs-6">+ {{ "{:,.0f}".format(grand_gross_produced) }} Pcs</td>
+                        <td class="text-end text-danger fs-6">- {{ "{:,.0f}".format(grand_wastage_deducted) }} Pcs</td>
+                        <td class="text-end text-info fs-6">- {{ "{:,.0f}".format(grand_dispatched) }} Pcs</td>
+                        <td class="text-end text-primary fs-5">{{ "{:,.0f}".format(grand_actual_stock) }} Pcs</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Add New Product & Custom Wastage Rule -->
+<div class="modal fade" id="addProductModal" tabindex="-1" aria-labelledby="addProductModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white py-3">
+                <h6 class="modal-title fw-bold" id="addProductModalLabel">
+                    <i class="bi bi-plus-circle-fill me-2"></i>Add New Product & Wastage Rule
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('stock.wastage_settings') }}">
+                <div class="modal-body p-4">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="save_product">
+                    <input type="hidden" name="job_type" value="Production (Per Piece)">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark">Product Name *</label>
+                        <input type="text" class="form-control form-control-lg" name="product_name" list="standardProdList"
+                               placeholder="e.g. Fly Ash Brick 9x4x3, Solid Block 6&quot;" required>
+                        <datalist id="standardProdList">
+                            {% for sp in standard_products %}
+                                <option value="{{ sp }}">
+                            {% endfor %}
+                        </datalist>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold text-primary">Stack Capacity / Tray *</label>
+                            <div class="input-group">
+                                <input type="number" step="1" min="1" class="form-control form-control-lg fw-bold" name="pieces_per_tray" value="105" required>
+                                <span class="input-group-text bg-light">Pcs</span>
+                            </div>
+                            <div class="form-text small">Pieces loaded on 1 tray/track</div>
+                        </div>
+
+                        <div class="col-6">
+                            <label class="form-label fw-bold text-danger">Wastage / Tray (-) *</label>
+                            <div class="input-group">
+                                <input type="number" step="0.5" min="0" class="form-control form-control-lg fw-bold text-danger" name="wastage_per_tray" value="5" required>
+                                <span class="input-group-text bg-light text-danger">Pcs</span>
+                            </div>
+                            <div class="form-text small text-danger">Breakage subtracted per tray</div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold text-dark">Piece Rate (₹ / pc)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-success fw-bold">₹</span>
+                                <input type="number" step="0.01" min="0" class="form-control fw-bold text-success" name="rate_per_piece" value="0.60">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold text-dark">Opening Stock (Pcs)</label>
+                            <input type="number" step="1" class="form-control" name="opening_stock" value="0">
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold text-dark">Notes / Specifications</label>
+                        <input type="text" class="form-control" name="notes" placeholder="e.g. Standard manufacturing batch">
+                    </div>
+                </div>
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm fw-bold px-3">
+                        <i class="bi bi-check-circle me-1"></i> Save Product Rule
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Dynamic modal calculation listeners
+    {% for p in product_data %}
+    const trayIn_{{ loop.index }} = document.getElementById('tray_cap_{{ loop.index }}');
+    const wasteIn_{{ loop.index }} = document.getElementById('waste_cap_{{ loop.index }}');
+    const netPrev_{{ loop.index }} = document.getElementById('net_preview_{{ loop.index }}');
+
+    function updateModal_{{ loop.index }}() {
+        if (!trayIn_{{ loop.index }} || !wasteIn_{{ loop.index }} || !netPrev_{{ loop.index }}) return;
+        const cap = parseFloat(trayIn_{{ loop.index }}.value) || 0;
+        const waste = parseFloat(wasteIn_{{ loop.index }}.value) || 0;
+        const net = Math.max(0, cap - waste);
+        netPrev_{{ loop.index }}.innerText = `${net.toLocaleString()} Payable Bricks / Tray`;
+    }
+
+    if (trayIn_{{ loop.index }} && wasteIn_{{ loop.index }}) {
+        trayIn_{{ loop.index }}.addEventListener('input', updateModal_{{ loop.index }});
+        wasteIn_{{ loop.index }}.addEventListener('input', updateModal_{{ loop.index }});
+    }
+    {% endfor %}
+});
+</script>
+{% endblock %}

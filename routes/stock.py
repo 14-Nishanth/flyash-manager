@@ -2,7 +2,7 @@ import io
 import csv
 from datetime import date, datetime, timedelta
 import calendar
-from flask import Blueprint, render_template, request, Response, url_for
+from flask import Blueprint, render_template, request, Response, url_for, flash, redirect
 from flask_login import login_required
 from models import db, JobWageEntry, MaterialInward, MaterialOutward, JobRateSetting, EmployeeGroup, Employee
 from sqlalchemy import func, distinct
@@ -1017,3 +1017,183 @@ def export_csv():
     response = Response(output.getvalue(), mimetype='text/csv')
     response.headers['Content-Disposition'] = f'attachment; filename=plant_stock_inventory_{date.today().strftime("%Y%m%d")}.csv'
     return response
+
+
+# ==============================================================================
+# ACTUAL STOCK & PRODUCT WASTAGE CONFIGURATION
+# ==============================================================================
+
+@bp.route('/settings', methods=['GET', 'POST'])
+@bp.route('/wastage-settings', methods=['GET', 'POST'])
+@bp.route('/actual', methods=['GET', 'POST'])
+@bp.route('/actual-stock', methods=['GET', 'POST'])
+@login_required
+def wastage_settings():
+    """
+    Dedicated Actual Stock & Wastage Configuration Page.
+    Allows configuring Stack Capacity (e.g. 105 pcs/tray), Wastage (e.g. 5 pcs/tray),
+    Piece Rates (₹), and Base Opening Stock for all manufactured products.
+    """
+    if request.method == 'POST':
+        action = request.form.get('action', 'save')
+        
+        if action == 'save_product':
+            product_name = request.form.get('product_name', '').strip()
+            job_type = request.form.get('job_type', 'Production (Per Piece)').strip()
+            rate_per_piece = float(request.form.get('rate_per_piece') or 0.0)
+            pieces_per_tray = float(request.form.get('pieces_per_tray') or 105.0)
+            wastage_per_tray = float(request.form.get('wastage_per_tray') or 5.0)
+            opening_stock = float(request.form.get('opening_stock') or 0.0)
+            unit = request.form.get('unit', 'Pieces / Pcs').strip()
+            notes = request.form.get('notes', '').strip()
+            setting_id = request.form.get('setting_id')
+
+            if not product_name:
+                flash('Product name is required.', 'error')
+                return redirect(url_for('stock.wastage_settings'))
+
+            if setting_id and setting_id.isdigit():
+                setting = JobRateSetting.query.get(int(setting_id))
+                if setting:
+                    setting.product_name = product_name
+                    setting.job_type = job_type
+                    setting.rate_per_piece = rate_per_piece
+                    setting.pieces_per_tray = pieces_per_tray
+                    setting.wastage_per_tray = wastage_per_tray
+                    setting.opening_stock = opening_stock
+                    setting.unit = unit
+                    setting.notes = notes
+                    db.session.commit()
+                    flash(f'✅ Stock & Wastage Settings updated for "{product_name}": Stack {pieces_per_tray:g} pcs - Wastage {wastage_per_tray:g} pcs = Net {max(0, pieces_per_tray - wastage_per_tray):g} payable/tray.', 'success')
+                    return redirect(url_for('stock.wastage_settings'))
+
+            # Check if existing product rate setting exists
+            existing = JobRateSetting.query.filter_by(product_name=product_name, job_type=job_type).first()
+            if existing:
+                existing.rate_per_piece = rate_per_piece
+                existing.pieces_per_tray = pieces_per_tray
+                existing.wastage_per_tray = wastage_per_tray
+                existing.opening_stock = opening_stock
+                existing.unit = unit
+                existing.notes = notes
+                existing.is_active = True
+                db.session.commit()
+                flash(f'✅ Updated "{product_name}": Stack {pieces_per_tray:g} pcs - Wastage {wastage_per_tray:g} pcs = Net {max(0, pieces_per_tray - wastage_per_tray):g} payable/tray.', 'success')
+            else:
+                new_setting = JobRateSetting(
+                    product_name=product_name,
+                    job_type=job_type,
+                    rate_per_piece=rate_per_piece,
+                    pieces_per_tray=pieces_per_tray,
+                    wastage_per_tray=wastage_per_tray,
+                    opening_stock=opening_stock,
+                    unit=unit,
+                    notes=notes
+                )
+                db.session.add(new_setting)
+                db.session.commit()
+                flash(f'✅ Added new Product Stock Setting for "{product_name}".', 'success')
+            return redirect(url_for('stock.wastage_settings'))
+
+        elif action == 'bulk_default':
+            default_tray = float(request.form.get('default_tray') or 105.0)
+            default_waste = float(request.form.get('default_waste') or 5.0)
+            
+            prod_settings = JobRateSetting.query.filter(JobRateSetting.job_type.ilike('%Production%')).all()
+            for s in prod_settings:
+                if 'Brick' in s.product_name:
+                    s.pieces_per_tray = default_tray
+                    s.wastage_per_tray = default_waste
+            db.session.commit()
+            flash(f'✅ Applied default Tray Stack ({default_tray:g} pcs) & Wastage ({default_waste:g} pcs/tray) across all brick products.', 'success')
+            return redirect(url_for('stock.wastage_settings'))
+
+    # GET Request: Prepare complete product inventory & wastage breakdown
+    all_products = get_all_finished_products()
+    
+    # Production aggregations
+    prod_rows = db.session.query(
+        JobWageEntry.product_name,
+        func.sum(func.coalesce(func.nullif(JobWageEntry.gross_quantity, 0), JobWageEntry.quantity)),
+        func.sum(func.coalesce(JobWageEntry.total_wastage, 0)),
+        func.sum(JobWageEntry.quantity),
+        func.sum(func.coalesce(JobWageEntry.tray_count, 0))
+    ).filter(JobWageEntry.job_type.ilike('%Production%')).group_by(JobWageEntry.product_name).all()
+
+    prod_map = {}
+    for p_name, gross, waste, payable, trays in prod_rows:
+        prod_map[p_name] = {
+            'gross': gross or 0.0,
+            'waste': waste or 0.0,
+            'payable': payable or 0.0,
+            'trays': trays or 0.0
+        }
+
+    # Dispatch outward aggregations
+    dispatched_map = dict(db.session.query(
+        MaterialOutward.material_type, 
+        func.sum(MaterialOutward.quantity_mt)
+    ).group_by(MaterialOutward.material_type).all())
+
+    # Existing rate settings
+    rate_settings = {r.product_name: r for r in JobRateSetting.query.filter(JobRateSetting.job_type.ilike('%Production%'), JobRateSetting.is_active == True).all()}
+
+    product_data = []
+    grand_gross_produced = 0.0
+    grand_wastage_deducted = 0.0
+    grand_wage_output = 0.0
+    grand_dispatched = 0.0
+    grand_actual_stock = 0.0
+
+    for prod in all_products:
+        setting = rate_settings.get(prod)
+        
+        tray_cap = setting.pieces_per_tray if setting and setting.pieces_per_tray else (105.0 if 'Brick' in prod else 60.0)
+        waste_cap = setting.wastage_per_tray if setting and setting.wastage_per_tray is not None else (5.0 if 'Brick' in prod else 3.0)
+        rate_val = setting.rate_per_piece if setting else (0.60 if 'Brick' in prod else 1.40)
+        opening_val = setting.opening_stock if setting else 0.0
+        setting_id = setting.id if setting else None
+
+        prod_gross = sum(v['gross'] for k, v in prod_map.items() if prod.lower() in (k or '').lower())
+        prod_waste = sum(v['waste'] for k, v in prod_map.items() if prod.lower() in (k or '').lower())
+        prod_payable = sum(v['payable'] for k, v in prod_map.items() if prod.lower() in (k or '').lower())
+        prod_trays = sum(v['trays'] for k, v in prod_map.items() if prod.lower() in (k or '').lower())
+        
+        dispatched_qty = sum(qty for k, qty in dispatched_map.items() if prod.lower() in (k or '').lower())
+
+        actual_yard_balance = opening_val + prod_gross - dispatched_qty
+
+        grand_gross_produced += prod_gross
+        grand_wastage_deducted += prod_waste
+        grand_wage_output += prod_payable
+        grand_dispatched += dispatched_qty
+        grand_actual_stock += actual_yard_balance
+
+        product_data.append({
+            'setting_id': setting_id,
+            'product_name': prod,
+            'pieces_per_tray': tray_cap,
+            'wastage_per_tray': waste_cap,
+            'net_payable_per_tray': max(0.0, tray_cap - waste_cap),
+            'rate_per_piece': rate_val,
+            'opening_stock': opening_val,
+            'total_trays': prod_trays,
+            'gross_produced': prod_gross,
+            'total_wastage': prod_waste,
+            'wage_output': prod_payable,
+            'dispatched': dispatched_qty,
+            'actual_balance': actual_yard_balance,
+            'notes': setting.notes if setting else ''
+        })
+
+    return render_template(
+        'stock/settings.html',
+        product_data=product_data,
+        grand_gross_produced=grand_gross_produced,
+        grand_wastage_deducted=grand_wastage_deducted,
+        grand_wage_output=grand_wage_output,
+        grand_dispatched=grand_dispatched,
+        grand_actual_stock=grand_actual_stock,
+        standard_products=STANDARD_PRODUCTS
+    )
+

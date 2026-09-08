@@ -374,6 +374,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (ratesMap[key]) {
             rateInput.value = ratesMap[key].rate;
             unitText.innerText = ratesMap[key].unit || 'Pieces';
+            if (ratesMap[key].pieces_per_tray) {
+                piecesPerTrayInput.value = ratesMap[key].pieces_per_tray;
+            }
+            if (ratesMap[key].wastage_per_tray !== undefined && ratesMap[key].wastage_per_tray !== null) {
+                wastagePerTrayInput.value = ratesMap[key].wastage_per_tray;
+            }
         }
 
         // Auto toggle tray calculator for Production
