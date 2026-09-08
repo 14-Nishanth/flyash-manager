@@ -591,6 +591,8 @@ def job_wages_add():
         key = f"{r.product_name}___{r.job_type}"
         rates_map[key] = {
             'rate': r.rate_per_piece,
+            'pieces_per_tray': r.pieces_per_tray or (105.0 if 'Brick' in r.product_name else 60.0),
+            'wastage_per_tray': r.wastage_per_tray if r.wastage_per_tray is not None else (5.0 if 'Brick' in r.product_name else 3.0),
             'unit': r.unit
         }
 
@@ -714,7 +716,14 @@ def job_wages_edit(id):
     rates = JobRateSetting.query.filter_by(is_active=True).all()
     assigned_emp_ids = [alloc.employee_id for alloc in entry.allocations]
 
-    rates_map = {f"{r.product_name}___{r.job_type}": {'rate': r.rate_per_piece, 'unit': r.unit} for r in rates}
+    rates_map = {
+        f"{r.product_name}___{r.job_type}": {
+            'rate': r.rate_per_piece,
+            'pieces_per_tray': r.pieces_per_tray or (105.0 if 'Brick' in r.product_name else 60.0),
+            'wastage_per_tray': r.wastage_per_tray if r.wastage_per_tray is not None else (5.0 if 'Brick' in r.product_name else 3.0),
+            'unit': r.unit
+        } for r in rates
+    }
     groups_map = {g.id: {'name': g.name, 'member_ids': [m.id for m in g.members], 'default_job': g.default_job_type or '', 'default_product': g.default_product_name or ''} for g in groups}
 
     if request.method == 'POST':

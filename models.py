@@ -80,6 +80,9 @@ class JobRateSetting(db.Model):
     product_name = db.Column(db.String(100), nullable=False) # e.g. Fly Ash Brick, Solid Block 4", Solid Block 6", Hollow Block 6"
     job_type = db.Column(db.String(50), nullable=False)      # Production, Loading Only, Unloading Only, Both Loading & Unloading
     rate_per_piece = db.Column(db.Float, nullable=False, default=0.0) # Rate per piece/unit (₹)
+    pieces_per_tray = db.Column(db.Float, default=105.0)     # Standard stack capacity per tray (e.g. 105 pcs standard)
+    wastage_per_tray = db.Column(db.Float, default=5.0)      # Daily breakage wastage deducted per tray (e.g. 5 pcs)
+    opening_stock = db.Column(db.Float, default=0.0)         # Base yard stock opening balance (Pcs)
     unit = db.Column(db.String(30), default='Pieces / Pcs')
     notes = db.Column(db.String(200))
     is_active = db.Column(db.Boolean, default=True)
@@ -88,7 +91,7 @@ class JobRateSetting(db.Model):
     __table_args__ = (db.UniqueConstraint('product_name', 'job_type', name='uq_product_job_rate'),)
 
     def __repr__(self):
-        return f'<JobRateSetting {self.product_name} - {self.job_type}: ₹{self.rate_per_piece}>'
+        return f'<JobRateSetting {self.product_name} - {self.job_type}: ₹{self.rate_per_piece} (Tray:{self.pieces_per_tray}, Waste:{self.wastage_per_tray})>'
 
 
 # Association table for Many-to-Many relationship between EmployeeGroup and Employee

@@ -44,6 +44,11 @@
                 <i class="bi bi-truck me-1 text-info"></i> Loading & Dispatch Sheet (-)
             </a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link fw-semibold text-dark" href="{{ url_for('stock.wastage_settings') }}">
+                <i class="bi bi-sliders me-1 text-success"></i> Actual Stock & Wastage Settings
+            </a>
+        </li>
     </ul>
 
     <!-- Periodic Basis View Mode Pills (Daily, Weekly, Monthly) -->
@@ -106,12 +111,15 @@
 
         <!-- Daily Breakage / Wastage Deducted -->
         <div class="col-12 col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-danger">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-danger position-relative">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="text-muted small fw-semibold text-uppercase">Wastage Deducted (-)</div>
+                        <div class="text-muted small fw-semibold text-uppercase d-flex align-items-center gap-1">
+                            <span>Wastage Deducted (-)</span>
+                            <a href="{{ url_for('stock.wastage_settings') }}" class="text-danger small" title="Configure Product Wastage Rules"><i class="bi bi-gear-fill"></i></a>
+                        </div>
                         <div class="h3 fw-bold mb-0 mt-1 text-danger">- {{ "{:,.0f}".format(total_wastage_qty) }} <span class="fs-6 fw-normal text-muted">Pcs</span></div>
-                        <div class="small text-muted mt-1">Excluded from wage calculation</div>
+                        <div class="small text-muted mt-1"><a href="{{ url_for('stock.wastage_settings') }}" class="text-decoration-none text-danger fw-semibold">Set Wastage Rules &rarr;</a></div>
                     </div>
                     <div class="bg-danger bg-opacity-10 text-danger rounded-circle p-3">
                         <i class="bi bi-scissors fs-3"></i>
