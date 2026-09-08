@@ -254,13 +254,20 @@ def _send_login_alert(user, login_identifier, status, ip_address, user_agent):
             print(f"  [ALERT THROTTLED] Message delivery skipped: {skip_reason}")
             return
 
-        # 1. Dispatch Mobile Bot / WhatsApp / SMS to 8072416903
-        if settings is None or settings.is_enabled:
-            _dispatch_mobile_alert(body)
+        import threading
+        def _async_send():
+            try:
+                if settings is None or getattr(settings, 'is_enabled', True):
+                    _dispatch_mobile_alert(body)
+            except Exception as e:
+                print(f"[WARN] Mobile alert failed: {e}")
+            try:
+                if settings is None or getattr(settings, 'email_alerts_enabled', True):
+                    _dispatch_email_alert(subject, body, owner_email)
+            except Exception as e:
+                print(f"[WARN] Email alert failed: {e}")
 
-        # 2. Dispatch Direct Email to nishanthissan1515@gmail.com
-        if settings is None or settings.email_alerts_enabled:
-            _dispatch_email_alert(subject, body, owner_email)
+        threading.Thread(target=_async_send, daemon=True).start()
 
     except Exception as e:
         db.session.rollback()

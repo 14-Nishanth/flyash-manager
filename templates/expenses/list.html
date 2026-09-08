@@ -69,6 +69,29 @@
         </div>
     </div>
 
+    <!-- Quick Period Presets Bar -->
+    <div class="d-flex align-items-center flex-wrap justify-content-between bg-light p-2.5 rounded-3 mb-4 border gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <span class="small fw-bold text-uppercase text-muted"><i class="bi bi-clock-history me-1"></i> Expense Period:</span>
+            <div class="d-flex align-items-center flex-wrap gap-1">
+                <a href="{{ url_for('expenses.list_expenses', preset='today', category=selected_category, payment_mode=selected_mode, search=selected_search) }}" 
+                   class="badge text-decoration-none {% if date_preset == 'today' %}bg-danger text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">Today</a>
+                <a href="{{ url_for('expenses.list_expenses', preset='this_week', category=selected_category, payment_mode=selected_mode, search=selected_search) }}" 
+                   class="badge text-decoration-none {% if date_preset == 'this_week' %}bg-danger text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Week</a>
+                <a href="{{ url_for('expenses.list_expenses', preset='last_week', category=selected_category, payment_mode=selected_mode, search=selected_search) }}" 
+                   class="badge text-decoration-none {% if date_preset == 'last_week' %}bg-danger text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">Last Week</a>
+                <a href="{{ url_for('expenses.list_expenses', preset='this_month', category=selected_category, payment_mode=selected_mode, search=selected_search) }}" 
+                   class="badge text-decoration-none {% if date_preset == 'this_month' or (not date_preset and not from_date) %}bg-danger text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Month</a>
+                <a href="{{ url_for('expenses.list_expenses', preset='last_month', category=selected_category, payment_mode=selected_mode, search=selected_search) }}" 
+                   class="badge text-decoration-none {% if date_preset == 'last_month' %}bg-danger text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">Last Month</a>
+                <a href="{{ url_for('expenses.list_expenses', preset='this_year', category=selected_category, payment_mode=selected_mode, search=selected_search) }}" 
+                   class="badge text-decoration-none {% if date_preset == 'this_year' %}bg-danger text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Year</a>
+                <a href="{{ url_for('expenses.list_expenses', preset='all', category=selected_category, payment_mode=selected_mode, search=selected_search) }}" 
+                   class="badge text-decoration-none {% if date_preset == 'all' %}bg-danger text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">All Time</a>
+            </div>
+        </div>
+    </div>
+
     <!-- Filter & Search Bar -->
     <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
         <div class="card-body p-3">

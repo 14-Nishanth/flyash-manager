@@ -1,6 +1,6 @@
 import csv
 import io
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, Response
 from flask_login import login_required
 from models import db, Expense
@@ -37,9 +37,31 @@ def list_expenses():
     if date_preset == 'today':
         from_date = today.strftime('%Y-%m-%d')
         to_date = today.strftime('%Y-%m-%d')
+    elif date_preset == 'this_week':
+        mon = today - timedelta(days=today.weekday())
+        sun = mon + timedelta(days=6)
+        from_date = mon.strftime('%Y-%m-%d')
+        to_date = sun.strftime('%Y-%m-%d')
+    elif date_preset == 'last_week':
+        last_mon = today - timedelta(days=today.weekday() + 7)
+        last_sun = last_mon + timedelta(days=6)
+        from_date = last_mon.strftime('%Y-%m-%d')
+        to_date = last_sun.strftime('%Y-%m-%d')
     elif date_preset == 'this_month':
         from_date = today.replace(day=1).strftime('%Y-%m-%d')
         to_date = today.strftime('%Y-%m-%d')
+    elif date_preset == 'last_month':
+        first_this = today.replace(day=1)
+        prev_month_last = first_this - timedelta(days=1)
+        prev_month_first = prev_month_last.replace(day=1)
+        from_date = prev_month_first.strftime('%Y-%m-%d')
+        to_date = prev_month_last.strftime('%Y-%m-%d')
+    elif date_preset == 'this_year':
+        from_date = f"{today.year}-01-01"
+        to_date = f"{today.year}-12-31"
+    elif date_preset == 'all':
+        from_date = ''
+        to_date = ''
     elif not from_date and not to_date and not date_preset:
         from_date = today.replace(day=1).strftime('%Y-%m-%d')
         to_date = today.strftime('%Y-%m-%d')

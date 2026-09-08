@@ -115,12 +115,16 @@ def resolve_date_period(period_param, from_date_str, to_date_str):
 @bp.route('/')
 @login_required
 def index():
-    """Main Stock & Yard Balance Sheet."""
+    """Main Stock & Yard Balance Sheet (High-Speed Bulk Aggregation)."""
     search = request.args.get('search', '').strip()
     status_filter = request.args.get('status', 'all')
 
     all_products = get_all_finished_products()
     all_raw_mats = get_all_raw_materials()
+
+    produced_map = dict(db.session.query(JobWageEntry.product_name, func.sum(JobWageEntry.quantity)).filter(JobWageEntry.job_type.ilike('%Production%')).group_by(JobWageEntry.product_name).all())
+    dispatched_map = dict(db.session.query(MaterialOutward.material_type, func.sum(MaterialOutward.quantity_mt)).group_by(MaterialOutward.material_type).all())
+    inward_mat_map = dict(db.session.query(MaterialInward.material_type, func.sum(MaterialInward.quantity_mt)).group_by(MaterialInward.material_type).all())
 
     finished_goods_stock = []
     total_yard_pieces = 0.0
@@ -131,14 +135,8 @@ def index():
         if search and search.lower() not in prod.lower():
             continue
 
-        produced_qty = db.session.query(func.sum(JobWageEntry.quantity)).filter(
-            JobWageEntry.product_name.ilike(f'%{prod}%'),
-            JobWageEntry.job_type.ilike('%Production%')
-        ).scalar() or 0.0
-
-        dispatched_qty = db.session.query(func.sum(MaterialOutward.quantity_mt)).filter(
-            MaterialOutward.material_type.ilike(f'%{prod}%')
-        ).scalar() or 0.0
+        produced_qty = sum(qty for k, qty in produced_map.items() if prod.lower() in (k or '').lower())
+        dispatched_qty = sum(qty for k, qty in dispatched_map.items() if prod.lower() in (k or '').lower())
 
         current_balance = produced_qty - dispatched_qty
         
@@ -167,9 +165,13 @@ def index():
 
         if produced_qty > 0 or dispatched_qty > 0 or current_balance != 0 or prod in STANDARD_PRODUCTS[:5]:
             finished_goods_stock.append({
+                'name': prod,
                 'product_name': prod,
+                'produced': produced_qty,
                 'produced_qty': produced_qty,
+                'dispatched': dispatched_qty,
                 'dispatched_qty': dispatched_qty,
+                'balance': current_balance,
                 'balance_qty': current_balance,
                 'status': stock_status,
                 'badge_class': badge_class,
@@ -186,21 +188,20 @@ def index():
         if search and search.lower() not in mat.lower():
             continue
 
-        inward_qty = db.session.query(func.sum(MaterialInward.quantity_mt)).filter(
-            MaterialInward.material_type.ilike(f'%{mat}%')
-        ).scalar() or 0.0
-
-        outward_qty = db.session.query(func.sum(MaterialOutward.quantity_mt)).filter(
-            MaterialOutward.material_type.ilike(f'%{mat}%')
-        ).scalar() or 0.0
+        inward_qty = sum(qty for k, qty in inward_mat_map.items() if mat.lower() in (k or '').lower())
+        outward_qty = sum(qty for k, qty in dispatched_map.items() if mat.lower() in (k or '').lower())
 
         current_balance = inward_qty - outward_qty
 
         if inward_qty > 0 or outward_qty > 0 or current_balance != 0 or mat in STANDARD_RAW_MATERIALS[:4]:
             raw_materials_stock.append({
+                'name': mat,
                 'material_name': mat,
+                'inward': inward_qty,
                 'inward_qty': inward_qty,
+                'outward': outward_qty,
                 'outward_qty': outward_qty,
+                'balance': current_balance,
                 'balance_qty': current_balance,
                 'unit': 'Tons (MT)'
             })

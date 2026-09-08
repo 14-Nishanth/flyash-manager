@@ -52,6 +52,30 @@
     </div>
 </div>
 
+<!-- Quick Period Presets Bar (Weekly / Monthly Basis) -->
+<div class="d-flex align-items-center flex-wrap justify-content-between bg-light p-2.5 rounded-3 mb-4 border gap-2">
+    <div class="d-flex align-items-center gap-2">
+        <span class="small fw-bold text-uppercase text-muted"><i class="bi bi-clock-history me-1"></i> Salary Period:</span>
+        <div class="d-flex align-items-center flex-wrap gap-1">
+            <a href="{{ url_for('employees.salary_sheet', period='this_week') }}" 
+               class="badge text-decoration-none {% if period == 'this_week' %}bg-primary text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Week</a>
+            <a href="{{ url_for('employees.salary_sheet', period='last_week') }}" 
+               class="badge text-decoration-none {% if period == 'last_week' %}bg-primary text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">Last Week</a>
+            <a href="{{ url_for('employees.salary_sheet', period='this_month') }}" 
+               class="badge text-decoration-none {% if period == 'this_month' or (not period and not from_date) %}bg-primary text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Month</a>
+            <a href="{{ url_for('employees.salary_sheet', period='last_month') }}" 
+               class="badge text-decoration-none {% if period == 'last_month' %}bg-primary text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">Last Month</a>
+            <a href="{{ url_for('employees.salary_sheet', period='this_year') }}" 
+               class="badge text-decoration-none {% if period == 'this_year' %}bg-primary text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Year</a>
+            <a href="{{ url_for('employees.salary_sheet', period='all') }}" 
+               class="badge text-decoration-none {% if period == 'all' %}bg-primary text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">All Time</a>
+        </div>
+    </div>
+    <div class="text-muted small">
+        <i class="bi bi-calendar3 me-1"></i> <span class="fw-semibold">{{ from_date }}</span> to <span class="fw-semibold">{{ to_date }}</span>
+    </div>
+</div>
+
 <!-- Date Filter Bar -->
 <div class="filter-bar card mb-4 shadow-sm">
     <div class="card-body">

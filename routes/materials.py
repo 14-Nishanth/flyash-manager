@@ -1,3 +1,34 @@
+def resolve_mat_period(period_param, from_date_str, to_date_str):
+    import calendar
+    from datetime import timedelta
+    today = date.today()
+    if period_param == 'today':
+        return today.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d')
+    elif period_param == 'this_week':
+        mon = today - timedelta(days=today.weekday())
+        sun = mon + timedelta(days=6)
+        return mon.strftime('%Y-%m-%d'), sun.strftime('%Y-%m-%d')
+    elif period_param == 'last_week':
+        last_mon = today - timedelta(days=today.weekday() + 7)
+        last_sun = last_mon + timedelta(days=6)
+        return last_mon.strftime('%Y-%m-%d'), last_sun.strftime('%Y-%m-%d')
+    elif period_param == 'this_month':
+        first_day = today.replace(day=1)
+        last_day = today.replace(day=calendar.monthrange(today.year, today.month)[1])
+        return first_day.strftime('%Y-%m-%d'), last_day.strftime('%Y-%m-%d')
+    elif period_param == 'last_month':
+        first_this = today.replace(day=1)
+        prev_month_last = first_this - timedelta(days=1)
+        prev_month_first = prev_month_last.replace(day=1)
+        return prev_month_first.strftime('%Y-%m-%d'), prev_month_last.strftime('%Y-%m-%d')
+    elif period_param == 'this_year':
+        return f"{today.year}-01-01", f"{today.year}-12-31"
+    elif period_param == 'all':
+        return '', ''
+    if not from_date_str and not to_date_str:
+        return today.replace(day=1).strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d')
+    return from_date_str, to_date_str
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required
 from models import db, MaterialInward, MaterialOutward, Party
@@ -127,11 +158,10 @@ def get_available_units():
 @bp.route('/inward')
 @login_required
 def inward_list():
-    today = date.today()
-    first_day = today.replace(day=1)
-    
-    from_date_str = request.args.get('from_date', first_day.strftime('%Y-%m-%d'))
-    to_date_str = request.args.get('to_date', today.strftime('%Y-%m-%d'))
+    period_param = request.args.get('period', '')
+    from_date_raw = request.args.get('from_date', '')
+    to_date_raw = request.args.get('to_date', '')
+    from_date_str, to_date_str = resolve_mat_period(period_param, from_date_raw, to_date_raw)
     party_id = request.args.get('party_id')
     material_type = request.args.get('material_type')
     
@@ -164,6 +194,7 @@ def inward_list():
                            entries=entries,
                            from_date=from_date_str,
                            to_date=to_date_str,
+                           period=period_param,
                            party_id=int(party_id) if party_id else None,
                            material_type=material_type,
                            parties=parties,
@@ -257,11 +288,10 @@ def inward_delete(id):
 @bp.route('/outward')
 @login_required
 def outward_list():
-    today = date.today()
-    first_day = today.replace(day=1)
-    
-    from_date_str = request.args.get('from_date', first_day.strftime('%Y-%m-%d'))
-    to_date_str = request.args.get('to_date', today.strftime('%Y-%m-%d'))
+    period_param = request.args.get('period', '')
+    from_date_raw = request.args.get('from_date', '')
+    to_date_raw = request.args.get('to_date', '')
+    from_date_str, to_date_str = resolve_mat_period(period_param, from_date_raw, to_date_raw)
     party_id = request.args.get('party_id')
     material_type = request.args.get('material_type')
     
@@ -295,6 +325,7 @@ def outward_list():
                            entries=entries,
                            from_date=from_date_str,
                            to_date=to_date_str,
+                           period=period_param,
                            party_id=int(party_id) if party_id else None,
                            material_type=material_type,
                            parties=parties,
