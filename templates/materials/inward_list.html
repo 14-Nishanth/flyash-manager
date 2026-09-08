@@ -71,6 +71,29 @@
         </div>
     </div>
 
+    <!-- Quick Period Presets Bar -->
+    <div class="d-flex align-items-center flex-wrap justify-content-between bg-light p-2.5 rounded-3 mb-4 border gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <span class="small fw-bold text-uppercase text-muted"><i class="bi bi-clock-history me-1"></i> Inward Period:</span>
+            <div class="d-flex align-items-center flex-wrap gap-1">
+                <a href="{{ url_for('materials.inward_list', period='today', party_id=selected_party, material_type=selected_material) }}" 
+                   class="badge text-decoration-none {% if period == 'today' %}bg-success text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">Today</a>
+                <a href="{{ url_for('materials.inward_list', period='this_week', party_id=selected_party, material_type=selected_material) }}" 
+                   class="badge text-decoration-none {% if period == 'this_week' %}bg-success text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Week</a>
+                <a href="{{ url_for('materials.inward_list', period='last_week', party_id=selected_party, material_type=selected_material) }}" 
+                   class="badge text-decoration-none {% if period == 'last_week' %}bg-success text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">Last Week</a>
+                <a href="{{ url_for('materials.inward_list', period='this_month', party_id=selected_party, material_type=selected_material) }}" 
+                   class="badge text-decoration-none {% if period == 'this_month' or (not period and not from_date) %}bg-success text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Month</a>
+                <a href="{{ url_for('materials.inward_list', period='last_month', party_id=selected_party, material_type=selected_material) }}" 
+                   class="badge text-decoration-none {% if period == 'last_month' %}bg-success text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">Last Month</a>
+                <a href="{{ url_for('materials.inward_list', period='this_year', party_id=selected_party, material_type=selected_material) }}" 
+                   class="badge text-decoration-none {% if period == 'this_year' %}bg-success text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Year</a>
+                <a href="{{ url_for('materials.inward_list', period='all', party_id=selected_party, material_type=selected_material) }}" 
+                   class="badge text-decoration-none {% if period == 'all' %}bg-success text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">All Time</a>
+            </div>
+        </div>
+    </div>
+
     <!-- Filter Bar -->
     <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
         <div class="card-body p-3">

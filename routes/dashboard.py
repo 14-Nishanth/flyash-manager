@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template
 from flask_login import login_required
-from models import db, Employee, Party, MaterialInward, MaterialOutward, JobWageEntry, JobRateSetting, Expense
+from models import db, Employee, Party, MaterialInward, MaterialOutward, JobWageEntry, JobRateSetting, Expense, Payment
 from datetime import date, timedelta
 from sqlalchemy import func
 import calendar
@@ -12,11 +12,11 @@ bp = Blueprint('dashboard', __name__, url_prefix='/')
 def index():
     today = date.today()
     
-    # Basic Stats
+    # 1. Basic Counts
     total_employees = Employee.query.filter_by(is_active=True).count()
     total_parties = Party.query.count()
     
-    # Today's Material Inward & Outward
+    # 2. Today's Inward & Outward (Single queries)
     today_inward_query = db.session.query(
         func.sum(MaterialInward.quantity_mt).label('qty'),
         func.sum(MaterialInward.amount).label('amount')
@@ -33,12 +33,12 @@ def index():
     today_outward = today_outward_query.qty or 0.0
     today_outward_amount = today_outward_query.amount or 0.0
 
-    # Operational Expenses Today & This Month
+    # 3. Operational Expenses
     first_of_month = today.replace(day=1)
     today_expenses = db.session.query(func.sum(Expense.amount)).filter(Expense.date == today).scalar() or 0.0
     month_expenses = db.session.query(func.sum(Expense.amount)).filter(Expense.date >= first_of_month, Expense.date <= today).scalar() or 0.0
 
-    # Piece-Rate Job Metrics for Today
+    # 4. Piece-Rate Job Metrics
     today_jobs_query = db.session.query(
         func.count(JobWageEntry.id).label('count'),
         func.sum(JobWageEntry.quantity).label('pieces'),
@@ -49,22 +49,38 @@ def index():
     today_jobs_pieces = today_jobs_query.pieces or 0
     today_jobs_amount = today_jobs_query.amount or 0.0
 
-    # Outstanding Balances
+    # 5. Fast Bulk Outstanding Calculation (4 queries total, 0 loop queries)
     parties = Party.query.all()
-    total_receivable = sum(p.get_outstanding() for p in parties if p.get_outstanding() > 0)
-    total_payable = sum(abs(p.get_outstanding()) for p in parties if p.get_outstanding() < 0)
+    inward_sums = dict(db.session.query(MaterialInward.party_id, func.sum(MaterialInward.amount)).group_by(MaterialInward.party_id).all())
+    outward_sums = dict(db.session.query(MaterialOutward.party_id, func.sum(MaterialOutward.amount)).group_by(MaterialOutward.party_id).all())
+    paid_sums = dict(db.session.query(Payment.party_id, func.sum(Payment.amount)).filter(Payment.payment_type == 'paid').group_by(Payment.party_id).all())
+    rec_sums = dict(db.session.query(Payment.party_id, func.sum(Payment.amount)).filter(Payment.payment_type == 'received').group_by(Payment.party_id).all())
 
-    # Recent records
+    total_receivable = 0.0
+    total_payable = 0.0
+    for p in parties:
+        # supplier: debit = inward + paid, credit = received => balance = debit - credit
+        # customer: debit = inward + paid, credit = outward + received
+        bal = (p.opening_balance or 0.0) + inward_sums.get(p.id, 0.0) - outward_sums.get(p.id, 0.0) + paid_sums.get(p.id, 0.0) - rec_sums.get(p.id, 0.0)
+        if bal > 0:
+            total_receivable += bal
+        elif bal < 0:
+            total_payable += abs(bal)
+
+    # 6. Recent records
     recent_inward = MaterialInward.query.order_by(MaterialInward.date.desc(), MaterialInward.id.desc()).limit(5).all()
     recent_outward = MaterialOutward.query.order_by(MaterialOutward.date.desc(), MaterialOutward.id.desc()).limit(5).all()
     recent_jobs = JobWageEntry.query.order_by(JobWageEntry.date.desc(), JobWageEntry.id.desc()).limit(5).all()
     recent_expenses = Expense.query.order_by(Expense.date.desc(), Expense.id.desc()).limit(5).all()
 
-    # Material Stock Balance Summary
+    # 7. Fast Material Stock Overview
+    in_grouped = dict(db.session.query(MaterialInward.material_type, func.sum(MaterialInward.quantity_mt)).group_by(MaterialInward.material_type).all())
+    out_grouped = dict(db.session.query(MaterialOutward.material_type, func.sum(MaterialOutward.quantity_mt)).group_by(MaterialOutward.material_type).all())
+
     stock_overview = []
     for mat in ['Cement', 'Jelly', 'Fly Ash', 'Sand']:
-        in_qty = db.session.query(func.sum(MaterialInward.quantity_mt)).filter(MaterialInward.material_type.ilike(f'%{mat}%')).scalar() or 0.0
-        out_qty = db.session.query(func.sum(MaterialOutward.quantity_mt)).filter(MaterialOutward.material_type.ilike(f'%{mat}%')).scalar() or 0.0
+        in_qty = sum(qty for k, qty in in_grouped.items() if mat.lower() in (k or '').lower())
+        out_qty = sum(qty for k, qty in out_grouped.items() if mat.lower() in (k or '').lower())
         stock_overview.append({
             'name': mat,
             'inward': in_qty,
@@ -72,7 +88,7 @@ def index():
             'balance': round(in_qty - out_qty, 2)
         })
 
-    # Monthly data for the last 6 months
+    # 8. Monthly data for last 6 months
     month_labels = []
     inward_amounts = []
     outward_amounts = []
@@ -85,27 +101,15 @@ def index():
         
         target_month = d.month
         target_year = d.year
+        month_labels.append(f"{calendar.month_abbr[target_month]} {target_year}")
         
-        month_label = f"{calendar.month_abbr[target_month]} {target_year}"
-        month_labels.append(month_label)
-        
-        try:
-            inward_sum = db.session.query(func.sum(MaterialInward.amount)).filter(
-                func.extract('month', MaterialInward.date) == target_month,
-                func.extract('year', MaterialInward.date) == target_year
-            ).scalar() or 0.0
-        except Exception:
-            inward_sum = 0.0
-        inward_amounts.append(round(inward_sum, 2))
-        
-        try:
-            outward_sum = db.session.query(func.sum(MaterialOutward.amount)).filter(
-                func.extract('month', MaterialOutward.date) == target_month,
-                func.extract('year', MaterialOutward.date) == target_year
-            ).scalar() or 0.0
-        except Exception:
-            outward_sum = 0.0
-        outward_amounts.append(round(outward_sum, 2))
+        first_d = date(target_year, target_month, 1)
+        last_d = date(target_year, target_month, calendar.monthrange(target_year, target_month)[1])
+
+        in_m = db.session.query(func.sum(MaterialInward.amount)).filter(MaterialInward.date >= first_d, MaterialInward.date <= last_d).scalar() or 0.0
+        out_m = db.session.query(func.sum(MaterialOutward.amount)).filter(MaterialOutward.date >= first_d, MaterialOutward.date <= last_d).scalar() or 0.0
+        inward_amounts.append(round(in_m, 2))
+        outward_amounts.append(round(out_m, 2))
 
     return render_template('dashboard.html',
                            total_employees=total_employees,

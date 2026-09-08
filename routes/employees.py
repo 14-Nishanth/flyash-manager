@@ -1,3 +1,34 @@
+def resolve_employee_period(period_param, from_date_str, to_date_str):
+    import calendar
+    from datetime import timedelta
+    today = date.today()
+    if period_param == 'today':
+        return today.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d')
+    elif period_param == 'this_week':
+        mon = today - timedelta(days=today.weekday())
+        sun = mon + timedelta(days=6)
+        return mon.strftime('%Y-%m-%d'), sun.strftime('%Y-%m-%d')
+    elif period_param == 'last_week':
+        last_mon = today - timedelta(days=today.weekday() + 7)
+        last_sun = last_mon + timedelta(days=6)
+        return last_mon.strftime('%Y-%m-%d'), last_sun.strftime('%Y-%m-%d')
+    elif period_param == 'this_month':
+        first_day = today.replace(day=1)
+        last_day = today.replace(day=calendar.monthrange(today.year, today.month)[1])
+        return first_day.strftime('%Y-%m-%d'), last_day.strftime('%Y-%m-%d')
+    elif period_param == 'last_month':
+        first_this = today.replace(day=1)
+        prev_month_last = first_this - timedelta(days=1)
+        prev_month_first = prev_month_last.replace(day=1)
+        return prev_month_first.strftime('%Y-%m-%d'), prev_month_last.strftime('%Y-%m-%d')
+    elif period_param == 'this_year':
+        return f"{today.year}-01-01", f"{today.year}-12-31"
+    elif period_param == 'all':
+        return '', ''
+    if not from_date_str and not to_date_str:
+        return today.replace(day=1).strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d')
+    return from_date_str, to_date_str
+
 import io
 import csv
 import json
@@ -454,11 +485,11 @@ def employee_group_delete(id):
 @bp.route('/job-wages')
 @login_required
 def job_wages_list():
-    today = date.today()
-    first_day = today.replace(day=1)
-    
-    from_date_str = request.args.get('from_date', first_day.strftime('%Y-%m-%d'))
-    to_date_str = request.args.get('to_date', today.strftime('%Y-%m-%d'))
+    period_param = request.args.get('period', '')
+    from_date_raw = request.args.get('from_date', '')
+    to_date_raw = request.args.get('to_date', '')
+    from_date_str, to_date_str = resolve_employee_period(period_param, from_date_raw, to_date_raw)
+
     job_type = request.args.get('job_type')
     product_name = request.args.get('product_name')
     employee_id = request.args.get('employee_id', type=int)
@@ -490,6 +521,7 @@ def job_wages_list():
                            entries=entries,
                            from_date=from_date_str,
                            to_date=to_date_str,
+                           period=period_param,
                            job_type=job_type,
                            product_name=product_name,
                            employee_id=employee_id,
@@ -699,50 +731,62 @@ def job_wages_delete(id):
 @bp.route('/salary-sheet')
 @login_required
 def salary_sheet():
+    """Ultra-fast Bulk Salary Sheet with Weekly and Monthly basis tracking."""
     today = date.today()
-    first_day = today.replace(day=1)
-    
-    from_date_str = request.args.get('from_date', first_day.strftime('%Y-%m-%d'))
-    to_date_str = request.args.get('to_date', today.strftime('%Y-%m-%d'))
+    period_param = request.args.get('period', '')
+    from_date_raw = request.args.get('from_date', '')
+    to_date_raw = request.args.get('to_date', '')
+    from_date_str, to_date_str = resolve_employee_period(period_param, from_date_raw, to_date_raw)
 
     try:
-        from_date = datetime.strptime(from_date_str, '%Y-%m-%d').date()
-        to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date()
+        from_date = datetime.strptime(from_date_str, '%Y-%m-%d').date() if from_date_str else today.replace(day=1)
+        to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date() if to_date_str else today
     except ValueError:
-        from_date = first_day
+        from_date = today.replace(day=1)
         to_date = today
 
     employees = Employee.query.order_by(Employee.name).all()
-    salary_data = []
 
+    # Bulk query 1: Attendance counts per employee & status
+    att_rows = db.session.query(
+        Attendance.employee_id,
+        Attendance.status,
+        func.count(Attendance.id)
+    ).filter(Attendance.date >= from_date, Attendance.date <= to_date).group_by(Attendance.employee_id, Attendance.status).all()
+
+    att_map = {}
+    for emp_id, st, cnt in att_rows:
+        if emp_id not in att_map:
+            att_map[emp_id] = {'present': 0, 'half-day': 0, 'absent': 0}
+        att_map[emp_id][st] = cnt
+
+    # Bulk query 2: Piece-rate job allocations per employee
+    alloc_rows = db.session.query(
+        EmployeeJobAllocation.employee_id,
+        func.count(EmployeeJobAllocation.id),
+        func.sum(EmployeeJobAllocation.allocated_wage)
+    ).join(JobWageEntry).filter(JobWageEntry.date >= from_date, JobWageEntry.date <= to_date).group_by(EmployeeJobAllocation.employee_id).all()
+
+    alloc_map = {}
+    for emp_id, cnt, total_w in alloc_rows:
+        alloc_map[emp_id] = {'count': cnt, 'wage': total_w or 0.0}
+
+    salary_data = []
     grand_piece_wage = 0.0
     grand_attendance_wage = 0.0
     grand_total_salary = 0.0
 
     for emp in employees:
-        # Attendance calculation
-        attendances = Attendance.query.filter(
-            Attendance.employee_id == emp.id,
-            Attendance.date >= from_date,
-            Attendance.date <= to_date
-        ).all()
-
-        days_present = sum(1 for a in attendances if a.status == 'present')
-        days_half = sum(1 for a in attendances if a.status == 'half-day')
-        days_absent = sum(1 for a in attendances if a.status == 'absent')
+        e_att = att_map.get(emp.id, {'present': 0, 'half-day': 0, 'absent': 0})
+        days_present = e_att.get('present', 0)
+        days_half = e_att.get('half-day', 0)
+        days_absent = e_att.get('absent', 0)
         attendance_wages = (days_present * emp.daily_wage) + (days_half * emp.daily_wage * 0.5)
 
-        # Piece-rate job allocations
-        allocations = EmployeeJobAllocation.query.join(JobWageEntry).filter(
-            EmployeeJobAllocation.employee_id == emp.id,
-            JobWageEntry.date >= from_date,
-            JobWageEntry.date <= to_date
-        ).all()
+        e_alloc = alloc_map.get(emp.id, {'count': 0, 'wage': 0.0})
+        job_count = e_alloc.get('count', 0)
+        piece_rate_wages = e_alloc.get('wage', 0.0)
 
-        job_count = len(allocations)
-        piece_rate_wages = sum(a.allocated_wage for a in allocations)
-
-        # Net Salary
         net_salary = attendance_wages + piece_rate_wages
 
         grand_attendance_wage += attendance_wages
@@ -764,6 +808,7 @@ def salary_sheet():
                            salary_data=salary_data,
                            from_date=from_date_str,
                            to_date=to_date_str,
+                           period=period_param,
                            grand_attendance_wage=grand_attendance_wage,
                            grand_piece_wage=grand_piece_wage,
                            grand_total_salary=grand_total_salary)
