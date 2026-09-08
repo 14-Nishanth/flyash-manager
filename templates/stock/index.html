@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
-{% block title %}Stock & Inventory Management - FlyAsh ERP{% endblock %}
-{% block page_title %}Stock & Inventory Management{% endblock %}
+{% block title %}Stock & Yard Inventory - FlyAsh ERP{% endblock %}
+{% block page_title %}Stock & Yard Inventory{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-3">
@@ -18,14 +18,33 @@
             <a href="{{ url_for('stock.export_csv') }}" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 shadow-sm">
                 <i class="bi bi-download"></i> <span data-i18n="export_csv">Export CSV</span>
             </a>
-            <a href="{{ url_for('employees.job_wages_add') }}" class="btn btn-warning btn-sm d-flex align-items-center gap-1 shadow-sm text-dark fw-semibold">
+            <a href="{{ url_for('employees.job_wages_add') }}?job_type=Production (Per Piece)" class="btn btn-warning btn-sm d-flex align-items-center gap-1 shadow-sm text-dark fw-bold">
                 <i class="bi bi-plus-circle-fill"></i> + Add Production
             </a>
-            <a href="{{ url_for('materials.outward_add') }}" class="btn btn-info btn-sm d-flex align-items-center gap-1 shadow-sm text-white fw-semibold">
+            <a href="{{ url_for('materials.outward_add') }}" class="btn btn-info btn-sm d-flex align-items-center gap-1 shadow-sm text-white fw-bold">
                 <i class="bi bi-box-arrow-up"></i> - Add Outward Dispatch
             </a>
         </div>
     </div>
+
+    <!-- Navigation Tabs Between Sheets -->
+    <ul class="nav nav-pills mb-4 bg-white p-1.5 rounded-3 shadow-sm border">
+        <li class="nav-item">
+            <a class="nav-link active fw-bold bg-primary text-white" href="{{ url_for('stock.index') }}">
+                <i class="bi bi-boxes me-1"></i> Yard Stock Summary
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link fw-semibold text-dark" href="{{ url_for('stock.production_sheet') }}">
+                <i class="bi bi-hammer me-1 text-warning"></i> Production Sheet (+)
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link fw-semibold text-dark" href="{{ url_for('stock.loading_sheet') }}">
+                <i class="bi bi-truck me-1 text-info"></i> Loading & Dispatch Sheet (-)
+            </a>
+        </li>
+    </ul>
 
     <!-- Summary KPI Cards -->
     <div class="row g-3 mb-4">
