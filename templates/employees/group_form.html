@@ -76,7 +76,7 @@
                                                {% if group and emp.id in member_ids %}checked{% endif %}>
                                         <label class="form-check-label ms-2 fw-semibold text-dark cursor-pointer" for="emp_{{ emp.id }}">
                                             {{ emp.name }}
-                                            <span class="d-block small text-muted fw-normal">{{ emp.role or 'Worker' }} (Daily: ₹{{ "{:,.0f}".format(emp.daily_wage or 0) }})</span>
+                                            <span class="d-block small text-muted fw-normal">{{ emp.role or 'Plant Worker' }}</span>
                                         </label>
                                     </div>
                                 </div>
