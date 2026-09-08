@@ -84,11 +84,8 @@ def index():
             'balance': round(in_qty - out_qty, 2)
         })
 
-    # 8. Monthly data for last 6 months
-    month_labels = []
-    inward_amounts = []
-    outward_amounts = []
-
+    # 8. Monthly performance data for last 6 months (Clean Tabular Data - 0 Graphs)
+    monthly_performance = []
     for i in range(5, -1, -1):
         d = today - timedelta(days=today.day - 1)
         for _ in range(i):
@@ -97,15 +94,25 @@ def index():
         
         target_month = d.month
         target_year = d.year
-        month_labels.append(f"{calendar.month_abbr[target_month]} {target_year}")
+        month_label = f"{calendar.month_abbr[target_month]} {target_year}"
         
         first_d = date(target_year, target_month, 1)
         last_d = date(target_year, target_month, calendar.monthrange(target_year, target_month)[1])
 
         in_m = db.session.query(func.sum(MaterialInward.amount)).filter(MaterialInward.date >= first_d, MaterialInward.date <= last_d).scalar() or 0.0
         out_m = db.session.query(func.sum(MaterialOutward.amount)).filter(MaterialOutward.date >= first_d, MaterialOutward.date <= last_d).scalar() or 0.0
-        inward_amounts.append(round(in_m, 2))
-        outward_amounts.append(round(out_m, 2))
+        in_qty = db.session.query(func.sum(MaterialInward.quantity_mt)).filter(MaterialInward.date >= first_d, MaterialInward.date <= last_d).scalar() or 0.0
+        out_qty = db.session.query(func.sum(MaterialOutward.quantity_mt)).filter(MaterialOutward.date >= first_d, MaterialOutward.date <= last_d).scalar() or 0.0
+
+        monthly_performance.append({
+            'label': month_label,
+            'inward_amount': round(in_m, 2),
+            'outward_amount': round(out_m, 2),
+            'inward_qty': round(in_qty, 1),
+            'outward_qty': round(out_qty, 1),
+            'net_balance': round(out_m - in_m, 2),
+            'is_current': (target_month == today.month and target_year == today.year)
+        })
 
     return render_template('dashboard.html',
                            total_employees=total_employees,
@@ -126,6 +133,4 @@ def index():
                            recent_jobs=recent_jobs,
                            recent_expenses=recent_expenses,
                            stock_overview=stock_overview,
-                           month_labels=month_labels,
-                           inward_amounts=inward_amounts,
-                           outward_amounts=outward_amounts)
+                           monthly_performance=monthly_performance)
