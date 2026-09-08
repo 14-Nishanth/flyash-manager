@@ -29,7 +29,7 @@
                     <th>Name</th>
                     <th>Phone</th>
                     <th>Role</th>
-                    <th>Daily Wage (₹)</th>
+                    <th>Wage Basis</th>
                     <th>Joining Date</th>
                     <th>Status</th>
                     <th>Actions</th>
@@ -39,10 +39,10 @@
                 {% for emp in employees %}
                 <tr>
                     <td>{{ loop.index }}</td>
-                    <td>{{ emp.name }}</td>
+                    <td><span class="fw-bold text-dark">{{ emp.name }}</span></td>
                     <td>{{ emp.phone or '-' }}</td>
-                    <td>{{ emp.role or '-' }}</td>
-                    <td class="currency-display">₹{{ "%.2f"|format(emp.daily_wage) if emp.daily_wage else "0.00" }}</td>
+                    <td><span class="badge bg-light text-dark border">{{ emp.role or 'General Worker' }}</span></td>
+                    <td><span class="badge bg-primary bg-opacity-10 text-primary fw-semibold"><i class="bi bi-hammer me-1"></i>Piece-Rate (Per Output)</span></td>
                     <td>{{ emp.joining_date.strftime('%Y-%m-%d') if emp.joining_date else '-' }}</td>
                     <td>
                         {% if emp.is_active %}
