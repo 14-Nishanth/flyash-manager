@@ -10,16 +10,16 @@
         <div>
             <h3 class="fw-bold mb-0 text-slate-800 d-flex align-items-center gap-2">
                 <i class="bi bi-hammer text-warning"></i>
-                <span>Daily Stock Production Sheet</span>
+                <span data-i18n="production_sheet">Stock Production Sheet</span>
             </h3>
-            <p class="text-muted small mb-0">Record of all daily brick & block manufacturing adding finished goods to yard stock (+)</p>
+            <p class="text-muted small mb-0">Record and review daily, weekly, and monthly brick & block manufacturing adding finished goods to yard stock (+)</p>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex flex-wrap gap-2">
             <button class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 shadow-sm" onclick="window.print()">
-                <i class="bi bi-printer"></i> Print Sheet
+                <i class="bi bi-printer"></i> <span data-i18n="print">Print Sheet</span>
             </button>
-            <a href="{{ url_for('stock.export_production_csv', from_date=from_date, to_date=to_date, product_name=selected_product) }}" class="btn btn-outline-success btn-sm d-flex align-items-center gap-1 shadow-sm">
-                <i class="bi bi-download"></i> Export CSV
+            <a href="{{ url_for('stock.export_production_csv', view_mode=view_mode, from_date=from_date, to_date=to_date, product_name=selected_product) }}" class="btn btn-outline-success btn-sm d-flex align-items-center gap-1 shadow-sm">
+                <i class="bi bi-download"></i> <span>Export {{ view_mode|capitalize }} CSV</span>
             </a>
             <a href="{{ url_for('employees.job_wages_add') }}?job_type=Production (Per Piece)" class="btn btn-warning btn-sm d-flex align-items-center gap-1 shadow-sm text-dark px-3 fw-bold">
                 <i class="bi bi-plus-circle-fill"></i> + Record Production
@@ -27,11 +27,11 @@
         </div>
     </div>
 
-    <!-- Navigation Tabs Between Sheets -->
-    <ul class="nav nav-pills mb-4 bg-white p-1.5 rounded-3 shadow-sm border">
+    <!-- Main Navigation Tabs Between Sheets -->
+    <ul class="nav nav-pills mb-3 bg-white p-1.5 rounded-3 shadow-sm border">
         <li class="nav-item">
-            <a class="nav-link fw-semibold" href="{{ url_for('stock.index') }}">
-                <i class="bi bi-boxes me-1"></i> Yard Stock Summary
+            <a class="nav-link fw-semibold text-dark" href="{{ url_for('stock.index') }}">
+                <i class="bi bi-boxes me-1 text-primary"></i> Yard Stock Summary
             </a>
         </li>
         <li class="nav-item">
@@ -46,6 +46,46 @@
         </li>
     </ul>
 
+    <!-- Periodic Basis View Mode Pills (Daily, Weekly, Monthly) -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center bg-light p-2.5 rounded-3 mb-4 border gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <span class="small fw-bold text-uppercase text-muted"><i class="bi bi-view-list me-1"></i> View Basis:</span>
+            <div class="btn-group btn-group-sm" role="group">
+                <a href="{{ url_for('stock.production_sheet', view_mode='daily', period=period, from_date=from_date, to_date=to_date, product_name=selected_product, group_id=selected_group, search=search) }}" 
+                   class="btn {% if view_mode == 'daily' %}btn-primary fw-bold{% else %}btn-outline-secondary bg-white text-dark{% endif %}">
+                    <i class="bi bi-calendar-day me-1"></i> Daily Runs (Detailed)
+                </a>
+                <a href="{{ url_for('stock.production_sheet', view_mode='weekly', period=period, from_date=from_date, to_date=to_date, product_name=selected_product, group_id=selected_group, search=search) }}" 
+                   class="btn {% if view_mode == 'weekly' %}btn-primary fw-bold{% else %}btn-outline-secondary bg-white text-dark{% endif %}">
+                    <i class="bi bi-calendar-week me-1"></i> Weekly Basis Summary
+                </a>
+                <a href="{{ url_for('stock.production_sheet', view_mode='monthly', period=period, from_date=from_date, to_date=to_date, product_name=selected_product, group_id=selected_group, search=search) }}" 
+                   class="btn {% if view_mode == 'monthly' %}btn-primary fw-bold{% else %}btn-outline-secondary bg-white text-dark{% endif %}">
+                    <i class="bi bi-calendar-month me-1"></i> Monthly Basis Summary
+                </a>
+            </div>
+        </div>
+
+        <!-- Quick Period Presets -->
+        <div class="d-flex align-items-center flex-wrap gap-1">
+            <span class="small text-muted fw-semibold me-1">Period:</span>
+            <a href="{{ url_for('stock.production_sheet', view_mode=view_mode, period='today', product_name=selected_product, group_id=selected_group, search=search) }}" 
+               class="badge text-decoration-none {% if period == 'today' %}bg-dark text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">Today</a>
+            <a href="{{ url_for('stock.production_sheet', view_mode=view_mode, period='this_week', product_name=selected_product, group_id=selected_group, search=search) }}" 
+               class="badge text-decoration-none {% if period == 'this_week' %}bg-dark text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Week</a>
+            <a href="{{ url_for('stock.production_sheet', view_mode=view_mode, period='last_week', product_name=selected_product, group_id=selected_group, search=search) }}" 
+               class="badge text-decoration-none {% if period == 'last_week' %}bg-dark text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">Last Week</a>
+            <a href="{{ url_for('stock.production_sheet', view_mode=view_mode, period='this_month', product_name=selected_product, group_id=selected_group, search=search) }}" 
+               class="badge text-decoration-none {% if period == 'this_month' or (not period and not from_date) %}bg-dark text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Month</a>
+            <a href="{{ url_for('stock.production_sheet', view_mode=view_mode, period='last_month', product_name=selected_product, group_id=selected_group, search=search) }}" 
+               class="badge text-decoration-none {% if period == 'last_month' %}bg-dark text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">Last Month</a>
+            <a href="{{ url_for('stock.production_sheet', view_mode=view_mode, period='this_year', product_name=selected_product, group_id=selected_group, search=search) }}" 
+               class="badge text-decoration-none {% if period == 'this_year' %}bg-dark text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Year</a>
+            <a href="{{ url_for('stock.production_sheet', view_mode=view_mode, period='all', product_name=selected_product, group_id=selected_group, search=search) }}" 
+               class="badge text-decoration-none {% if period == 'all' %}bg-dark text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">All Time</a>
+        </div>
+    </div>
+
     <!-- Summary KPI Cards -->
     <div class="row g-3 mb-4">
         <!-- Filtered Total Production -->
@@ -53,9 +93,9 @@
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-warning">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="text-muted small fw-semibold text-uppercase">Filtered Production</div>
-                        <div class="h3 fw-bold mb-0 mt-1 text-dark">{{ "{:,.0f}".format(total_production_qty) }} <span class="fs-6 fw-normal">Pcs</span></div>
-                        <div class="small text-muted mt-1">{{ entries|length }} production runs</div>
+                        <div class="text-muted small fw-semibold text-uppercase">Filtered Output</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-dark">{{ "{:,.0f}".format(total_production_qty) }} <span class="fs-6 fw-normal text-muted">Pcs</span></div>
+                        <div class="small text-muted mt-1">{{ entries|length }} total runs logged</div>
                     </div>
                     <div class="bg-warning bg-opacity-10 text-warning rounded-circle p-3">
                         <i class="bi bi-bricks fs-3"></i>
@@ -64,14 +104,30 @@
             </div>
         </div>
 
-        <!-- Month-to-Date Production -->
+        <!-- Weekly Production -->
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-info">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">This Week Output</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-info">{{ "{:,.0f}".format(week_produced) }} <span class="fs-6 fw-normal text-muted">Pcs</span></div>
+                        <div class="small text-muted mt-1">Current week total (Mon-Sun)</div>
+                    </div>
+                    <div class="bg-info bg-opacity-10 text-info rounded-circle p-3">
+                        <i class="bi bi-calendar-week fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Month Output -->
         <div class="col-12 col-sm-6 col-lg-3">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-success">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="text-muted small fw-semibold text-uppercase">This Month Output</div>
-                        <div class="h3 fw-bold mb-0 mt-1 text-success">{{ "{:,.0f}".format(month_produced) }} <span class="fs-6 fw-normal">Pcs</span></div>
-                        <div class="small text-muted mt-1">Month-to-date total</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-success">{{ "{:,.0f}".format(month_produced) }} <span class="fs-6 fw-normal text-muted">Pcs</span></div>
+                        <div class="small text-muted mt-1">Month-to-date output</div>
                     </div>
                     <div class="bg-success bg-opacity-10 text-success rounded-circle p-3">
                         <i class="bi bi-calendar-check fs-3"></i>
@@ -80,78 +136,63 @@
             </div>
         </div>
 
-        <!-- Today Production -->
+        <!-- Total Production Labor Cost -->
         <div class="col-12 col-sm-6 col-lg-3">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-primary">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="text-muted small fw-semibold text-uppercase">Today's Production</div>
-                        <div class="h3 fw-bold mb-0 mt-1 text-primary">{{ "{:,.0f}".format(today_produced) }} <span class="fs-6 fw-normal">Pcs</span></div>
-                        <div class="small text-muted mt-1">Daily machine run</div>
+                        <div class="text-muted small fw-semibold text-uppercase">Production Labor Cost</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-primary">₹{{ "{:,.2f}".format(total_labor_cost) }}</div>
+                        <div class="small text-muted mt-1">Piece-rate worker payouts</div>
                     </div>
                     <div class="bg-primary bg-opacity-10 text-primary rounded-circle p-3">
-                        <i class="bi bi-speedometer fs-3"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Total Production Labor Cost -->
-        <div class="col-12 col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm rounded-3 bg-gradient bg-dark text-white p-3 h-100">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="text-white-50 small fw-semibold text-uppercase">Production Labor Cost</div>
-                        <div class="h3 fw-bold mb-0 mt-1">₹{{ "{:,.2f}".format(total_labor_cost) }}</div>
-                        <div class="small text-white-50 mt-1">Piece wages paid to workers</div>
-                    </div>
-                    <div class="bg-white bg-opacity-25 rounded-circle p-3">
-                        <i class="bi bi-cash-stack fs-3"></i>
+                        <i class="bi bi-cash-coin fs-3"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Filter Bar -->
+    <!-- Filter Form -->
     <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
         <div class="card-body p-3">
             <form method="GET" action="{{ url_for('stock.production_sheet') }}" class="row g-2 align-items-end">
-                <div class="col-6 col-md-2">
+                <input type="hidden" name="view_mode" value="{{ view_mode }}">
+                <div class="col-12 col-sm-6 col-md-2">
                     <label class="form-label small fw-semibold text-muted mb-1">From Date</label>
                     <input type="date" name="from_date" class="form-control form-control-sm" value="{{ from_date }}">
                 </div>
-                <div class="col-6 col-md-2">
+                <div class="col-12 col-sm-6 col-md-2">
                     <label class="form-label small fw-semibold text-muted mb-1">To Date</label>
                     <input type="date" name="to_date" class="form-control form-control-sm" value="{{ to_date }}">
                 </div>
-                <div class="col-12 col-md-3">
-                    <label class="form-label small fw-semibold text-muted mb-1">Product Name</label>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold text-muted mb-1">Product Filter</label>
                     <select name="product_name" class="form-select form-select-sm">
-                        <option value="">All Products</option>
-                        {% for p in all_products %}
-                        <option value="{{ p }}" {% if selected_product == p %}selected{% endif %}>{{ p }}</option>
+                        <option value="">All Manufactured Products</option>
+                        {% for prod in all_products %}
+                        <option value="{{ prod }}" {% if selected_product == prod %}selected{% endif %}>{{ prod }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-6 col-md-2">
-                    <label class="form-label small fw-semibold text-muted mb-1">Labor Gang / Group</label>
+                <div class="col-12 col-sm-6 col-md-2">
+                    <label class="form-label small fw-semibold text-muted mb-1">Labor Gang</label>
                     <select name="group_id" class="form-select form-select-sm">
-                        <option value="">All Groups</option>
+                        <option value="">All Groups / Workers</option>
                         {% for g in groups %}
                         <option value="{{ g.id }}" {% if selected_group == g.id %}selected{% endif %}>{{ g.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-6 col-md-2">
-                    <label class="form-label small fw-semibold text-muted mb-1">Search</label>
-                    <input type="text" name="search" class="form-control form-control-sm" placeholder="Search notes/product..." value="{{ search }}">
+                <div class="col-12 col-sm-6 col-md-2">
+                    <label class="form-label small fw-semibold text-muted mb-1">Search Keyword</label>
+                    <input type="text" name="search" class="form-control form-control-sm" placeholder="Shift, note, product..." value="{{ search }}">
                 </div>
-                <div class="col-12 col-md-1 d-flex gap-1">
-                    <button type="submit" class="btn btn-primary btn-sm w-100" title="Apply Filter">
-                        <i class="bi bi-funnel-fill"></i>
+                <div class="col-12 col-sm-6 col-md-1 d-flex gap-1">
+                    <button type="submit" class="btn btn-primary btn-sm w-100 fw-semibold">
+                        <i class="bi bi-funnel-fill"></i> Filter
                     </button>
-                    <a href="{{ url_for('stock.production_sheet') }}" class="btn btn-light btn-sm border" title="Reset">
+                    <a href="{{ url_for('stock.production_sheet', view_mode=view_mode) }}" class="btn btn-outline-secondary btn-sm" title="Reset Filters">
                         <i class="bi bi-arrow-counterclockwise"></i>
                     </a>
                 </div>
@@ -159,102 +200,278 @@
         </div>
     </div>
 
-    <!-- Product Subtotal Breakdown Pills (if filtered) -->
+    <!-- Product Breakdown Summary Chips -->
     {% if product_summary %}
-    <div class="d-flex flex-wrap gap-2 mb-3">
-        {% for p_name, p_qty in product_summary.items() %}
-        <div class="bg-white border rounded-pill px-3 py-1 shadow-sm small d-flex align-items-center gap-2">
-            <span class="fw-semibold text-slate-700">{{ p_name }}:</span>
-            <span class="badge bg-warning text-dark fw-bold">+{{ "{:,.0f}".format(p_qty) }} Pcs</span>
+    <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+        <div class="card-body p-3">
+            <div class="small fw-bold text-uppercase text-muted mb-2"><i class="bi bi-pie-chart-fill me-1 text-primary"></i> Product Output Mix in Filtered Period:</div>
+            <div class="d-flex flex-wrap gap-2">
+                {% for prod, qty in product_summary.items() %}
+                <span class="badge bg-light text-dark border p-2 px-3 rounded-pill d-flex align-items-center gap-2">
+                    <span class="fw-semibold">{{ prod }}:</span>
+                    <span class="badge bg-warning text-dark fw-bold">{{ "{:,.0f}".format(qty) }} Pcs</span>
+                </span>
+                {% endfor %}
+            </div>
         </div>
-        {% endfor %}
     </div>
     {% endif %}
 
-    <!-- Production Sheet Table -->
+    <!-- VIEW MODE 1: DAILY DETAILED RUNS -->
+    {% if view_mode == 'daily' %}
     <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <h6 class="fw-bold mb-0 text-slate-800 d-flex align-items-center gap-2">
+                <i class="bi bi-table text-warning"></i>
+                <span>Daily Manufacturing Entries Log (+ Stock Additions)</span>
+            </h6>
+            <span class="badge bg-warning bg-opacity-20 text-dark fw-semibold px-2.5 py-1.5">{{ entries|length }} Entries Found</span>
+        </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr class="small text-muted text-uppercase">
-                        <th style="width: 50px;">#</th>
-                        <th style="width: 110px;">Date</th>
+                <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                        <th style="width: 100px;">Date</th>
                         <th>Product Manufactured</th>
-                        <th style="width: 160px;">Gang / Group</th>
-                        <th class="text-end" style="width: 150px;">Quantity Produced</th>
-                        <th class="text-end" style="width: 120px;">Rate / Pc</th>
-                        <th class="text-end" style="width: 150px;">Total Labor Cost</th>
-                        <th style="width: 170px;">Workers & Split</th>
-                        <th class="text-center" style="width: 100px;">Actions</th>
+                        <th>Labor Group / Workers</th>
+                        <th class="text-end">Quantity (+ Pcs)</th>
+                        <th class="text-end">Rate (₹/pc)</th>
+                        <th class="text-end">Labor Wage (₹)</th>
+                        <th>Worker Split</th>
+                        <th>Notes / Shift</th>
+                        <th class="text-center" style="width: 80px;">Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for entry in entries %}
+                    {% for e in entries %}
                     <tr>
-                        <td class="text-muted small">{{ loop.index }}</td>
-                        <td class="text-nowrap text-secondary small fw-semibold">{{ entry.date.strftime('%d %b %Y') }}</td>
+                        <td class="fw-semibold text-nowrap">{{ e.date.strftime('%d-%b-%Y') }}</td>
                         <td>
-                            <div class="fw-bold text-dark fs-6">{{ entry.product_name }}</div>
-                            {% if entry.notes %}
-                            <small class="text-muted d-block">{{ entry.notes }}</small>
-                            {% endif %}
+                            <span class="fw-bold text-dark">{{ e.product_name }}</span>
+                            <div class="small text-muted">{{ e.job_type }}</div>
                         </td>
                         <td>
-                            {% if entry.group %}
-                            <span class="badge bg-light text-dark border">{{ entry.group.name }}</span>
+                            {% if e.group %}
+                                <span class="badge bg-primary bg-opacity-10 text-primary fw-bold">
+                                    <i class="bi bi-people-fill me-1"></i>{{ e.group.name }}
+                                </span>
                             {% else %}
-                            <span class="badge bg-light text-secondary border">Custom Workers</span>
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary">Individual / Direct</span>
                             {% endif %}
                         </td>
                         <td class="text-end">
-                            <span class="fs-6 fw-bold text-success">+{{ "{:,.0f}".format(entry.quantity) }}</span>
-                            <span class="badge bg-success bg-opacity-10 text-success small ms-1">Pcs Added</span>
+                            <span class="badge bg-success bg-opacity-15 text-success fs-6 fw-bold px-2 py-1">
+                                + {{ "{:,.0f}".format(e.quantity) }} Pcs
+                            </span>
                         </td>
-                        <td class="text-end small">₹{{ "{:,.2f}".format(entry.rate_per_unit) }}</td>
-                        <td class="text-end fw-bold text-dark fs-6">₹{{ "{:,.2f}".format(entry.total_amount) }}</td>
-                        <td class="small">
-                            <span class="badge bg-primary bg-opacity-10 text-primary fw-semibold">{{ entry.worker_count }} Workers</span>
-                            <span class="text-muted d-block mt-0.5">₹{{ "{:,.2f}".format(entry.wage_per_worker) }} / worker</span>
+                        <td class="text-end text-muted">₹{{ "{:,.2f}".format(e.rate_per_unit) }}</td>
+                        <td class="text-end fw-bold text-dark">₹{{ "{:,.2f}".format(e.total_amount) }}</td>
+                        <td>
+                            <div class="small text-muted">{{ e.worker_count }} workers</div>
+                            <div class="small fw-semibold text-primary">₹{{ "{:,.2f}".format(e.wage_per_worker) }} / worker</div>
                         </td>
+                        <td class="small text-muted">{{ e.notes or '-' }}</td>
                         <td class="text-center">
-                            <div class="btn-group btn-group-sm">
-                                <a href="{{ url_for('employees.job_wages_edit', id=entry.id) }}" class="btn btn-outline-primary btn-sm" title="Edit">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                                <form action="{{ url_for('employees.job_wages_delete', id=entry.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete production entry #{{ entry.id }}?');">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </form>
-                            </div>
+                            <a href="{{ url_for('employees.job_wages_edit', id=e.id) }}" class="btn btn-outline-primary btn-sm px-2 py-0.5 rounded" title="Edit Entry">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
                         </td>
                     </tr>
                     {% else %}
                     <tr>
                         <td colspan="9" class="text-center py-5 text-muted">
-                            <i class="bi bi-hammer fs-1 d-block mb-2 text-muted text-opacity-50"></i>
-                            <p class="mb-2">No production entries recorded for this date filter.</p>
-                            <a href="{{ url_for('employees.job_wages_add') }}?job_type=Production (Per Piece)" class="btn btn-warning btn-sm text-dark fw-bold">
-                                + Record First Production Run
-                            </a>
+                            <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                            No production entries found for the selected filter range.
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
                 {% if entries %}
-                <tfoot class="table-light fw-bold border-top">
+                <tfoot class="table-light fw-bold">
                     <tr>
-                        <td colspan="4" class="text-end text-uppercase">Total Production Output & Labor Cost:</td>
-                        <td class="text-end text-success fs-5">+{{ "{:,.0f}".format(total_production_qty) }} Pcs</td>
-                        <td></td>
-                        <td class="text-end text-dark fs-5">₹{{ "{:,.2f}".format(total_labor_cost) }}</td>
-                        <td colspan="2"></td>
+                        <td colspan="3" class="text-end">TOTAL PRODUCTION:</td>
+                        <td class="text-end text-success fs-6">+ {{ "{:,.0f}".format(total_production_qty) }} Pcs</td>
+                        <td class="text-end">-</td>
+                        <td class="text-end text-primary fs-6">₹{{ "{:,.2f}".format(total_labor_cost) }}</td>
+                        <td colspan="3"></td>
                     </tr>
                 </tfoot>
                 {% endif %}
             </table>
         </div>
     </div>
+
+    <!-- VIEW MODE 2: WEEKLY BASIS SUMMARY -->
+    {% elif view_mode == 'weekly' %}
+    <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <h6 class="fw-bold mb-0 text-slate-800 d-flex align-items-center gap-2">
+                <i class="bi bi-calendar-week text-primary"></i>
+                <span>Weekly Basis Production Breakdown (Monday – Sunday)</span>
+            </h6>
+            <span class="badge bg-primary bg-opacity-10 text-primary fw-semibold px-2.5 py-1.5">{{ weekly_summary|length }} Weeks Calculated</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                        <th>Week Period</th>
+                        <th>Calendar Week</th>
+                        <th class="text-center">Days Worked</th>
+                        <th class="text-end">Total Produced (Pcs)</th>
+                        <th class="text-end">Avg Output / Day</th>
+                        <th class="text-end">Total Labor Wage (₹)</th>
+                        <th class="text-end">Avg Labor / Pc</th>
+                        <th>Top Product</th>
+                        <th class="text-center">View Daily</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for w in weekly_summary %}
+                    <tr>
+                        <td>
+                            <div class="fw-bold text-dark">{{ w.week_label }}</div>
+                            <div class="small text-muted">{{ w.runs_count }} production runs</div>
+                        </td>
+                        <td>
+                            <span class="badge bg-info bg-opacity-10 text-info fw-bold">{{ w.iso_week }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-light text-dark border px-2">{{ w.days_worked }} / 7 Days</span>
+                        </td>
+                        <td class="text-end">
+                            <span class="badge bg-success bg-opacity-15 text-success fs-6 fw-bold px-2 py-1">
+                                + {{ "{:,.0f}".format(w.total_qty) }} Pcs
+                            </span>
+                        </td>
+                        <td class="text-end fw-semibold text-dark">
+                            {{ "{:,.0f}".format(w.avg_daily_qty) }} Pcs/day
+                        </td>
+                        <td class="text-end fw-bold text-primary">
+                            ₹{{ "{:,.2f}".format(w.total_labor_cost) }}
+                        </td>
+                        <td class="text-end text-muted small">
+                            ₹{{ "{:,.2f}".format(w.avg_labor_per_pc) }}/pc
+                        </td>
+                        <td>
+                            <span class="badge bg-warning bg-opacity-20 text-dark">{{ w.top_product }}</span>
+                        </td>
+                        <td class="text-center">
+                            <a href="{{ url_for('stock.production_sheet', view_mode='daily', from_date=w.week_start, to_date=w.week_end, product_name=selected_product) }}" 
+                               class="btn btn-sm btn-outline-secondary py-0 px-2" title="Inspect daily runs for this week">
+                                <i class="bi bi-eye"></i> Details
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                            No weekly production records found for the selected period.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if weekly_summary %}
+                <tfoot class="table-light fw-bold">
+                    <tr>
+                        <td colspan="3" class="text-end">TOTAL WEEKLY PRODUCTION:</td>
+                        <td class="text-end text-success fs-6">+ {{ "{:,.0f}".format(total_production_qty) }} Pcs</td>
+                        <td></td>
+                        <td class="text-end text-primary fs-6">₹{{ "{:,.2f}".format(total_labor_cost) }}</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+    <!-- VIEW MODE 3: MONTHLY BASIS SUMMARY -->
+    {% elif view_mode == 'monthly' %}
+    <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <h6 class="fw-bold mb-0 text-slate-800 d-flex align-items-center gap-2">
+                <i class="bi bi-calendar-month text-success"></i>
+                <span>Monthly Basis Production Breakdown</span>
+            </h6>
+            <span class="badge bg-success bg-opacity-10 text-success fw-semibold px-2.5 py-1.5">{{ monthly_summary|length }} Months Calculated</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                        <th>Month</th>
+                        <th class="text-center">Days Worked</th>
+                        <th class="text-center">Total Runs</th>
+                        <th class="text-end">Total Output (+ Pcs)</th>
+                        <th class="text-end">Avg Daily Output</th>
+                        <th class="text-end">Total Labor Cost (₹)</th>
+                        <th class="text-end">Labor Cost / Pc</th>
+                        <th>Top Manufactured Product</th>
+                        <th class="text-center">View Month</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in monthly_summary %}
+                    <tr>
+                        <td>
+                            <div class="fw-bold text-dark fs-6">{{ m.month_label }}</div>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-light text-dark border px-2.5">{{ m.days_worked }} Days</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary">{{ m.runs_count }} runs</span>
+                        </td>
+                        <td class="text-end">
+                            <span class="badge bg-success bg-opacity-15 text-success fs-6 fw-bold px-2 py-1">
+                                + {{ "{:,.0f}".format(m.total_qty) }} Pcs
+                            </span>
+                        </td>
+                        <td class="text-end fw-semibold text-dark">
+                            {{ "{:,.0f}".format(m.avg_daily_qty) }} Pcs/day
+                        </td>
+                        <td class="text-end fw-bold text-primary">
+                            ₹{{ "{:,.2f}".format(m.total_labor_cost) }}
+                        </td>
+                        <td class="text-end text-muted small">
+                            ₹{{ "{:,.2f}".format(m.avg_labor_per_pc) }}/pc
+                        </td>
+                        <td>
+                            <span class="badge bg-warning bg-opacity-20 text-dark">{{ m.top_product }}</span>
+                        </td>
+                        <td class="text-center">
+                            <a href="{{ url_for('stock.production_sheet', view_mode='weekly', from_date=m.from_date, to_date=m.to_date, product_name=selected_product) }}" 
+                               class="btn btn-sm btn-outline-success py-0 px-2" title="Inspect weekly breakdown for this month">
+                                <i class="bi bi-calendar-week"></i> Weeks
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                            No monthly production records found for the selected period.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if monthly_summary %}
+                <tfoot class="table-light fw-bold">
+                    <tr>
+                        <td colspan="3" class="text-end">TOTAL PRODUCTION:</td>
+                        <td class="text-end text-success fs-6">+ {{ "{:,.0f}".format(total_production_qty) }} Pcs</td>
+                        <td></td>
+                        <td class="text-end text-primary fs-6">₹{{ "{:,.2f}".format(total_labor_cost) }}</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
 </div>
 {% endblock %}
