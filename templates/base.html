@@ -78,11 +78,23 @@
                     </a>
                 </li>
 
-                                <li class="nav-section" data-i18n="stock_inventory">Stock & Yard Inventory</li>
+                                <li class="nav-section" data-i18n="stock_inventory">Stock & Yard Sheets</li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint and 'stock' in request.endpoint %}active{% endif %}"
+                    <a class="nav-link {% if request.endpoint == 'stock.index' %}active{% endif %}"
                        href="{{ url_for('stock.index') }}">
-                        <i class="bi bi-boxes text-warning"></i> <span data-i18n="yard_stock">Yard Stock Detail</span>
+                        <i class="bi bi-boxes text-primary"></i> <span data-i18n="yard_stock">Yard Stock Summary</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'stock.production_sheet' %}active{% endif %}"
+                       href="{{ url_for('stock.production_sheet') }}">
+                        <i class="bi bi-hammer text-warning"></i> <span>Production Sheet (+)</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'stock.loading_sheet' %}active{% endif %}"
+                       href="{{ url_for('stock.loading_sheet') }}">
+                        <i class="bi bi-truck text-info"></i> <span>Loading Sheet (-)</span>
                     </a>
                 </li>
 

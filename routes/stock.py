@@ -1,14 +1,13 @@
 import io
 import csv
-from datetime import date, datetime
-from flask import Blueprint, render_template, request, Response
+from datetime import date, datetime, timedelta
+from flask import Blueprint, render_template, request, Response, url_for
 from flask_login import login_required
-from models import db, JobWageEntry, MaterialInward, MaterialOutward, JobRateSetting
+from models import db, JobWageEntry, MaterialInward, MaterialOutward, JobRateSetting, EmployeeGroup, Employee
 from sqlalchemy import func, distinct
 
 bp = Blueprint('stock', __name__, url_prefix='/stock')
 
-# Standard Finished Products list for brick/block manufacturing
 STANDARD_PRODUCTS = [
     'Fly Ash Brick 9"x4"x3" (Standard)',
     'Fly Ash Brick Modular (190 x 90 x 90 mm)',
@@ -50,30 +49,23 @@ STANDARD_RAW_MATERIALS = [
 
 
 def get_all_finished_products():
-    """Get all finished product names registered across settings, production entries, and dispatches."""
     products_set = set(STANDARD_PRODUCTS)
     try:
-        # From JobRateSetting
         rates_prods = [r[0] for r in db.session.query(distinct(JobRateSetting.product_name)).all() if r[0]]
         products_set.update(rates_prods)
-        # From JobWageEntry
         job_prods = [r[0] for r in db.session.query(distinct(JobWageEntry.product_name)).all() if r[0]]
         products_set.update(job_prods)
-        # From MaterialOutward with piece units
         out_prods = [r[0] for r in db.session.query(distinct(MaterialOutward.material_type)).all() if r[0]]
         for p in out_prods:
             if any(term in p.lower() for term in ['brick', 'block', 'paver', 'aac', 'modular', 'solid', 'hollow']):
                 products_set.update([p])
     except Exception:
         pass
-    
-    # Keep standard in order first, then custom
     custom = sorted([p for p in products_set if p not in STANDARD_PRODUCTS])
     return STANDARD_PRODUCTS + custom
 
 
 def get_all_raw_materials():
-    """Get all raw materials registered across inward and outward."""
     mats_set = set(STANDARD_RAW_MATERIALS)
     try:
         in_mats = [r[0] for r in db.session.query(distinct(MaterialInward.material_type)).all() if r[0]]
@@ -87,15 +79,14 @@ def get_all_raw_materials():
 @bp.route('/')
 @login_required
 def index():
+    """Main Stock & Yard Balance Sheet."""
     today = date.today()
     search = request.args.get('search', '').strip()
-    status_filter = request.args.get('status', 'all')  # all, in_stock, low_stock, out_of_stock
+    status_filter = request.args.get('status', 'all')
 
     all_products = get_all_finished_products()
     all_raw_mats = get_all_raw_materials()
 
-    # 1. Finished Goods Stock (Pieces / Pcs)
-    # Production adds to stock (+) | Outward minuses from stock (-)
     finished_goods_stock = []
     total_yard_pieces = 0.0
     total_produced_all = 0.0
@@ -105,20 +96,17 @@ def index():
         if search and search.lower() not in prod.lower():
             continue
 
-        # Total Produced (+)
         produced_qty = db.session.query(func.sum(JobWageEntry.quantity)).filter(
             JobWageEntry.product_name.ilike(f'%{prod}%'),
             JobWageEntry.job_type.ilike('%Production%')
         ).scalar() or 0.0
 
-        # Total Dispatched (-)
         dispatched_qty = db.session.query(func.sum(MaterialOutward.quantity_mt)).filter(
             MaterialOutward.material_type.ilike(f'%{prod}%')
         ).scalar() or 0.0
 
         current_balance = produced_qty - dispatched_qty
         
-        # Determine status
         if current_balance > 3000:
             stock_status = 'In Stock'
             badge_class = 'bg-success bg-opacity-10 text-success'
@@ -132,7 +120,6 @@ def index():
             stock_status = 'Negative Balance'
             badge_class = 'bg-danger bg-opacity-10 text-danger'
 
-        # Filter by status
         if status_filter == 'in_stock' and current_balance <= 0:
             continue
         elif status_filter == 'low_stock' and (current_balance <= 0 or current_balance > 3000):
@@ -140,7 +127,6 @@ def index():
         elif status_filter == 'out_of_stock' and current_balance > 0:
             continue
 
-        # Only include if there is activity or standard items
         if produced_qty > 0 or dispatched_qty > 0 or prod in STANDARD_PRODUCTS[:6]:
             finished_goods_stock.append({
                 'name': prod,
@@ -155,8 +141,6 @@ def index():
             total_produced_all += produced_qty
             total_dispatched_all += dispatched_qty
 
-    # 2. Raw Materials Stock (Tons / MT)
-    # Inward adds to stock (+) | Outward minuses from stock (-)
     raw_materials_stock = []
     total_raw_tons = 0.0
 
@@ -184,7 +168,6 @@ def index():
             })
             total_raw_tons += max(0, balance_tons)
 
-    # 3. Live Stock Movement Activity Feed (Last 6 Production + Last 6 Dispatches)
     recent_additions = JobWageEntry.query.filter(JobWageEntry.job_type.ilike('%Production%')).order_by(JobWageEntry.date.desc(), JobWageEntry.id.desc()).limit(6).all()
     recent_deductions = MaterialOutward.query.order_by(MaterialOutward.date.desc(), MaterialOutward.id.desc()).limit(6).all()
 
@@ -203,6 +186,250 @@ def index():
     )
 
 
+@bp.route('/production')
+@login_required
+def production_sheet():
+    """Dedicated Production Sheet tracking all manufacturing output adding to stock (+)."""
+    today = date.today()
+    first_day = today.replace(day=1)
+
+    from_date_str = request.args.get('from_date', first_day.strftime('%Y-%m-%d'))
+    to_date_str = request.args.get('to_date', today.strftime('%Y-%m-%d'))
+    product_name = request.args.get('product_name', '').strip()
+    group_id = request.args.get('group_id', type=int)
+    search = request.args.get('search', '').strip()
+
+    query = JobWageEntry.query.filter(JobWageEntry.job_type.ilike('%Production%'))
+
+    try:
+        if from_date_str:
+            f_d = datetime.strptime(from_date_str, '%Y-%m-%d').date()
+            query = query.filter(JobWageEntry.date >= f_d)
+        if to_date_str:
+            t_d = datetime.strptime(to_date_str, '%Y-%m-%d').date()
+            query = query.filter(JobWageEntry.date <= t_d)
+    except ValueError:
+        pass
+
+    if product_name:
+        query = query.filter(JobWageEntry.product_name == product_name)
+    if group_id:
+        query = query.filter(JobWageEntry.group_id == group_id)
+    if search:
+        search_fmt = f'%{search}%'
+        query = query.filter(
+            (JobWageEntry.product_name.ilike(search_fmt)) |
+            (JobWageEntry.notes.ilike(search_fmt))
+        )
+
+    entries = query.order_by(JobWageEntry.date.desc(), JobWageEntry.id.desc()).all()
+
+    total_production_qty = sum(e.quantity for e in entries)
+    total_labor_cost = sum(e.total_amount for e in entries)
+    
+    # Month to date and today metrics
+    today_produced = db.session.query(func.sum(JobWageEntry.quantity)).filter(
+        JobWageEntry.date == today,
+        JobWageEntry.job_type.ilike('%Production%')
+    ).scalar() or 0.0
+
+    month_produced = db.session.query(func.sum(JobWageEntry.quantity)).filter(
+        JobWageEntry.date >= first_day,
+        JobWageEntry.date <= today,
+        JobWageEntry.job_type.ilike('%Production%')
+    ).scalar() or 0.0
+
+    # Product-wise summary in current filtered view
+    product_summary = {}
+    for e in entries:
+        product_summary[e.product_name] = product_summary.get(e.product_name, 0.0) + e.quantity
+
+    groups = EmployeeGroup.query.filter_by(is_active=True).all()
+    all_products = get_all_finished_products()
+
+    return render_template(
+        'stock/production_sheet.html',
+        entries=entries,
+        total_production_qty=total_production_qty,
+        total_labor_cost=total_labor_cost,
+        today_produced=today_produced,
+        month_produced=month_produced,
+        product_summary=product_summary,
+        groups=groups,
+        all_products=all_products,
+        from_date=from_date_str,
+        to_date=to_date_str,
+        selected_product=product_name,
+        selected_group=group_id,
+        search=search
+    )
+
+
+@bp.route('/loading')
+@login_required
+def loading_sheet():
+    """Dedicated Loading & Dispatch Sheet tracking lorry/tractor loading deducting from stock (-)."""
+    today = date.today()
+    first_day = today.replace(day=1)
+
+    from_date_str = request.args.get('from_date', first_day.strftime('%Y-%m-%d'))
+    to_date_str = request.args.get('to_date', today.strftime('%Y-%m-%d'))
+    product_name = request.args.get('product_name', '').strip()
+    search = request.args.get('search', '').strip()
+
+    # Query piece-rate loading wage entries
+    loading_wage_query = JobWageEntry.query.filter(
+        (JobWageEntry.job_type.ilike('%Loading%')) | (JobWageEntry.job_type.ilike('%Unloading%'))
+    )
+
+    # Query material outward dispatches
+    outward_query = MaterialOutward.query
+
+    try:
+        if from_date_str:
+            f_d = datetime.strptime(from_date_str, '%Y-%m-%d').date()
+            loading_wage_query = loading_wage_query.filter(JobWageEntry.date >= f_d)
+            outward_query = outward_query.filter(MaterialOutward.date >= f_d)
+        if to_date_str:
+            t_d = datetime.strptime(to_date_str, '%Y-%m-%d').date()
+            loading_wage_query = loading_wage_query.filter(JobWageEntry.date <= t_d)
+            outward_query = outward_query.filter(MaterialOutward.date <= t_d)
+    except ValueError:
+        pass
+
+    if product_name:
+        loading_wage_query = loading_wage_query.filter(JobWageEntry.product_name == product_name)
+        outward_query = outward_query.filter(MaterialOutward.material_type == product_name)
+    if search:
+        search_fmt = f'%{search}%'
+        loading_wage_query = loading_wage_query.filter(
+            (JobWageEntry.product_name.ilike(search_fmt)) |
+            (JobWageEntry.vehicle_no.ilike(search_fmt)) |
+            (JobWageEntry.notes.ilike(search_fmt))
+        )
+        outward_query = outward_query.filter(
+            (MaterialOutward.material_type.ilike(search_fmt)) |
+            (MaterialOutward.vehicle_no.ilike(search_fmt)) |
+            (MaterialOutward.notes.ilike(search_fmt))
+        )
+
+    loading_entries = loading_wage_query.order_by(JobWageEntry.date.desc(), JobWageEntry.id.desc()).all()
+    outward_entries = outward_query.order_by(MaterialOutward.date.desc(), MaterialOutward.id.desc()).all()
+
+    total_loading_wages = sum(e.total_amount for e in loading_entries)
+    total_loaded_pcs = sum(e.quantity for e in loading_entries if 'piece' in (e.unit or '').lower() or 'pcs' in (e.unit or '').lower())
+    
+    total_outward_pcs = sum(e.quantity_mt for e in outward_entries if 'piece' in (e.quantity_unit or '').lower() or 'pcs' in (e.quantity_unit or '').lower())
+    total_outward_tons = sum(e.quantity_mt for e in outward_entries if 'ton' in (e.quantity_unit or '').lower() or 'mt' in (e.quantity_unit or '').lower())
+    total_outward_revenue = sum(e.amount for e in outward_entries)
+
+    all_products = get_all_finished_products()
+
+    return render_template(
+        'stock/loading_sheet.html',
+        loading_entries=loading_entries,
+        outward_entries=outward_entries,
+        total_loading_wages=total_loading_wages,
+        total_loaded_pcs=total_loaded_pcs,
+        total_outward_pcs=total_outward_pcs,
+        total_outward_tons=total_outward_tons,
+        total_outward_revenue=total_outward_revenue,
+        all_products=all_products,
+        from_date=from_date_str,
+        to_date=to_date_str,
+        selected_product=product_name,
+        search=search
+    )
+
+
+@bp.route('/production/export')
+@login_required
+def export_production_csv():
+    from_date_str = request.args.get('from_date')
+    to_date_str = request.args.get('to_date')
+    product_name = request.args.get('product_name')
+
+    query = JobWageEntry.query.filter(JobWageEntry.job_type.ilike('%Production%'))
+    try:
+        if from_date_str:
+            query = query.filter(JobWageEntry.date >= datetime.strptime(from_date_str, '%Y-%m-%d').date())
+        if to_date_str:
+            query = query.filter(JobWageEntry.date <= datetime.strptime(to_date_str, '%Y-%m-%d').date())
+    except ValueError:
+        pass
+    if product_name:
+        query = query.filter(JobWageEntry.product_name == product_name)
+
+    entries = query.order_by(JobWageEntry.date.desc(), JobWageEntry.id.desc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['ID', 'Date', 'Product Name', 'Operation Type', 'Quantity Produced (Pcs)', 'Piece Rate (INR)', 'Total Labor Cost (INR)', 'Workers Count', 'Wage Per Worker (INR)', 'Labor Group', 'Notes / Shift'])
+
+    for e in entries:
+        writer.writerow([
+            e.id,
+            e.date.strftime('%Y-%m-%d'),
+            e.product_name,
+            e.job_type,
+            f'{e.quantity:.0f}',
+            f'{e.rate_per_unit:.2f}',
+            f'{e.total_amount:.2f}',
+            e.worker_count,
+            f'{e.wage_per_worker:.2f}',
+            e.group.name if e.group else 'Individual',
+            e.notes or ''
+        ])
+
+    response = Response(output.getvalue(), mimetype='text/csv')
+    response.headers['Content-Disposition'] = f'attachment; filename=production_sheet_{date.today().strftime("%Y%m%d")}.csv'
+    return response
+
+
+@bp.route('/loading/export')
+@login_required
+def export_loading_csv():
+    from_date_str = request.args.get('from_date')
+    to_date_str = request.args.get('to_date')
+
+    query = JobWageEntry.query.filter(
+        (JobWageEntry.job_type.ilike('%Loading%')) | (JobWageEntry.job_type.ilike('%Unloading%'))
+    )
+    try:
+        if from_date_str:
+            query = query.filter(JobWageEntry.date >= datetime.strptime(from_date_str, '%Y-%m-%d').date())
+        if to_date_str:
+            query = query.filter(JobWageEntry.date <= datetime.strptime(to_date_str, '%Y-%m-%d').date())
+    except ValueError:
+        pass
+
+    entries = query.order_by(JobWageEntry.date.desc(), JobWageEntry.id.desc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['ID', 'Date', 'Operation', 'Product', 'Quantity Loaded', 'Unit', 'Rate (INR)', 'Total Loading Wage (INR)', 'Vehicle No', 'Workers Count', 'Wage Per Worker (INR)', 'Notes'])
+
+    for e in entries:
+        writer.writerow([
+            e.id,
+            e.date.strftime('%Y-%m-%d'),
+            e.job_type,
+            e.product_name,
+            f'{e.quantity:.0f}',
+            e.unit,
+            f'{e.rate_per_unit:.2f}',
+            f'{e.total_amount:.2f}',
+            e.vehicle_no or '',
+            e.worker_count,
+            f'{e.wage_per_worker:.2f}',
+            e.notes or ''
+        ])
+
+    response = Response(output.getvalue(), mimetype='text/csv')
+    response.headers['Content-Disposition'] = f'attachment; filename=loading_sheet_{date.today().strftime("%Y%m%d")}.csv'
+    return response
+
+
 @bp.route('/export')
 @login_required
 def export_csv():
@@ -212,7 +439,6 @@ def export_csv():
     output = io.StringIO()
     writer = csv.writer(output)
 
-    # Section 1: Finished Goods
     writer.writerow(['--- FINISHED GOODS STOCK (BRICKS & BLOCKS) ---'])
     writer.writerow(['Product Name', 'Total Produced (Pcs)', 'Total Dispatched (Pcs)', 'Current Balance Stock (Pcs)', 'Unit', 'Stock Status'])
 
@@ -233,7 +459,6 @@ def export_csv():
             writer.writerow([prod, f'{produced_qty:.0f}', f'{dispatched_qty:.0f}', f'{balance:.0f}', 'Pieces', status])
 
     writer.writerow([])
-    # Section 2: Raw Materials
     writer.writerow(['--- RAW MATERIALS STOCK (TONS / MT) ---'])
     writer.writerow(['Material Name', 'Total Inward (MT)', 'Total Outward / Used (MT)', 'Current Balance (MT)', 'Unit'])
 
