@@ -1,115 +1,238 @@
 {% extends "base.html" %}
 
 {% block title %}Plant Dashboard - FlyAsh ERP{% endblock %}
-{% block page_title %}Dashboard{% endblock %}
+{% block page_title %}Plant Dashboard{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-2">
-    <!-- Top Stat Cards -->
+
+    <!-- Page Header & Operational Status Bar -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div>
+            <h3 class="fw-bold mb-1 text-slate-800">
+                <i class="bi bi-speedometer2 text-primary me-2"></i>Plant Executive Dashboard
+            </h3>
+            <p class="text-muted small mb-0">Live operations, daily inward/outward registers, plant costs, and stock status.</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2 rounded-pill d-flex align-items-center gap-2">
+                <span class="spinner-grow spinner-grow-sm text-success" role="status"></span>
+                <span class="fw-semibold">Plant Live • Shift Active</span>
+            </span>
+            <button class="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-xs" onclick="window.location.reload();">
+                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Primary Metric Pillar Cards -->
     <div class="row g-3 mb-4">
-        <!-- Today Inward -->
-        <div class="col-6 col-lg-3">
+        <!-- 1. Today's Inward -->
+        <div class="col-12 col-sm-6 col-xl-3">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-success">
-                <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="text-muted small fw-semibold text-uppercase" data-i18n="today_inward">Today's Inward</div>
-                        <div class="h4 fw-bold mb-0 mt-1 text-success">{{ "{:,.1f}".format(today_inward) }} <span class="fs-6 fw-normal">MT</span></div>
-                        <div class="small text-muted mt-1">₹{{ "{:,.2f}".format(today_inward_amount) }}</div>
+                        <span class="text-muted small fw-bold text-uppercase tracking-wider">Today's Inward</span>
+                        <div class="h3 fw-bold mb-0 mt-2 text-dark">
+                            {{ "{:,.1f}".format(today_inward) }} <span class="fs-6 text-muted fw-normal">MT</span>
+                        </div>
+                        <div class="mt-2 text-success fw-semibold small">
+                            <i class="bi bi-arrow-down-left-circle me-1"></i> ₹{{ "{:,.2f}".format(today_inward_amount) }}
+                        </div>
                     </div>
-                    <div class="bg-success bg-opacity-10 text-success rounded-circle p-2.5">
+                    <div class="p-3 bg-success bg-opacity-10 text-success rounded-3">
                         <i class="bi bi-box-arrow-in-down fs-4"></i>
                     </div>
                 </div>
+                <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
+                    <span class="small text-muted">Raw Material Purchase</span>
+                    <a href="{{ url_for('materials.inward_list') }}" class="small fw-bold text-success text-decoration-none">Register &rarr;</a>
+                </div>
             </div>
         </div>
 
-        <!-- Today Outward -->
-        <div class="col-6 col-lg-3">
+        <!-- 2. Today's Outward -->
+        <div class="col-12 col-sm-6 col-xl-3">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-info">
-                <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="text-muted small fw-semibold text-uppercase" data-i18n="today_outward">Today's Outward</div>
-                        <div class="h4 fw-bold mb-0 mt-1 text-info">{{ "{:,.1f}".format(today_outward) }} <span class="fs-6 fw-normal">MT</span></div>
-                        <div class="small text-muted mt-1">₹{{ "{:,.2f}".format(today_outward_amount) }}</div>
+                        <span class="text-muted small fw-bold text-uppercase tracking-wider">Today's Outward</span>
+                        <div class="h3 fw-bold mb-0 mt-2 text-dark">
+                            {{ "{:,.1f}".format(today_outward) }} <span class="fs-6 text-muted fw-normal">MT</span>
+                        </div>
+                        <div class="mt-2 text-info fw-semibold small">
+                            <i class="bi bi-arrow-up-right-circle me-1"></i> ₹{{ "{:,.2f}".format(today_outward_amount) }}
+                        </div>
                     </div>
-                    <div class="bg-info bg-opacity-10 text-info rounded-circle p-2.5">
+                    <div class="p-3 bg-info bg-opacity-10 text-info rounded-3">
                         <i class="bi bi-box-arrow-up fs-4"></i>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- Plant Operational Expenses -->
-        <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-danger">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="text-muted small fw-semibold text-uppercase" data-i18n="expenses">Plant Expenses</div>
-                        <div class="h4 fw-bold mb-0 mt-1 text-danger">₹{{ "{:,.2f}".format(today_expenses) }}</div>
-                        <div class="small text-muted mt-1">Month: ₹{{ "{:,.2f}".format(month_expenses) }}</div>
-                    </div>
-                    <div class="bg-danger bg-opacity-10 text-danger rounded-circle p-2.5">
-                        <i class="bi bi-wallet2 fs-4"></i>
-                    </div>
+                <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
+                    <span class="small text-muted">Dispatches & Sales</span>
+                    <a href="{{ url_for('materials.outward_list') }}" class="small fw-bold text-info text-decoration-none">Register &rarr;</a>
                 </div>
             </div>
         </div>
 
-        <!-- Outstanding Balances -->
-        <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-warning">
-                <div class="d-flex justify-content-between align-items-center">
+        <!-- 3. Operational Expenses -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-danger">
+                <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="text-muted small fw-semibold text-uppercase" data-i18n="outstanding">Outstanding Dues</div>
-                        <div class="h5 fw-bold mb-0 mt-1 text-success">₹{{ "{:,.2f}".format(total_receivable) }} <span class="fs-7 text-muted fw-normal">(Dr)</span></div>
-                        <div class="small text-danger mt-1">Payable: ₹{{ "{:,.2f}".format(total_payable) }}</div>
+                        <span class="text-muted small fw-bold text-uppercase tracking-wider">Plant Expenses</span>
+                        <div class="h3 fw-bold mb-0 mt-2 text-danger">
+                            ₹{{ "{:,.2f}".format(today_expenses) }}
+                        </div>
+                        <div class="mt-2 text-muted small">
+                            Month Total: <span class="fw-semibold text-dark">₹{{ "{:,.2f}".format(month_expenses) }}</span>
+                        </div>
                     </div>
-                    <div class="bg-warning bg-opacity-10 text-warning rounded-circle p-2.5">
+                    <div class="p-3 bg-danger bg-opacity-10 text-danger rounded-3">
+                        <i class="bi bi-wallet2 fs-4"></i>
+                    </div>
+                </div>
+                <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
+                    <span class="small text-muted">Diesel, Repairs, Tea</span>
+                    <a href="{{ url_for('expenses.list_expenses') }}" class="small fw-bold text-danger text-decoration-none">Details &rarr;</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Party Outstanding Balance -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-warning">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <span class="text-muted small fw-bold text-uppercase tracking-wider">Outstanding Dues</span>
+                        <div class="h4 fw-bold mb-0 mt-2 text-success">
+                            ₹{{ "{:,.2f}".format(total_receivable) }} <span class="fs-7 text-muted fw-normal">(Dr)</span>
+                        </div>
+                        <div class="mt-2 text-danger small fw-semibold">
+                            Payable: ₹{{ "{:,.2f}".format(total_payable) }} (Cr)
+                        </div>
+                    </div>
+                    <div class="p-3 bg-warning bg-opacity-10 text-warning rounded-3">
                         <i class="bi bi-cash-stack fs-4"></i>
                     </div>
+                </div>
+                <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
+                    <span class="small text-muted">{{ total_parties }} Trade Parties</span>
+                    <a href="{{ url_for('parties.party_outstanding') }}" class="small fw-bold text-warning text-decoration-none">Manage Dues &rarr;</a>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Quick Action Shortcut Hub -->
+    <!-- Secondary Operations Summary Strip -->
+    <div class="row g-3 mb-4">
+        <!-- Piece Rate Production Output -->
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="bg-primary bg-opacity-10 text-primary p-2.5 rounded-circle">
+                            <i class="bi bi-hammer fs-4"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small fw-bold text-uppercase">Today's Piece-Rate Work</div>
+                            <div class="fw-bold text-dark fs-5 mt-0.5">{{ "{:,.0f}".format(today_jobs_pieces) }} <span class="fs-7 text-muted fw-normal">Units / Bricks</span></div>
+                            <small class="text-primary fw-semibold">{{ today_jobs_count }} Job Allocations • ₹{{ "{:,.2f}".format(today_jobs_amount) }}</small>
+                        </div>
+                    </div>
+                    <a href="{{ url_for('employees.job_wages_list') }}" class="btn btn-outline-primary btn-sm rounded-pill px-2.5">
+                        View Log
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Staff & Workforce Status -->
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="bg-success bg-opacity-10 text-success p-2.5 rounded-circle">
+                            <i class="bi bi-people-fill fs-4"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small fw-bold text-uppercase">Active Plant Workforce</div>
+                            <div class="fw-bold text-dark fs-5 mt-0.5">{{ total_employees }} <span class="fs-7 text-muted fw-normal">Active Staff</span></div>
+                            <small class="text-muted">Drivers, Operators & Gang Workers</small>
+                        </div>
+                    </div>
+                    <a href="{{ url_for('employees.attendance') }}" class="btn btn-outline-success btn-sm rounded-pill px-2.5">
+                        Attendance
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Stock Register Access -->
+        <div class="col-12 col-xl-4">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="bg-secondary bg-opacity-10 text-secondary p-2.5 rounded-circle">
+                            <i class="bi bi-stack fs-4"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small fw-bold text-uppercase">Finished Product Stock</div>
+                            <div class="fw-bold text-dark fs-5 mt-0.5">Production & Loading</div>
+                            <small class="text-muted">Weekly & Monthly Separated Sheets</small>
+                        </div>
+                    </div>
+                    <a href="{{ url_for('stock.production_sheet') }}" class="btn btn-outline-dark btn-sm rounded-pill px-2.5">
+                        Open Stock
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Operations Action Grid -->
     <div class="card border-0 shadow-sm rounded-3 bg-white mb-4">
-        <div class="card-body p-3">
-            <div class="fw-semibold text-slate-800 small text-uppercase mb-2" data-i18n="quick_actions">⚡ Quick Actions & Daily Operations</div>
+        <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+            <h6 class="fw-bold text-slate-800 mb-0 d-flex align-items-center gap-2">
+                <i class="bi bi-lightning-charge-fill text-warning"></i> Quick Operations & Rapid Data Entry
+            </h6>
+            <span class="small text-muted">1-Click Fast Recording</span>
+        </div>
+        <div class="card-body pt-0 pb-3">
             <div class="row g-2">
-                <div class="col-6 col-md-3 col-lg-2">
-                    <a href="{{ url_for('expenses.add_expense') }}" class="btn btn-outline-danger w-100 p-2.5 d-flex flex-column align-items-center justify-content-center rounded-3 shadow-xs">
-                        <i class="bi bi-plus-circle-fill fs-5 mb-1"></i>
-                        <span class="small fw-semibold">Add Expense</span>
-                    </a>
-                </div>
-                <div class="col-6 col-md-3 col-lg-2">
-                    <a href="{{ url_for('parties.party_outstanding') }}" class="btn btn-outline-success w-100 p-2.5 d-flex flex-column align-items-center justify-content-center rounded-3 shadow-xs">
-                        <i class="bi bi-whatsapp fs-5 mb-1"></i>
-                        <span class="small fw-semibold">Outstanding Manager</span>
-                    </a>
-                </div>
-                <div class="col-6 col-md-3 col-lg-2">
+                <div class="col-6 col-md-4 col-lg-2">
                     <a href="{{ url_for('materials.inward_add') }}" class="btn btn-outline-primary w-100 p-2.5 d-flex flex-column align-items-center justify-content-center rounded-3 shadow-xs">
-                        <i class="bi bi-box-arrow-in-down fs-5 mb-1"></i>
+                        <i class="bi bi-box-arrow-in-down fs-4 mb-1"></i>
                         <span class="small fw-semibold">Add Inward</span>
                     </a>
                 </div>
-                <div class="col-6 col-md-3 col-lg-2">
+                <div class="col-6 col-md-4 col-lg-2">
                     <a href="{{ url_for('materials.outward_add') }}" class="btn btn-outline-info w-100 p-2.5 d-flex flex-column align-items-center justify-content-center rounded-3 shadow-xs">
-                        <i class="bi bi-box-arrow-up fs-5 mb-1"></i>
+                        <i class="bi bi-box-arrow-up fs-4 mb-1"></i>
                         <span class="small fw-semibold">Add Outward</span>
                     </a>
                 </div>
-                <div class="col-6 col-md-3 col-lg-2">
-                    <a href="{{ url_for('employees.job_wages_add') }}" class="btn btn-outline-warning w-100 p-2.5 d-flex flex-column align-items-center justify-content-center rounded-3 shadow-xs">
-                        <i class="bi bi-hammer fs-5 mb-1"></i>
-                        <span class="small fw-semibold">Piece Wage Entry</span>
+                <div class="col-6 col-md-4 col-lg-2">
+                    <a href="{{ url_for('employees.job_wages_add') }}" class="btn btn-outline-warning w-100 p-2.5 d-flex flex-column align-items-center justify-content-center rounded-3 shadow-xs text-dark">
+                        <i class="bi bi-hammer fs-4 mb-1 text-warning"></i>
+                        <span class="small fw-semibold">Record Piece Wage</span>
                     </a>
                 </div>
-                <div class="col-6 col-md-3 col-lg-2">
+                <div class="col-6 col-md-4 col-lg-2">
+                    <a href="{{ url_for('expenses.add_expense') }}" class="btn btn-outline-danger w-100 p-2.5 d-flex flex-column align-items-center justify-content-center rounded-3 shadow-xs">
+                        <i class="bi bi-plus-circle-fill fs-4 mb-1"></i>
+                        <span class="small fw-semibold">Record Expense</span>
+                    </a>
+                </div>
+                <div class="col-6 col-md-4 col-lg-2">
+                    <a href="{{ url_for('parties.party_outstanding') }}" class="btn btn-outline-success w-100 p-2.5 d-flex flex-column align-items-center justify-content-center rounded-3 shadow-xs">
+                        <i class="bi bi-whatsapp fs-4 mb-1"></i>
+                        <span class="small fw-semibold">Outstanding Dues</span>
+                    </a>
+                </div>
+                <div class="col-6 col-md-4 col-lg-2">
                     <a href="{{ url_for('parties.payment_add') }}" class="btn btn-outline-dark w-100 p-2.5 d-flex flex-column align-items-center justify-content-center rounded-3 shadow-xs">
-                        <i class="bi bi-cash fs-5 mb-1"></i>
+                        <i class="bi bi-cash-coin fs-4 mb-1"></i>
                         <span class="small fw-semibold">Record Payment</span>
                     </a>
                 </div>
@@ -117,35 +240,93 @@
         </div>
     </div>
 
-    <!-- Charts & Stock Grid -->
+    <!-- Clear Tabular Performance & Stock Inventory View (No Graphs) -->
     <div class="row g-3 mb-4">
-        <!-- Monthly Inward vs Outward Chart -->
+        <!-- 6-Month Performance Statement Table -->
         <div class="col-12 col-lg-8">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="fw-bold text-slate-800 mb-0"><i class="bi bi-graph-up text-primary me-1"></i> Monthly Material Revenue vs Inward Cost (₹)</h6>
+                    <div>
+                        <h6 class="fw-bold text-slate-800 mb-0 d-flex align-items-center gap-2">
+                            <i class="bi bi-table text-primary"></i> 6-Month Material & Revenue Performance Statement
+                        </h6>
+                        <small class="text-muted">Month-by-month inward cost, outward dispatch value and trade balance</small>
+                    </div>
+                    <a href="{{ url_for('reports.index') }}" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+                        Full Reports
+                    </a>
                 </div>
-                <div style="height: 260px;">
-                    <canvas id="monthlyChart"></canvas>
+                <div class="table-responsive">
+                    <table class="table table-hover table-bordered align-middle mb-0 small">
+                        <thead class="table-light text-center">
+                            <tr>
+                                <th class="text-start">Month</th>
+                                <th>Inward Purchases (MT)</th>
+                                <th>Inward Value (₹)</th>
+                                <th>Outward Sales (MT)</th>
+                                <th>Outward Value (₹)</th>
+                                <th>Net Balance (₹)</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in monthly_performance %}
+                            <tr class="{% if m.is_current %}table-primary table-opacity-10 fw-semibold{% endif %}">
+                                <td class="text-start">
+                                    <span class="fw-bold text-dark">{{ m.label }}</span>
+                                    {% if m.is_current %}
+                                    <span class="badge bg-primary ms-1">Current</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">{{ "{:,.1f}".format(m.inward_qty) }} MT</td>
+                                <td class="text-end text-success fw-semibold">₹{{ "{:,.2f}".format(m.inward_amount) }}</td>
+                                <td class="text-center">{{ "{:,.1f}".format(m.outward_qty) }} MT</td>
+                                <td class="text-end text-info fw-semibold">₹{{ "{:,.2f}".format(m.outward_amount) }}</td>
+                                <td class="text-end fw-bold {% if m.net_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    ₹{{ "{:,.2f}".format(m.net_balance) }}
+                                </td>
+                                <td class="text-center">
+                                    {% if m.net_balance >= 0 %}
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
+                                        Surplus
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1">
+                                        Inflow High
+                                    </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
 
-        <!-- Raw Material Stock Overview -->
+        <!-- Raw Material Stock Inventory -->
         <div class="col-12 col-lg-4">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
-                <h6 class="fw-bold text-slate-800 mb-3"><i class="bi bi-boxes text-info me-1"></i> Raw Material Stock (MT)</h6>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold text-slate-800 mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-boxes text-info"></i> Raw Material Stock Health
+                    </h6>
+                    <a href="{{ url_for('stock.index') }}" class="btn btn-outline-info btn-sm rounded-pill px-2.5">
+                        Stock Register
+                    </a>
+                </div>
                 <div class="list-group list-group-flush">
                     {% for mat in stock_overview %}
-                    <div class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
-                        <div>
-                            <div class="fw-bold text-slate-700">{{ mat.name }}</div>
-                            <small class="text-muted">In: {{ "{:,.1f}".format(mat.inward) }} | Out: {{ "{:,.1f}".format(mat.outward) }}</small>
-                        </div>
-                        <div class="text-end">
-                            <span class="badge {% if mat.balance >= 0 %}bg-success bg-opacity-10 text-success{% else %}bg-danger bg-opacity-10 text-danger{% endif %} fs-6 fw-bold">
+                    <div class="list-group-item px-0 py-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fw-bold text-slate-800 fs-6">{{ mat.name }}</span>
+                            <span class="badge {% if mat.balance >= 0 %}bg-success bg-opacity-10 text-success border border-success border-opacity-25{% else %}bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25{% endif %} fs-6 fw-bold px-2.5 py-1">
                                 {{ "{:,.1f}".format(mat.balance) }} MT
                             </span>
+                        </div>
+                        <div class="d-flex justify-content-between text-muted small">
+                            <span><i class="bi bi-arrow-down text-success"></i> In: {{ "{:,.1f}".format(mat.inward) }} MT</span>
+                            <span><i class="bi bi-arrow-up text-info"></i> Out: {{ "{:,.1f}".format(mat.outward) }} MT</span>
                         </div>
                     </div>
                     {% endfor %}
@@ -154,21 +335,23 @@
         </div>
     </div>
 
-    <!-- Recent Expenses & Recent Dispatches -->
+    <!-- Recent Operations Activity Tables -->
     <div class="row g-3 mb-4">
-        <!-- Recent Plant Expenses -->
+        <!-- Recent Plant Operational Expenses -->
         <div class="col-12 col-lg-6">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="fw-bold text-slate-800 mb-0"><i class="bi bi-wallet2 text-danger me-1"></i> Recent Operational Expenses</h6>
-                    <a href="{{ url_for('expenses.list_expenses') }}" class="btn btn-outline-danger btn-sm">View All</a>
+                    <h6 class="fw-bold text-slate-800 mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-wallet2 text-danger"></i> Recent Operational Expenses
+                    </h6>
+                    <a href="{{ url_for('expenses.list_expenses') }}" class="btn btn-outline-danger btn-sm rounded-pill px-3">View All</a>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0 small">
                         <thead class="table-light">
                             <tr>
                                 <th>Date</th>
-                                <th>Category / Title</th>
+                                <th>Title & Category</th>
                                 <th>Mode</th>
                                 <th class="text-end">Amount (₹)</th>
                             </tr>
@@ -197,16 +380,18 @@
         <div class="col-12 col-lg-6">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="fw-bold text-slate-800 mb-0"><i class="bi bi-box-arrow-up text-info me-1"></i> Recent Material Outward</h6>
-                    <a href="{{ url_for('materials.outward_list') }}" class="btn btn-outline-info btn-sm">View All</a>
+                    <h6 class="fw-bold text-slate-800 mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-box-arrow-up text-info"></i> Recent Material Outward
+                    </h6>
+                    <a href="{{ url_for('materials.outward_list') }}" class="btn btn-outline-info btn-sm rounded-pill px-3">View All</a>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0 small">
                         <thead class="table-light">
                             <tr>
                                 <th>Date</th>
-                                <th>Party</th>
-                                <th>Material</th>
+                                <th>Customer Party</th>
+                                <th>Material (Qty)</th>
                                 <th class="text-end">Amount (₹)</th>
                             </tr>
                         </thead>
@@ -227,53 +412,6 @@
             </div>
         </div>
     </div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const ctx = document.getElementById('monthlyChart');
-    if (ctx) {
-        new Chart(ctx.getContext('2d'), {
-            type: 'bar',
-            data: {
-                labels: {{ month_labels | tojson }},
-                datasets: [
-                    {
-                        label: 'Inward Cost (₹)',
-                        data: {{ inward_amounts | tojson }},
-                        backgroundColor: 'rgba(16, 185, 129, 0.75)',
-                        borderColor: '#10b981',
-                        borderWidth: 1,
-                        borderRadius: 4
-                    },
-                    {
-                        label: 'Outward Revenue (₹)',
-                        data: {{ outward_amounts | tojson }},
-                        backgroundColor: 'rgba(14, 165, 233, 0.75)',
-                        borderColor: '#0ea5e9',
-                        borderWidth: 1,
-                        borderRadius: 4
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom' }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(val) { return '₹' + Number(val).toLocaleString('en-IN'); }
-                        }
-                    }
-                }
-            }
-        });
-    }
-});
-</script>
+</div>
 {% endblock %}
