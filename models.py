@@ -209,6 +209,8 @@ class Employee(db.Model):
                                   cascade='all, delete-orphan')
     job_allocations = db.relationship('EmployeeJobAllocation', backref='employee', lazy=True,
                                       cascade='all, delete-orphan')
+    salary_payments = db.relationship('EmployeeSalaryPayment', backref='employee', lazy=True,
+                                      cascade='all, delete-orphan')
 
     def __repr__(self):
         return f'<Employee {self.name}>'
@@ -399,3 +401,22 @@ class StockAdjustment(db.Model):
 
     def __repr__(self):
         return f'<StockAdjustment {self.date} {self.item_name} {self.quantity} {self.unit} ({self.adjustment_type})>'
+
+
+class EmployeeSalaryPayment(db.Model):
+    """Weekly / periodic salary and wage disbursement record with payment notes."""
+    __tablename__ = 'employee_salary_payment'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id', ondelete='CASCADE'), nullable=False)
+    period_from = db.Column(db.Date, nullable=False)
+    period_to = db.Column(db.Date, nullable=False)
+    payment_date = db.Column(db.Date, nullable=False, default=date.today)
+    amount = db.Column(db.Float, nullable=False, default=0.0)
+    payment_mode = db.Column(db.String(30), default='cash')  # cash, upi, bank_transfer, cheque
+    status = db.Column(db.String(20), default='paid')        # paid, partial, unpaid
+    reference_no = db.Column(db.String(50))                  # UPI txn ID / Cheque No / Voucher
+    notes = db.Column(db.Text)                               # Custom note / remark e.g. "Paid weekly wages for Week 37"
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<EmployeeSalaryPayment Emp:{self.employee_id} {self.period_from} to {self.period_to} ₹{self.amount} ({self.status})>'

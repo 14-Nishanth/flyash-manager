@@ -4,7 +4,8 @@ def resolve_employee_period(period_param, from_date_str, to_date_str):
     today = date.today()
     if period_param == 'today':
         return today.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d')
-    elif period_param == 'this_week':
+    elif period_param == 'this_week' or (not period_param and not from_date_str and not to_date_str):
+        # Default to current weekly basis (Monday to Sunday)
         mon = today - timedelta(days=today.weekday())
         sun = mon + timedelta(days=6)
         return mon.strftime('%Y-%m-%d'), sun.strftime('%Y-%m-%d')
@@ -26,7 +27,9 @@ def resolve_employee_period(period_param, from_date_str, to_date_str):
     elif period_param == 'all':
         return '', ''
     if not from_date_str and not to_date_str:
-        return today.replace(day=1).strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d')
+        mon = today - timedelta(days=today.weekday())
+        sun = mon + timedelta(days=6)
+        return mon.strftime('%Y-%m-%d'), sun.strftime('%Y-%m-%d')
     return from_date_str, to_date_str
 
 import io
@@ -34,7 +37,7 @@ import csv
 import json
 from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify
 from flask_login import login_required
-from models import db, Employee, Attendance, JobWageEntry, EmployeeJobAllocation, JobRateSetting, EmployeeGroup, AlertSettings
+from models import db, Employee, Attendance, JobWageEntry, EmployeeJobAllocation, JobRateSetting, EmployeeGroup, AlertSettings, EmployeeSalaryPayment
 from datetime import datetime, date
 from sqlalchemy import func
 
@@ -1042,7 +1045,8 @@ def job_wages_delete(id):
 @bp.route('/salary-sheet')
 @login_required
 def salary_sheet():
-    """Ultra-fast Bulk Salary Sheet with separate Production & Loading/Unloading Wage and Volume tracking."""
+    """Weekly & Periodic Employee Salary & Wage Sheet with 1-Click Mark-As-Paid, Notes, and Separate Production/Loading Wages."""
+    from datetime import timedelta
     today = date.today()
     period_param = request.args.get('period', '')
     from_date_raw = request.args.get('from_date', '')
@@ -1050,11 +1054,19 @@ def salary_sheet():
     from_date_str, to_date_str = resolve_employee_period(period_param, from_date_raw, to_date_raw)
 
     try:
-        from_date = datetime.strptime(from_date_str, '%Y-%m-%d').date() if from_date_str else today.replace(day=1)
-        to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date() if to_date_str else today
+        from_date = datetime.strptime(from_date_str, '%Y-%m-%d').date() if from_date_str else (today - timedelta(days=today.weekday()))
+        to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date() if to_date_str else (from_date + timedelta(days=6))
     except ValueError:
-        from_date = today.replace(day=1)
-        to_date = today
+        from_date = today - timedelta(days=today.weekday())
+        to_date = from_date + timedelta(days=6)
+        from_date_str = from_date.strftime('%Y-%m-%d')
+        to_date_str = to_date.strftime('%Y-%m-%d')
+
+    # Weekly navigation dates
+    prev_week_from = (from_date - timedelta(days=7)).strftime('%Y-%m-%d')
+    prev_week_to = (to_date - timedelta(days=7)).strftime('%Y-%m-%d')
+    next_week_from = (from_date + timedelta(days=7)).strftime('%Y-%m-%d')
+    next_week_to = (to_date + timedelta(days=7)).strftime('%Y-%m-%d')
 
     employees = Employee.query.order_by(Employee.name).all()
 
@@ -1089,7 +1101,6 @@ def salary_sheet():
     for emp_id, alloc_wage, jt, qty, gross_qty, tray_cnt, veh_no in alloc_rows:
         jt_clean = (jt or '').lower()
         is_prod = 'production' in jt_clean or (tray_cnt is not None and tray_cnt > 0)
-        
         vol = (gross_qty if (gross_qty and gross_qty > 0) else qty) or 0.0
 
         if is_prod:
@@ -1105,6 +1116,13 @@ def salary_sheet():
             emp_load_map[emp_id]['wage'] += (alloc_wage or 0.0)
             emp_load_map[emp_id]['volume'] += (qty or 0.0)
 
+    # Bulk query 3: Salary payment status records for this exact weekly period
+    payments = EmployeeSalaryPayment.query.filter(
+        EmployeeSalaryPayment.period_from == from_date,
+        EmployeeSalaryPayment.period_to == to_date
+    ).all()
+    payment_map = {p.employee_id: p for p in payments}
+
     salary_data = []
     grand_prod_wage = 0.0
     grand_prod_volume = 0.0
@@ -1114,6 +1132,8 @@ def salary_sheet():
     grand_load_jobs = 0
     grand_attendance_wage = 0.0
     grand_total_salary = 0.0
+    grand_paid_salary = 0.0
+    paid_workers_count = 0
 
     for emp in employees:
         e_att = att_map.get(emp.id, {'present': 0, 'half-day': 0, 'absent': 0})
@@ -1144,6 +1164,13 @@ def salary_sheet():
         grand_load_jobs += load_jobs
         grand_total_salary += net_salary
 
+        # Payment status for this employee
+        pay_record = payment_map.get(emp.id)
+        is_paid = (pay_record is not None and pay_record.status == 'paid')
+        if is_paid:
+            grand_paid_salary += pay_record.amount
+            paid_workers_count += 1
+
         salary_data.append({
             'employee': emp,
             'days_present': days_present,
@@ -1157,14 +1184,30 @@ def salary_sheet():
             'load_volume': load_volume,
             'load_wage': load_wage,
             'piece_rate_wages': prod_wage + load_wage,
-            'net_salary': net_salary
+            'net_salary': net_salary,
+            'is_paid': is_paid,
+            'payment': pay_record,
+            'paid_amount': pay_record.amount if pay_record else net_salary,
+            'payment_date': pay_record.payment_date if pay_record else today,
+            'payment_mode': pay_record.payment_mode if pay_record else 'cash',
+            'payment_notes': pay_record.notes if pay_record else '',
+            'payment_ref': pay_record.reference_no if pay_record else '',
+            'payment_id': pay_record.id if pay_record else None
         })
+
+    grand_pending_salary = max(0.0, grand_total_salary - grand_paid_salary)
+    unpaid_workers_count = len(employees) - paid_workers_count
 
     return render_template('employees/salary_sheet.html',
                            salary_data=salary_data,
                            from_date=from_date_str,
                            to_date=to_date_str,
                            period=period_param,
+                           prev_week_from=prev_week_from,
+                           prev_week_to=prev_week_to,
+                           next_week_from=next_week_from,
+                           next_week_to=next_week_to,
+                           today=today,
                            grand_attendance_wage=grand_attendance_wage,
                            grand_prod_wage=grand_prod_wage,
                            grand_prod_volume=grand_prod_volume,
@@ -1173,7 +1216,215 @@ def salary_sheet():
                            grand_load_volume=grand_load_volume,
                            grand_load_jobs=grand_load_jobs,
                            grand_piece_wage=grand_prod_wage + grand_load_wage,
-                           grand_total_salary=grand_total_salary)
+                           grand_total_salary=grand_total_salary,
+                           grand_paid_salary=grand_paid_salary,
+                           grand_pending_salary=grand_pending_salary,
+                           paid_workers_count=paid_workers_count,
+                           unpaid_workers_count=unpaid_workers_count)
+
+
+@bp.route('/salary-sheet/mark-paid', methods=['POST'])
+@login_required
+def salary_sheet_mark_paid():
+    """1-Click mark salary as paid for an employee with payment date, mode and notes."""
+    emp_id = request.form.get('employee_id', type=int)
+    from_date_str = request.form.get('from_date', '').strip()
+    to_date_str = request.form.get('to_date', '').strip()
+    amount = request.form.get('amount', type=float, default=0.0)
+    payment_date_str = request.form.get('payment_date', '').strip()
+    payment_mode = request.form.get('payment_mode', 'cash').strip()
+    reference_no = request.form.get('reference_no', '').strip()
+    notes = request.form.get('notes', '').strip()
+
+    if not emp_id or not from_date_str or not to_date_str:
+        flash('Invalid worker or date range for salary payment.', 'danger')
+        return redirect(url_for('employees.salary_sheet', from_date=from_date_str, to_date=to_date_str))
+
+    try:
+        from_date_val = datetime.strptime(from_date_str, '%Y-%m-%d').date()
+        to_date_val = datetime.strptime(to_date_str, '%Y-%m-%d').date()
+        pay_date_val = datetime.strptime(payment_date_str, '%Y-%m-%d').date() if payment_date_str else date.today()
+    except ValueError:
+        flash('Invalid date format.', 'danger')
+        return redirect(url_for('employees.salary_sheet', from_date=from_date_str, to_date=to_date_str))
+
+    emp = Employee.query.get_or_404(emp_id)
+
+    payment = EmployeeSalaryPayment.query.filter_by(
+        employee_id=emp_id,
+        period_from=from_date_val,
+        period_to=to_date_val
+    ).first()
+
+    if not payment:
+        payment = EmployeeSalaryPayment(
+            employee_id=emp_id,
+            period_from=from_date_val,
+            period_to=to_date_val,
+            payment_date=pay_date_val,
+            amount=amount,
+            payment_mode=payment_mode,
+            status='paid',
+            reference_no=reference_no,
+            notes=notes
+        )
+        db.session.add(payment)
+    else:
+        payment.payment_date = pay_date_val
+        payment.amount = amount
+        payment.payment_mode = payment_mode
+        payment.status = 'paid'
+        payment.reference_no = reference_no
+        payment.notes = notes
+
+    db.session.commit()
+    note_msg = f" (Note: {notes})" if notes else ""
+    flash(f"✅ Salary of ₹{amount:,.2f} marked as PAID for {emp.name} (Week: {from_date_str} to {to_date_str}) via {payment_mode.upper()}!{note_msg}", "success")
+    return redirect(url_for('employees.salary_sheet', from_date=from_date_str, to_date=to_date_str))
+
+
+@bp.route('/salary-sheet/mark-all-paid', methods=['POST'])
+@login_required
+def salary_sheet_mark_all_paid():
+    """1-Click batch mark all workers as PAID for the selected weekly period."""
+    from_date_str = request.form.get('from_date', '').strip()
+    to_date_str = request.form.get('to_date', '').strip()
+    payment_date_str = request.form.get('payment_date', '').strip()
+    payment_mode = request.form.get('payment_mode', 'cash').strip()
+    notes = request.form.get('notes', '').strip()
+
+    try:
+        from_date_val = datetime.strptime(from_date_str, '%Y-%m-%d').date()
+        to_date_val = datetime.strptime(to_date_str, '%Y-%m-%d').date()
+        pay_date_val = datetime.strptime(payment_date_str, '%Y-%m-%d').date() if payment_date_str else date.today()
+    except (ValueError, TypeError):
+        flash('Invalid date parameters for bulk salary payment.', 'danger')
+        return redirect(url_for('employees.salary_sheet'))
+
+    employees = Employee.query.order_by(Employee.name).all()
+    att_rows = db.session.query(
+        Attendance.employee_id, Attendance.status, func.count(Attendance.id)
+    ).filter(Attendance.date >= from_date_val, Attendance.date <= to_date_val).group_by(Attendance.employee_id, Attendance.status).all()
+
+    att_map = {}
+    for emp_id, st, cnt in att_rows:
+        if emp_id not in att_map:
+            att_map[emp_id] = {'present': 0, 'half-day': 0, 'absent': 0}
+        att_map[emp_id][st] = cnt
+
+    alloc_rows = db.session.query(
+        EmployeeJobAllocation.employee_id,
+        EmployeeJobAllocation.allocated_wage
+    ).join(JobWageEntry, EmployeeJobAllocation.job_entry_id == JobWageEntry.id)\
+     .filter(JobWageEntry.date >= from_date_val, JobWageEntry.date <= to_date_val).all()
+
+    emp_piece_map = {}
+    for emp_id, wage in alloc_rows:
+        emp_piece_map[emp_id] = emp_piece_map.get(emp_id, 0.0) + (wage or 0.0)
+
+    paid_count = 0
+    total_paid_val = 0.0
+
+    for emp in employees:
+        e_att = att_map.get(emp.id, {'present': 0, 'half-day': 0, 'absent': 0})
+        att_wage = (e_att.get('present', 0) * emp.daily_wage) + (e_att.get('half-day', 0) * emp.daily_wage * 0.5)
+        piece_wage = emp_piece_map.get(emp.id, 0.0)
+        net_salary = att_wage + piece_wage
+
+        if net_salary > 0:
+            payment = EmployeeSalaryPayment.query.filter_by(
+                employee_id=emp.id,
+                period_from=from_date_val,
+                period_to=to_date_val
+            ).first()
+            if not payment:
+                payment = EmployeeSalaryPayment(
+                    employee_id=emp.id,
+                    period_from=from_date_val,
+                    period_to=to_date_val,
+                    payment_date=pay_date_val,
+                    amount=net_salary,
+                    payment_mode=payment_mode,
+                    status='paid',
+                    notes=notes or f"Batch weekly salary payout for {from_date_str} to {to_date_str}"
+                )
+                db.session.add(payment)
+                paid_count += 1
+                total_paid_val += net_salary
+            elif payment.status != 'paid':
+                payment.status = 'paid'
+                payment.amount = net_salary
+                payment.payment_date = pay_date_val
+                payment.payment_mode = payment_mode
+                if notes:
+                    payment.notes = notes
+                paid_count += 1
+                total_paid_val += net_salary
+
+    db.session.commit()
+    flash(f"✅ Successfully marked {paid_count} workers as PAID for week {from_date_str} to {to_date_str} (Total: ₹{total_paid_val:,.2f})!", "success")
+    return redirect(url_for('employees.salary_sheet', from_date=from_date_str, to_date=to_date_str))
+
+
+@bp.route('/salary-sheet/revert-payment/<int:payment_id>', methods=['POST'])
+@login_required
+def salary_sheet_revert_payment(payment_id):
+    """Revert a paid salary record back to unpaid."""
+    payment = EmployeeSalaryPayment.query.get_or_404(payment_id)
+    emp_name = payment.employee.name if payment.employee else 'Worker'
+    from_date_str = payment.period_from.strftime('%Y-%m-%d')
+    to_date_str = payment.period_to.strftime('%Y-%m-%d')
+
+    db.session.delete(payment)
+    db.session.commit()
+
+    flash(f"ℹ️ Reverted salary payment status for {emp_name} ({from_date_str} to {to_date_str}) back to UNPAID.", "info")
+    return redirect(url_for('employees.salary_sheet', from_date=from_date_str, to_date=to_date_str))
+
+
+@bp.route('/salary-payments')
+@login_required
+def salary_payments_history():
+    """View full history log of employee salary disbarments with filter and search."""
+    from_date_raw = request.args.get('from_date', '')
+    to_date_raw = request.args.get('to_date', '')
+    emp_id = request.args.get('employee_id', type=int)
+    payment_mode = request.args.get('payment_mode', '')
+
+    query = EmployeeSalaryPayment.query.join(Employee)
+
+    if from_date_raw:
+        try:
+            f_date = datetime.strptime(from_date_raw, '%Y-%m-%d').date()
+            query = query.filter(EmployeeSalaryPayment.payment_date >= f_date)
+        except ValueError:
+            pass
+
+    if to_date_raw:
+        try:
+            t_date = datetime.strptime(to_date_raw, '%Y-%m-%d').date()
+            query = query.filter(EmployeeSalaryPayment.payment_date <= t_date)
+        except ValueError:
+            pass
+
+    if emp_id:
+        query = query.filter(EmployeeSalaryPayment.employee_id == emp_id)
+
+    if payment_mode:
+        query = query.filter(EmployeeSalaryPayment.payment_mode == payment_mode)
+
+    payments = query.order_by(EmployeeSalaryPayment.payment_date.desc(), EmployeeSalaryPayment.id.desc()).all()
+    employees = Employee.query.order_by(Employee.name).all()
+    total_paid = sum(p.amount for p in payments)
+
+    return render_template('employees/salary_payments_list.html',
+                           payments=payments,
+                           employees=employees,
+                           total_paid=total_paid,
+                           from_date=from_date_raw,
+                           to_date=to_date_raw,
+                           selected_emp_id=emp_id,
+                           selected_mode=payment_mode)
 
 
 @bp.route('/salary-sheet/export')

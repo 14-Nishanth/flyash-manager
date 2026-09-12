@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Employee Salary Payment Log - FlyAsh ERP{% endblock %}
+{% block page_title %}Employee Salary Payment History{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <div>
+            <h3 class="fw-bold mb-1 text-slate-800 d-flex align-items-center gap-2">
+                <i class="bi bi-receipt text-primary"></i>
+                <span>Worker Salary Payment Log &amp; Receipts</span>
+            </h3>
+            <p class="text-muted small mb-0">Audit history of all weekly worker wage and salary payments, modes, reference IDs, and notes.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-secondary btn-sm shadow-xs" onclick="window.print()">
+                <i class="bi bi-printer me-1"></i> Print Log
+            </button>
+            <a href="{{ url_for('employees.salary_sheet') }}" class="btn btn-primary btn-sm fw-bold shadow-xs">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i> Back to Salary Sheet
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Card -->
+    <div class="card border-0 shadow-sm rounded-3 bg-white mb-3 p-3">
+        <form method="GET" action="{{ url_for('employees.salary_payments_history') }}" class="row g-2 align-items-end">
+            <div class="col-12 col-md-3">
+                <label class="form-label small fw-bold text-muted mb-1">From Payment Date</label>
+                <input type="date" class="form-control form-control-sm" name="from_date" value="{{ from_date }}">
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label small fw-bold text-muted mb-1">To Payment Date</label>
+                <input type="date" class="form-control form-control-sm" name="to_date" value="{{ to_date }}">
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label small fw-bold text-muted mb-1">Employee</label>
+                <select name="employee_id" class="form-select form-select-sm">
+                    <option value="">-- All Workers --</option>
+                    {% for emp in employees %}
+                    <option value="{{ emp.id }}" {% if selected_emp_id == emp.id %}selected{% endif %}>{{ emp.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm fw-semibold w-100">
+                    <i class="bi bi-filter me-1"></i> Filter Log
+                </button>
+                <a href="{{ url_for('employees.salary_payments_history') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Stat Card -->
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-md-4">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 border-start border-4 border-success">
+                <div class="text-muted small fw-bold text-uppercase">Total Disbursed Wages</div>
+                <div class="h4 fw-bold text-success mb-0 currency-display">₹{{ "{:,.2f}".format(total_paid) }}</div>
+                <small class="text-muted">{{ payments|length }} payment entries recorded</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payments Table -->
+    <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th class="text-center" style="width: 40px;">#</th>
+                        <th>Payment Date</th>
+                        <th>Worker Name</th>
+                        <th>Weekly Period</th>
+                        <th class="text-end">Amount Paid (₹)</th>
+                        <th class="text-center">Mode</th>
+                        <th>Reference / Txn No</th>
+                        <th>Payment Note / Remarks</th>
+                        <th class="text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in payments %}
+                    <tr>
+                        <td class="text-center text-muted small">{{ loop.index }}</td>
+                        <td class="fw-semibold text-dark">{{ p.payment_date.strftime('%d %b %Y') }}</td>
+                        <td class="fw-bold text-dark">{{ p.employee.name if p.employee else 'Worker' }}</td>
+                        <td class="small text-muted">{{ p.period_from.strftime('%d/%m/%Y') }} &rarr; {{ p.period_to.strftime('%d/%m/%Y') }}</td>
+                        <td class="text-end fw-bold text-success fs-6 currency-display">₹{{ "{:,.2f}".format(p.amount) }}</td>
+                        <td class="text-center">
+                            <span class="badge bg-light text-dark border text-uppercase">{{ p.payment_mode }}</span>
+                        </td>
+                        <td class="small text-muted">{{ p.reference_no or '—' }}</td>
+                        <td class="small">
+                            {% if p.notes %}
+                            <span class="text-slate-700 fst-italic"><i class="bi bi-chat-left-text text-primary me-1"></i>{{ p.notes }}</span>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-success px-2 py-1">PAID</span>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-4 text-muted">No salary payment records found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
