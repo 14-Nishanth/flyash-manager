@@ -245,17 +245,17 @@
         </div>
     </div>
 
-    <!-- Clear Tabular Performance & Stock Inventory View (No Graphs) -->
+        <!-- Weekly Performance & Stock Inventory View -->
     <div class="row g-3 mb-4">
-        <!-- 6-Month Performance Statement Table -->
+        <!-- 6-Week Operations & Financial Performance Table -->
         <div class="col-12 col-lg-8">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div>
                         <h6 class="fw-bold text-slate-800 mb-0 d-flex align-items-center gap-2">
-                            <i class="bi bi-table text-primary"></i> 6-Month Material & Revenue Performance Statement
+                            <i class="bi bi-calendar-week text-primary"></i> 6-Week Plant Operations &amp; Wage Statement
                         </h6>
-                        <small class="text-muted">Month-by-month inward cost, outward dispatch value and trade balance</small>
+                        <small class="text-muted">Weekly piece production, dispatch volume, labor wages, material trade, and expenses</small>
                     </div>
                     <a href="{{ url_for('reports.index') }}" class="btn btn-outline-primary btn-sm rounded-pill px-3">
                         Full Reports
@@ -265,40 +265,53 @@
                     <table class="table table-hover table-bordered align-middle mb-0 small">
                         <thead class="table-light text-center">
                             <tr>
-                                <th class="text-start">Month</th>
-                                <th>Inward Purchases</th>
-                                <th>Inward Value (₹)</th>
-                                <th>Outward Sales</th>
-                                <th>Outward Value (₹)</th>
-                                <th>Net Balance (₹)</th>
+                                <th class="text-start">Week Period</th>
+                                <th>🏭 Production</th>
+                                <th>🚚 Outward Dispatches</th>
+                                <th>💰 Labor Wages</th>
+                                <th>📦 Inward Cost</th>
+                                <th>💳 Expenses</th>
+                                <th>Net Cashflow</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for m in monthly_performance %}
-                            <tr class="{% if m.is_current %}table-primary table-opacity-10 fw-semibold{% endif %}">
+                            {% for w in weekly_performance %}
+                            <tr class="{% if w.is_current %}table-primary table-opacity-10 fw-semibold{% endif %}">
                                 <td class="text-start">
-                                    <span class="fw-bold text-dark">{{ m.label }}</span>
-                                    {% if m.is_current %}
-                                    <span class="badge bg-primary ms-1">Current</span>
+                                    <span class="fw-bold text-dark">{{ w.label }}</span>
+                                    {% if w.is_current %}
+                                    <span class="badge bg-primary ms-1">Current Week</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-center font-monospace">{{ m.inward_qty_summary }}</td>
-                                <td class="text-end text-success fw-semibold">₹{{ "{:,.2f}".format(m.inward_amount) }}</td>
-                                <td class="text-center font-monospace">{{ m.outward_qty_summary }}</td>
-                                <td class="text-end text-info fw-semibold">₹{{ "{:,.2f}".format(m.outward_amount) }}</td>
-                                <td class="text-end fw-bold {% if m.net_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                    ₹{{ "{:,.2f}".format(m.net_balance) }}
+                                <td class="text-center text-success fw-bold">
+                                    {{ "{:,.0f}".format(w.prod_pieces) }} Pcs
+                                </td>
+                                <td class="text-center text-info fw-bold">
+                                    {{ "{:,.0f}".format(w.load_pieces) }} Pcs
+                                    <div class="text-muted fs-8">₹{{ "{:,.0f}".format(w.outward_amount) }}</div>
+                                </td>
+                                <td class="text-end text-dark fw-bold currency-display">
+                                    ₹{{ "{:,.2f}".format(w.wage_amount) }}
+                                </td>
+                                <td class="text-end text-success fw-semibold currency-display">
+                                    ₹{{ "{:,.2f}".format(w.inward_amount) }}
+                                </td>
+                                <td class="text-end text-danger fw-semibold currency-display">
+                                    ₹{{ "{:,.2f}".format(w.expense_amount) }}
+                                </td>
+                                <td class="text-end fw-bold {% if w.net_balance >= 0 %}text-success{% else %}text-danger{% endif %} currency-display">
+                                    ₹{{ "{:,.2f}".format(w.net_balance) }}
                                 </td>
                                 <td class="text-center">
-                                    {% if m.net_balance >= 0 %}
-                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
-                                        Surplus
-                                    </span>
+                                    {% if w.is_current %}
+                                    <a href="{{ url_for('employees.salary_sheet', period='this_week') }}" class="badge bg-primary text-white text-decoration-none px-2 py-1">
+                                        Active Week &rarr;
+                                    </a>
                                     {% else %}
-                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1">
-                                        Inflow High
-                                    </span>
+                                    <a href="{{ url_for('employees.salary_sheet', from_date=w.from_date, to_date=w.to_date) }}" class="badge bg-light text-muted border text-decoration-none px-2 py-1">
+                                        View Sheet
+                                    </a>
                                     {% endif %}
                                 </td>
                             </tr>

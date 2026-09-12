@@ -47,7 +47,7 @@ def list_expenses():
         last_sun = last_mon + timedelta(days=6)
         from_date = last_mon.strftime('%Y-%m-%d')
         to_date = last_sun.strftime('%Y-%m-%d')
-    elif date_preset == 'this_month':
+    elif date_preset == 'this_month' or (not from_date and not to_date and not date_preset and False):
         from_date = today.replace(day=1).strftime('%Y-%m-%d')
         to_date = today.strftime('%Y-%m-%d')
     elif date_preset == 'last_month':

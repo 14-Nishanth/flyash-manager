@@ -4,7 +4,7 @@ def resolve_mat_period(period_param, from_date_str, to_date_str):
     today = date.today()
     if period_param == 'today':
         return today.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d')
-    elif period_param == 'this_week':
+    elif period_param == 'this_week' or (not period_param and not from_date_str and not to_date_str):
         mon = today - timedelta(days=today.weekday())
         sun = mon + timedelta(days=6)
         return mon.strftime('%Y-%m-%d'), sun.strftime('%Y-%m-%d')
@@ -26,7 +26,9 @@ def resolve_mat_period(period_param, from_date_str, to_date_str):
     elif period_param == 'all':
         return '', ''
     if not from_date_str and not to_date_str:
-        return today.replace(day=1).strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d')
+        mon = today - timedelta(days=today.weekday())
+        sun = mon + timedelta(days=6)
+        return mon.strftime('%Y-%m-%d'), sun.strftime('%Y-%m-%d')
     return from_date_str, to_date_str
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash

@@ -178,7 +178,28 @@
 {% endif %}
 
 <!-- Quick Period Presets Bar (Weekly / Monthly Basis) -->
-<div class="d-flex align-items-center flex-wrap justify-content-between bg-light p-2.5 rounded-3 mb-4 border gap-2">
+    <!-- Weekly Basis Navigation Toolbar -->
+    <div class="card border-0 shadow-sm rounded-3 bg-white mb-3 p-2.5">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-3 py-1.5 fs-6 fw-bold">
+                    <i class="bi bi-calendar-range me-1"></i> Week Period: {{ from_date }} &rarr; {{ to_date }}
+                </span>
+                <a href="{{ url_for('employees.job_wages_list', period='this_week') }}" class="btn btn-primary btn-sm fw-semibold shadow-xs">
+                    <i class="bi bi-arrow-repeat me-1"></i> Current Week
+                </a>
+            </div>
+            <div class="d-flex align-items-center flex-wrap gap-1">
+                <span class="small text-muted fw-bold text-uppercase me-1">Presets:</span>
+                <a href="{{ url_for('employees.job_wages_list', period='this_week', category=selected_category) }}" class="badge text-decoration-none {% if period == 'this_week' or (not period and not from_date) %}bg-dark text-white{% else %}bg-light text-dark border{% endif %} py-1.5 px-2">This Week</a>
+                <a href="{{ url_for('employees.job_wages_list', period='last_week', category=selected_category) }}" class="badge text-decoration-none {% if period == 'last_week' %}bg-dark text-white{% else %}bg-light text-dark border{% endif %} py-1.5 px-2">Last Week</a>
+                <a href="{{ url_for('employees.job_wages_list', period='this_month', category=selected_category) }}" class="badge text-decoration-none {% if period == 'this_month' %}bg-dark text-white{% else %}bg-light text-dark border{% endif %} py-1.5 px-2">This Month</a>
+                <a href="{{ url_for('employees.job_wages_list', period='all', category=selected_category) }}" class="badge text-decoration-none {% if period == 'all' %}bg-dark text-white{% else %}bg-light text-dark border{% endif %} py-1.5 px-2">All Time</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex align-items-center flex-wrap justify-content-between bg-light p-2.5 rounded-3 mb-4 border gap-2">
     <div class="d-flex align-items-center gap-2">
         <span class="small fw-bold text-uppercase text-muted"><i class="bi bi-clock-history me-1"></i> Period:</span>
         <div class="d-flex align-items-center flex-wrap gap-1">
