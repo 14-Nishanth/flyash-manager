@@ -56,6 +56,19 @@ def _migrate_db():
                         created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
                     );
                 '''))
+                conn.execute(db.text('''
+                    CREATE TABLE IF NOT EXISTS "stock_adjustment" (
+                        id SERIAL PRIMARY KEY,
+                        date DATE NOT NULL DEFAULT CURRENT_DATE,
+                        item_type VARCHAR(30) NOT NULL DEFAULT 'product',
+                        item_name VARCHAR(120) NOT NULL,
+                        quantity DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                        unit VARCHAR(30) DEFAULT 'Pieces',
+                        adjustment_type VARCHAR(40) NOT NULL DEFAULT 'past_month_stock',
+                        notes VARCHAR(255),
+                        created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+                '''))
                 conn.commit()
         except Exception as e:
             print(f"[WARN] PostgreSQL migration notice: {e}")
@@ -78,6 +91,19 @@ def _migrate_db():
                 reference_no VARCHAR(50),
                 created_at DATETIME,
                 FOREIGN KEY (party_id) REFERENCES party(id) ON DELETE CASCADE
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS "stock_adjustment" (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date DATE NOT NULL,
+                item_type VARCHAR(30) NOT NULL DEFAULT 'product',
+                item_name VARCHAR(120) NOT NULL,
+                quantity FLOAT NOT NULL DEFAULT 0.0,
+                unit VARCHAR(30) DEFAULT 'Pieces',
+                adjustment_type VARCHAR(40) NOT NULL DEFAULT 'past_month_stock',
+                notes VARCHAR(255),
+                created_at DATETIME
             )
         ''')
         conn.commit()
@@ -122,6 +148,14 @@ def _migrate_db():
                 ('smtp_port', "INTEGER DEFAULT 587"),
                 ('smtp_user', "VARCHAR(120)"),
                 ('smtp_password', "VARCHAR(120)"),
+                ('telegram_bot_token', "VARCHAR(255)"),
+                ('telegram_chat_id', "VARCHAR(100)"),
+                ('telegram_morning_reminder_enabled', "BOOLEAN DEFAULT 1"),
+                ('telegram_morning_reminder_time', "VARCHAR(10) DEFAULT '07:00'"),
+                ('telegram_evening_reminder_enabled', "BOOLEAN DEFAULT 1"),
+                ('telegram_evening_reminder_time', "VARCHAR(10) DEFAULT '19:00'"),
+                ('last_morning_sent_date', "DATE"),
+                ('last_evening_sent_date', "DATE"),
                 ('alert_on_all_users', "BOOLEAN DEFAULT 1"),
                 ('cooldown_minutes', "INTEGER DEFAULT 30"),
                 ('max_alerts_per_day', "INTEGER DEFAULT 3"),
@@ -315,6 +349,12 @@ def create_app():
         db.create_all()
         _create_default_admin()
         _create_default_rates_and_groups()
+        if not app.config.get('TESTING'):
+            try:
+                from utils.telegram_service import start_telegram_scheduler
+                start_telegram_scheduler(app)
+            except Exception as e:
+                print(f"[WARN] Could not start Telegram scheduler: {e}")
 
     # Template context processors
     from translations import SUPPORTED_LANGUAGES, LANGUAGE_MAP, get_translation

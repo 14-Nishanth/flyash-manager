@@ -1,77 +1,304 @@
 {% extends "base.html" %}
-{% block title %}Mark Attendance{% endblock %}
-{% block page_title %}Mark Attendance{% endblock %}
-{% block content %}
+{% block title %}Mark Attendance - FlyAsh ERP{% endblock %}
+{% block page_title %}Worker Daily Attendance{% endblock %}
 
-<div class="card mb-4">
-    <div class="card-body">
-        <form method="GET" action="{{ url_for('employees.attendance') }}" class="row g-3 align-items-end">
-            <div class="col-md-4">
-                <label for="date_selector" class="form-label">Attendance Date</label>
-                <input type="date" id="date_selector" name="date" class="form-control" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+{% block content %}
+<div class="container-fluid py-2">
+    <!-- Header & Action Controls -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <div>
+            <h3 class="fw-bold mb-1 text-slate-800 d-flex align-items-center gap-2">
+                <i class="bi bi-calendar-check text-primary"></i>
+                <span>Daily Worker Attendance</span>
+            </h3>
+            <p class="text-muted small mb-0">Record daily staff & gang worker attendance, present/absent logs, and dispatch automated Telegram work reminders.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <!-- 1-Click Morning Start Work Reminder -->
+            <form method="POST" action="{{ url_for('employees.send_telegram_reminder') }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="reminder_type" value="morning">
+                <input type="hidden" name="date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+                <button type="submit" class="btn btn-outline-warning text-dark btn-sm shadow-xs fw-bold" title="Send Start-of-Day Morning Reminder to Telegram (07:00 AM)">
+                    <i class="bi bi-sun-fill text-warning me-1"></i> 🌅 Morning Work Start (7 AM)
+                </button>
+            </form>
+
+            <!-- 1-Click Evening Work Completed Reminder -->
+            <form method="POST" action="{{ url_for('employees.send_telegram_reminder') }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="reminder_type" value="evening">
+                <input type="hidden" name="date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+                <button type="submit" class="btn btn-outline-primary btn-sm shadow-xs fw-bold" title="Send Work-Completed Evening Recap to Telegram (07:00 PM)">
+                    <i class="bi bi-moon-stars-fill text-primary me-1"></i> 🌙 Evening Work Complete (7 PM)
+                </button>
+            </form>
+
+            <!-- Telegram Schedule & Bot Settings Modal Button -->
+            <button type="button" class="btn btn-secondary btn-sm shadow-xs fw-semibold" data-bs-toggle="modal" data-bs-target="#telegramSettingsModal">
+                <i class="bi bi-telegram text-info me-1"></i> Telegram Settings
+            </button>
+
+            <a href="{{ url_for('employees.attendance_history') }}" class="btn btn-outline-secondary btn-sm shadow-xs">
+                <i class="bi bi-clock-history me-1"></i> Attendance History
+            </a>
+        </div>
+    </div>
+
+    <!-- Live Counter Cards & Date Selector -->
+    <div class="row g-3 mb-4">
+        <!-- Date Selector Card -->
+        <div class="col-12 col-lg-4">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
+                <form method="GET" action="{{ url_for('employees.attendance') }}" class="row g-2 align-items-end">
+                    <div class="col-8">
+                        <label for="date_selector" class="form-label small fw-bold text-muted mb-1">
+                            <i class="bi bi-calendar3 text-primary me-1"></i> Selected Date
+                        </label>
+                        <input type="date" id="date_selector" name="date" class="form-control form-control-sm" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+                    </div>
+                    <div class="col-4">
+                        <button type="submit" class="btn btn-primary btn-sm w-100 fw-semibold">
+                            <i class="bi bi-arrow-clockwise"></i> Load
+                        </button>
+                    </div>
+                </form>
+                <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+                    <span class="small text-muted">
+                        {% if selected_date == today %}
+                        <span class="badge bg-success bg-opacity-10 text-success fw-bold">Today</span>
+                        {% else %}
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary fw-semibold">{{ selected_date.strftime('%A') }}</span>
+                        {% endif %}
+                    </span>
+                    <button type="button" class="btn btn-link btn-sm text-decoration-none p-0 small fw-bold text-primary" onclick="markAllPresent()">
+                        <i class="bi bi-check2-all me-1"></i> Mark All Present
+                    </button>
+                </div>
             </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-primary">Go</button>
+        </div>
+
+        <!-- Attendance Status Counters -->
+        <div class="col-12 col-lg-8">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
+                <div class="row g-2 text-center align-items-center h-100">
+                    <div class="col-3 border-end">
+                        <div class="text-muted small fw-semibold text-uppercase">Total Workers</div>
+                        <div class="h4 fw-bold mb-0 text-slate-800">{{ total_workers }}</div>
+                        <small class="text-muted">Active staff</small>
+                    </div>
+                    <div class="col-3 border-end">
+                        <div class="text-success small fw-semibold text-uppercase">Present</div>
+                        <div class="h4 fw-bold mb-0 text-success">{{ present_cnt }}</div>
+                        <small class="text-success">On duty</small>
+                    </div>
+                    <div class="col-3 border-end">
+                        <div class="text-danger small fw-semibold text-uppercase">Absent</div>
+                        <div class="h4 fw-bold mb-0 text-danger">{{ absent_cnt }}</div>
+                        <small class="text-danger">Leave</small>
+                    </div>
+                    <div class="col-3">
+                        <div class="text-warning small fw-semibold text-uppercase">Half-Day</div>
+                        <div class="h4 fw-bold mb-0 text-warning">{{ half_day_cnt }}</div>
+                        <small class="text-muted">0.5 Shift</small>
+                    </div>
+                </div>
             </div>
-        </form>
+        </div>
+    </div>
+
+    <!-- Attendance Form & Table -->
+    <form method="POST" action="{{ url_for('employees.attendance', date=selected_date.strftime('%Y-%m-%d')) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        
+        <div class="card border-0 shadow-sm rounded-3 bg-white mb-4">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0 fw-bold text-slate-800 d-flex align-items-center gap-2">
+                    <i class="bi bi-person-lines-fill text-primary"></i>
+                    <span>Attendance Register for {{ selected_date.strftime('%d %b %Y') }}</span>
+                </h5>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-success btn-sm" onclick="markAllPresent()">
+                        <i class="bi bi-check-all me-1"></i> All Present
+                    </button>
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="markAllAbsent()">
+                        <i class="bi bi-x-lg me-1"></i> All Absent
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="text-center" style="width: 50px;">#</th>
+                                <th>Worker Name</th>
+                                <th>Designation / Role</th>
+                                <th class="text-center" style="width: 120px;">
+                                    <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i> Present</span>
+                                </th>
+                                <th class="text-center" style="width: 120px;">
+                                    <span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i> Absent</span>
+                                </th>
+                                <th class="text-center" style="width: 120px;">
+                                    <span class="text-warning text-dark"><i class="bi bi-circle-half me-1"></i> Half-Day</span>
+                                </th>
+                                <th>Work Notes / Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for emp in employees %}
+                            {% set att = attendance_map.get(emp.id) %}
+                            <tr>
+                                <td class="text-center text-muted fw-bold">{{ loop.index }}</td>
+                                <td>
+                                    <div class="fw-bold text-dark">{{ emp.name }}</div>
+                                    <small class="text-muted">{{ emp.phone or 'No phone' }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-secondary border">
+                                        {{ emp.role or 'General Worker' }}
+                                    </span>
+                                </td>
+                                <td class="text-center bg-success bg-opacity-10">
+                                    <input class="form-check-input status-radio-present" type="radio" name="status_{{ emp.id }}" value="present" {% if not att or att.status == 'present' %}checked{% endif %}>
+                                </td>
+                                <td class="text-center bg-danger bg-opacity-10">
+                                    <input class="form-check-input status-radio-absent" type="radio" name="status_{{ emp.id }}" value="absent" {% if att and att.status == 'absent' %}checked{% endif %}>
+                                </td>
+                                <td class="text-center bg-warning bg-opacity-10">
+                                    <input class="form-check-input status-radio-half" type="radio" name="status_{{ emp.id }}" value="half-day" {% if att and att.status == 'half-day' %}checked{% endif %}>
+                                </td>
+                                <td>
+                                    <input type="text" class="form-control form-control-sm" name="notes_{{ emp.id }}" value="{{ att.notes if att and att.notes else '' }}" placeholder="e.g. Press operator, 9 hrs shift">
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    <i class="bi bi-people fs-1 text-muted d-block mb-2"></i>
+                                    No active employees found in the system.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {% if employees %}
+            <div class="card-footer bg-light py-3 d-flex justify-content-between align-items-center">
+                <span class="small text-muted">Click save to lock and record worker daily wages & attendance logs.</span>
+                <button type="submit" class="btn btn-success btn-lg px-4 fw-bold shadow-sm">
+                    <i class="bi bi-check-circle me-1"></i> Save Attendance Records
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<!-- Telegram Notification & Scheduling Settings Modal -->
+<div class="modal fade" id="telegramSettingsModal" tabindex="-1" aria-labelledby="telegramSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-dark text-white border-0 py-3">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="telegramSettingsModalLabel">
+                    <i class="bi bi-telegram text-info"></i>
+                    <span>Telegram Attendance Reminders & Auto-Schedule (7 AM / 7 PM)</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('employees.update_telegram_settings') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="redirect_date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+                
+                <div class="modal-body p-4">
+                    <div class="alert alert-info border-0 rounded-3 mb-4 small">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        Configure your <strong>Telegram Bot Token</strong> and <strong>Chat ID</strong> to receive automated daily plant reminders at <strong>07:00 AM (Morning Work Start)</strong> and <strong>07:00 PM (Evening Work Complete)</strong>, or trigger them instantly via the 1-click buttons.
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold text-muted">Telegram Bot Token *</label>
+                            <input type="text" name="telegram_bot_token" class="form-control" value="{{ alert_settings.telegram_bot_token or alert_settings.api_key or '' }}" placeholder="e.g. 7123456789:AAFxz_EXAMPLE_TOKEN" required>
+                            <small class="text-muted">Create bot with @BotFather in Telegram</small>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold text-muted">Telegram Chat ID / Channel ID *</label>
+                            <input type="text" name="telegram_chat_id" class="form-control" value="{{ alert_settings.telegram_chat_id or alert_settings.chat_id or '' }}" placeholder="e.g. 123456789 or -100123456789" required>
+                            <small class="text-muted">Get Chat ID from @userinfobot or channel username</small>
+                        </div>
+
+                        <div class="col-12"><hr class="my-2"></div>
+
+                        <h6 class="fw-bold text-dark mb-0"><i class="bi bi-alarm text-primary me-1"></i> Daily Automated Reminder Schedule</h6>
+
+                        <!-- Morning Schedule -->
+                        <div class="col-12 col-md-6">
+                            <div class="p-3 border rounded-3 bg-light">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="morningSwitch" name="telegram_morning_reminder_enabled" {% if not alert_settings or alert_settings.telegram_morning_reminder_enabled %}checked{% endif %}>
+                                    <label class="form-check-label fw-bold text-dark" for="morningSwitch">
+                                        🌅 Morning Work Start Reminder
+                                    </label>
+                                </div>
+                                <label class="form-label small text-muted">Reminder Time (Daily)</label>
+                                <input type="time" name="telegram_morning_reminder_time" class="form-control form-control-sm" value="{{ alert_settings.telegram_morning_reminder_time or '07:00' }}">
+                                <small class="text-muted d-block mt-1">Default: 07:00 AM (Reminds staff to mark worker attendance and start batches)</small>
+                            </div>
+                        </div>
+
+                        <!-- Evening Schedule -->
+                        <div class="col-12 col-md-6">
+                            <div class="p-3 border rounded-3 bg-light">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="eveningSwitch" name="telegram_evening_reminder_enabled" {% if not alert_settings or alert_settings.telegram_evening_reminder_enabled %}checked{% endif %}>
+                                    <label class="form-check-label fw-bold text-dark" for="eveningSwitch">
+                                        🌙 Evening Work Complete Reminder
+                                    </label>
+                                </div>
+                                <label class="form-label small text-muted">Reminder Time (Daily)</label>
+                                <input type="time" name="telegram_evening_reminder_time" class="form-control form-control-sm" value="{{ alert_settings.telegram_evening_reminder_time or '19:00' }}">
+                                <small class="text-muted d-block mt-1">Default: 07:00 PM (Sends daily attendance recap, trays produced & wages)</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light d-flex justify-content-between">
+                    <!-- Send Instant Test Button -->
+                    <button type="button" class="btn btn-outline-info btn-sm fw-bold" onclick="document.getElementById('testTelegramForm').submit()">
+                        <i class="bi bi-send me-1"></i> Send Test Telegram Ping
+                    </button>
+                    <div>
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-sm fw-bold">
+                            <i class="bi bi-check-lg me-1"></i> Save Telegram Settings
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
-<form method="POST" action="{{ url_for('employees.attendance', date=selected_date.strftime('%Y-%m-%d')) }}">
+<!-- Hidden Test Form -->
+<form id="testTelegramForm" method="POST" action="{{ url_for('employees.test_telegram') }}" class="d-none">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    
-    <div class="table-container card mb-4">
-        <div class="card-header bg-white">
-            <h5 class="mb-0">Mark Attendance for {{ selected_date.strftime('%d %b %Y') }}</h5>
-        </div>
-        <div class="card-body p-0">
-            <table class="table table-hover mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>#</th>
-                        <th>Employee Name</th>
-                        <th>Role</th>
-                        <th class="text-center">Present</th>
-                        <th class="text-center">Absent</th>
-                        <th class="text-center">Half-Day</th>
-                        <th>Notes</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for emp in employees %}
-                    {% set att = attendance_map.get(emp.id) %}
-                    <tr>
-                        <td>{{ loop.index }}</td>
-                        <td>{{ emp.name }}</td>
-                        <td>{{ emp.role or '-' }}</td>
-                        <td class="text-center">
-                            <input class="form-check-input" type="radio" name="status_{{ emp.id }}" value="present" {% if not att or att.status == 'present' %}checked{% endif %}>
-                        </td>
-                        <td class="text-center">
-                            <input class="form-check-input" type="radio" name="status_{{ emp.id }}" value="absent" {% if att and att.status == 'absent' %}checked{% endif %}>
-                        </td>
-                        <td class="text-center">
-                            <input class="form-check-input" type="radio" name="status_{{ emp.id }}" value="half-day" {% if att and att.status == 'half-day' %}checked{% endif %}>
-                        </td>
-                        <td>
-                            <input type="text" class="form-control form-control-sm" name="notes_{{ emp.id }}" value="{{ att.notes if att and att.notes else '' }}" placeholder="Optional notes">
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="7" class="text-center py-4 text-muted">No active employees found.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    
-    {% if employees %}
-    <div class="mb-4">
-        <button type="submit" class="btn btn-success btn-lg">Save Attendance</button>
-    </div>
-    {% endif %}
+    <input type="hidden" name="redirect_date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
 </form>
 
+<script>
+function markAllPresent() {
+    document.querySelectorAll('.status-radio-present').forEach(radio => radio.checked = true);
+}
+function markAllAbsent() {
+    document.querySelectorAll('.status-radio-absent').forEach(radio => radio.checked = true);
+}
+</script>
 {% endblock %}
+
