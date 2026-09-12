@@ -221,10 +221,17 @@ def attendance():
     half_day_cnt = sum(1 for a in existing_attendance if a.status == 'half-day')
     unmarked_cnt = max(0, len(employees) - len(existing_attendance))
     
-    alert_settings = AlertSettings.query.first()
+    try:
+        alert_settings = AlertSettings.query.first()
+    except Exception:
+        alert_settings = None
 
-    groups = EmployeeGroup.query.filter_by(is_active=True).all()
-    groups_data = {str(g.id): {'id': g.id, 'name': g.name, 'member_ids': [m.id for m in g.members]} for g in groups}
+    try:
+        groups = EmployeeGroup.query.filter_by(is_active=True).all()
+        groups_data = {str(g.id): {'id': g.id, 'name': g.name, 'member_ids': [m.id for m in g.members]} for g in groups}
+    except Exception:
+        groups = []
+        groups_data = {}
 
     return render_template('employees/attendance.html', 
                            employees=employees, 
