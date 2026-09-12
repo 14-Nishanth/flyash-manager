@@ -126,6 +126,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and 'early_statement' in request.endpoint %}active{% endif %}"
+                       href="{{ url_for('parties.early_statement') }}">
+                        <i class="bi bi-journal-bookmark text-info"></i> <span>Early Dues & Balances</span>
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link {% if request.endpoint and 'outstanding' in request.endpoint %}active{% endif %}"
                        href="{{ url_for('parties.party_outstanding') }}">
                         <i class="bi bi-cash-stack text-success"></i> <span data-i18n="outstanding_manager">Party Outstanding</span>

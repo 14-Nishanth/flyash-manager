@@ -17,6 +17,9 @@
             <a href="{{ url_for('parties.export_outstanding_csv', filter=filter_type, party_type=party_type, search=search) }}" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 shadow-sm">
                 <i class="bi bi-download"></i> <span data-i18n="export_csv">Export CSV</span>
             </a>
+            <a href="{{ url_for('parties.early_statement') }}" class="btn btn-outline-info btn-sm d-flex align-items-center gap-1 shadow-sm">
+                <i class="bi bi-file-earmark-spreadsheet"></i> <span>Early Dues & Balances</span>
+            </a>
             <a href="{{ url_for('parties.list_parties') }}" class="btn btn-outline-primary btn-sm d-flex align-items-center gap-1 shadow-sm">
                 <i class="bi bi-people"></i> <span data-i18n="all_parties">All Parties</span>
             </a>

@@ -1,194 +1,354 @@
 import threading
-import time
-from datetime import datetime, date
 import requests
+import json
+import logging
+from datetime import datetime, date, timedelta
 from flask import current_app
 
+logger = logging.getLogger(__name__)
 
-def send_telegram_message(text, bot_token=None, chat_id=None, parse_mode='HTML'):
+
+def send_telegram_message(message_text, bot_token=None, chat_id=None):
     """
-    Sends a message to Telegram channel / user / group via Telegram Bot API.
-    Returns (success: bool, response_dict_or_error: dict|str).
+    Sends a formatted HTML message to Telegram via Bot API.
+    Returns (True, response_data) on success or (False, error_message) on failure.
     """
+    from models import AlertSettings
+
     if not bot_token or not chat_id:
-        from models import AlertSettings
         settings = AlertSettings.query.first()
         if settings:
             bot_token = bot_token or settings.get_telegram_token()
             chat_id = chat_id or settings.get_telegram_chat_id()
 
     if not bot_token or not chat_id:
-        return False, "Telegram Bot Token or Chat ID is not configured. Please enter Bot Token and Chat ID."
+        return False, "Telegram Bot Token or Chat ID is not configured."
 
-    url = f"https://api.telegram.org/bot{bot_token.strip()}/sendMessage"
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
-        'chat_id': str(chat_id).strip(),
-        'text': text,
-        'parse_mode': parse_mode,
-        'disable_web_page_preview': False
+        "chat_id": chat_id,
+        "text": message_text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True
     }
 
     try:
-        res = requests.post(url, json=payload, timeout=8)
-        data = res.json()
-        if res.status_code == 200 and data.get('ok'):
-            return True, data
+        response = requests.post(url, json=payload, timeout=12)
+        res_json = response.json()
+        if response.status_code == 200 and res_json.get("ok"):
+            return True, res_json
         else:
-            err_desc = data.get('description', f"HTTP {res.status_code}")
-            return False, f"Telegram API error: {err_desc}"
+            err = res_json.get("description", f"HTTP {response.status_code}")
+            return False, err
     except Exception as e:
-        return False, f"Network/Connection error sending Telegram message: {str(e)}"
+        return False, str(e)
 
 
 def build_morning_reminder(app_base_url="http://localhost:5000"):
     """
-    Builds the morning start-of-day attendance & work start reminder message.
+    Builds the morning 7:00 AM attendance & work start reminder message.
     """
     from models import Employee, EmployeeGroup
     today = date.today()
     date_str = today.strftime('%d %b %Y')
     day_name = today.strftime('%A')
 
-    active_emps = Employee.query.filter_by(is_active=True).count()
+    active_emps = Employee.query.filter_by(is_active=True).all()
     active_groups = EmployeeGroup.query.count()
 
     attendance_link = f"{app_base_url.rstrip('/')}/employees/attendance"
     production_link = f"{app_base_url.rstrip('/')}/stock/production"
 
+    worker_list_preview = ""
+    for idx, e in enumerate(active_emps[:8], 1):
+        worker_list_preview += f"  • {e.name} ({e.role or 'Worker'})\n"
+    if len(active_emps) > 8:
+        worker_list_preview += f"  • ...and {len(active_emps) - 8} more workers\n"
+
+    if not worker_list_preview:
+        worker_list_preview = "  (No active employees enrolled)\n"
+
     msg = (
         f"☀️ <b>GOOD MORNING! PLANT WORK & ATTENDANCE REMINDER</b> ☀️\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"📅 <b>Date:</b> {date_str} ({day_name})\n"
+        f"⏰ <b>Time:</b> 7:00 AM Shift Start\n"
         f"🏭 <b>Plant:</b> FlyAsh Brick & Block Manufacturing Unit\n\n"
-        f"👥 <b>Active Workforce:</b> {active_emps} Workers across {active_groups} Work Gangs\n\n"
-        f"📋 <b>Morning Action Checklist:</b>\n"
-        f" 1️⃣ Mark today's morning worker attendance (Drivers, Loaders, Operators)\n"
-        f" 2️⃣ Verify raw material silos & press machine readiness\n"
-        f" 3️⃣ Start recording production batches & tray counts\n\n"
-        f"👉 <b>Open Attendance Register:</b>\n"
-        f"<a href=\"{attendance_link}\">👉 Click Here to Mark Attendance</a>\n\n"
-        f"👉 <b>Open Production Sheet:</b>\n"
-        f"<a href=\"{production_link}\">👉 Click Here for Production Sheet</a>\n"
+        f"👥 <b>Active Workforce ({len(active_emps)} Staff, {active_groups} Gangs):</b>\n"
+        f"{worker_list_preview}\n"
+        f"📋 <b>Shift Action Checklist:</b>\n"
+        f" 1️⃣ Mark Worker Attendance: <a href='{attendance_link}'>Click to Mark Attendance</a>\n"
+        f" 2️⃣ Or reply <code>/present_all</code> to this bot to mark all present!\n"
+        f" 3️⃣ Check Raw Material Silos (Fly Ash, Cement, Sand, Aggregate)\n"
+        f" 4️⃣ Start Batching Plant & Log Production: <a href='{production_link}'>Production Entry</a>\n\n"
+        f"💬 <b>Quick Bot Commands:</b>\n"
+        f"• <code>/present_all</code> - Mark all active staff present\n"
+        f"• <code>/attendance</code> - View live attendance status\n"
+        f"• <code>/status</code> - Today's complete plant overview\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"<i>⚡ FlyAsh ERP Automatic Daily Notification</i>"
+        f"<i>Have a safe and productive manufacturing day! 🧱</i>"
     )
     return msg
 
 
 def build_evening_reminder(app_base_url="http://localhost:5000", target_date=None):
     """
-    Builds the evening work-completed attendance & daily summary reminder message.
+    Builds the evening 7:00 PM work completion, production tally & attendance summary message.
     """
-    from models import Employee, Attendance, JobWageEntry, MaterialOutward
+    from models import Employee, Attendance, MaterialInward, MaterialOutward, JobWageEntry, db
 
     target_date = target_date or date.today()
     date_str = target_date.strftime('%d %b %Y')
     day_name = target_date.strftime('%A')
 
-    total_active = Employee.query.filter_by(is_active=True).count()
+    # Attendance stats
+    all_emps = Employee.query.filter_by(is_active=True).all()
+    total_workers = len(all_emps)
     attendances = Attendance.query.filter_by(date=target_date).all()
+    
     present_cnt = sum(1 for a in attendances if a.status == 'present')
     absent_cnt = sum(1 for a in attendances if a.status == 'absent')
-    half_cnt = sum(1 for a in attendances if a.status == 'half-day')
-    unmarked_cnt = max(0, total_active - len(attendances))
+    half_day_cnt = sum(1 for a in attendances if a.status == 'half-day')
+    unmarked_cnt = max(0, total_workers - len(attendances))
 
-    prod_jobs = JobWageEntry.query.filter(
-        JobWageEntry.date == target_date,
-        JobWageEntry.job_type.ilike('%Production%')
+    # Production & outward jobs
+    prod_jobs = JobWageEntry.query.filter_by(date=target_date).filter(
+        JobWageEntry.job_type.like('%Production%')
     ).all()
+    outward_jobs = JobWageEntry.query.filter_by(date=target_date).filter(
+        ~JobWageEntry.job_type.like('%Production%')
+    ).all()
+
     total_trays = sum(j.tray_count or 0.0 for j in prod_jobs)
-    total_gross_qty = sum(j.gross_quantity or j.quantity or 0.0 for j in prod_jobs)
-    total_wages = sum(j.total_wage or 0.0 for j in prod_jobs)
+    total_bricks = sum((j.gross_quantity or j.quantity or 0.0) for j in prod_jobs)
+    prod_wages = sum(j.total_amount or 0.0 for j in prod_jobs)
+    outward_wages = sum(j.total_amount or 0.0 for j in outward_jobs)
+    total_wages = prod_wages + outward_wages
 
-    outwards = MaterialOutward.query.filter_by(date=target_date).all()
-    from routes.dashboard import format_quantity_summary
-    dispatch_summary = format_quantity_summary(outwards)
+    # Material movements
+    inward_entries = MaterialInward.query.filter_by(date=target_date).all()
+    inward_qty = sum(e.quantity_mt for e in inward_entries)
+    inward_amt = sum(e.amount for e in inward_entries)
 
-    attendance_link = f"{app_base_url.rstrip('/')}/employees/attendance"
-    wages_link = f"{app_base_url.rstrip('/')}/employees/job-wages"
-    stock_link = f"{app_base_url.rstrip('/')}/stock"
+    outward_entries = MaterialOutward.query.filter_by(date=target_date).all()
+    outward_qty = sum(e.quantity_mt for e in outward_entries)
+    outward_amt = sum(e.amount for e in outward_entries)
+
+    attendance_link = f"{app_base_url.rstrip('/')}/employees/attendance?date={target_date.strftime('%Y-%m-%d')}"
+    wages_link = f"{app_base_url.rstrip('/')}/employees/wages?from_date={target_date.strftime('%Y-%m-%d')}&to_date={target_date.strftime('%Y-%m-%d')}"
+    dashboard_link = f"{app_base_url.rstrip('/')}/"
 
     msg = (
-        f"🌙 <b>EVENING WORK COMPLETED & DAILY RECAP</b> 🌙\n"
+        f"🌙 <b>EVENING PLANT WORK COMPLETE & ATTENDANCE SUMMARY</b> 🌙\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"📅 <b>Date:</b> {date_str} ({day_name})\n"
+        f"⏰ <b>Time:</b> 7:00 PM Shift Close\n"
         f"🏭 <b>Plant:</b> FlyAsh Brick & Block Manufacturing Unit\n\n"
-        f"📊 <b>Worker Attendance Summary:</b>\n"
-        f" • ✅ Present: <b>{present_cnt}</b>\n"
-        f" • ❌ Absent: <b>{absent_cnt}</b>\n"
-        f" • 🌓 Half-Day: <b>{half_cnt}</b>\n"
-        f" • ⚠️ Unmarked: <b>{unmarked_cnt}</b> / {total_active} Total\n\n"
-        f"🏗️ <b>Today's Production & Job Output:</b>\n"
-        f" • 📦 Trays Produced: <b>{total_trays:,.0f} Trays</b>\n"
-        f" • 🧱 Total Bricks / Blocks: <b>{total_gross_qty:,.0f} Pcs</b>\n"
-        f" • 💰 Daily Piece Wages: <b>₹{total_wages:,.2f}</b>\n"
-        f" • 🚚 Sales Dispatched: <b>{dispatch_summary}</b>\n\n"
-        f"🔔 <b>Evening Action Checklist:</b>\n"
-        f" 1️⃣ Verify all worker attendance is locked\n"
-        f" 2️⃣ Confirm all gang job sheets and vehicle dispatches are recorded\n"
-        f" 3️⃣ Check closing yard stock balance\n\n"
-        f"👉 <b>Quick Links:</b>\n"
-        f"• <a href=\"{attendance_link}\">Mark/Review Attendance</a>\n"
-        f"• <a href=\"{wages_link}\">Job Wage Register</a>\n"
-        f"• <a href=\"{stock_link}\">Stock & Yard Inventory</a>\n"
+        f"👷 <b>Worker Attendance Summary:</b>\n"
+        f"  • Total Active Staff: <b>{total_workers}</b>\n"
+        f"  • ✅ Present: <b>{present_cnt}</b>\n"
+        f"  • ❌ Absent: <b>{absent_cnt}</b>\n"
+        f"  • 🌓 Half-Day: <b>{half_day_cnt}</b>\n"
+        f"  • ⚠️ Unmarked: <b>{unmarked_cnt}</b>\n\n"
+        f"🧱 <b>Today's Production & Wage Output:</b>\n"
+        f"  • Total Trays Pressed: <b>{total_trays:,.0f} Trays</b>\n"
+        f"  • Bricks / Blocks Produced: <b>{total_bricks:,.0f} Pieces</b>\n"
+        f"  • 🔨 Production Wages: <b>₹{prod_wages:,.2f}</b>\n"
+        f"  • 🚚 Loading / Dispatch Wages: <b>₹{outward_wages:,.2f}</b>\n"
+        f"  • 💰 Total Daily Wages: <b>₹{total_wages:,.2f}</b>\n\n"
+        f"🚛 <b>Material Logistics:</b>\n"
+        f"  • Inward Purchases: <b>{inward_qty:,.2f} MT</b> (₹{inward_amt:,.2f} across {len(inward_entries)} trips)\n"
+        f"  • Outward Sales: <b>{outward_qty:,.2f} MT</b> (₹{outward_amt:,.2f} across {len(outward_entries)} dispatches)\n\n"
+        f"🔗 <b>Quick ERP Links:</b>\n"
+        f"• <a href='{attendance_link}'>Review Attendance Register</a>\n"
+        f"• <a href='{wages_link}'>View Daily Wages & Salary Sheet</a>\n"
+        f"• <a href='{dashboard_link}'>Open Live Plant Dashboard</a>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"<i>⚡ FlyAsh ERP Automatic Daily Notification</i>"
+        f"<i>Daily shift logs successfully closed and recorded. 🏭✨</i>"
     )
     return msg
 
 
+def handle_telegram_command(text, chat_id, host_url="http://localhost:5000"):
+    """
+    Handles interactive commands received from Telegram webhook.
+    Supported commands:
+      /start, /help - Show available commands
+      /present_all or 'all present' - Mark all active employees present today
+      /attendance - Show live attendance count
+      /wages - Show today's production & loading wages
+      /status or /today - Daily overview
+      /morning - Morning reminder
+      /evening - Evening reminder
+    """
+    cmd = (text or "").strip().lower()
+    from models import db, Employee, Attendance, JobWageEntry, MaterialInward, MaterialOutward
+    today = date.today()
+
+    if cmd in ['/start', '/help', 'help']:
+        reply = (
+            "🤖 <b>FlyAsh ERP Bot Assistant</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "Available Commands:\n"
+            "• <code>/present_all</code> - Mark all active workers Present today\n"
+            "• <code>/attendance</code> - View today's attendance summary\n"
+            "• <code>/wages</code> - Today's production & loading wages\n"
+            "• <code>/status</code> - Today's full plant activity status\n"
+            "• <code>/morning</code> - Send 7:00 AM Morning Shift Start reminder\n"
+            "• <code>/evening</code> - Send 7:00 PM Evening Shift Recap summary\n"
+            "━━━━━━━━━━━━━━━━━━━━━━"
+        )
+        send_telegram_message(reply, chat_id=chat_id)
+        return True, reply
+
+    elif cmd in ['/present_all', 'all present', 'present all']:
+        active_emps = Employee.query.filter_by(is_active=True).all()
+        count = 0
+        try:
+            for emp in active_emps:
+                att = Attendance.query.filter_by(employee_id=emp.id, date=today).first()
+                if att:
+                    att.status = 'present'
+                else:
+                    att = Attendance(
+                        employee_id=emp.id,
+                        date=today,
+                        status='present',
+                        notes='Marked present via Telegram Bot'
+                    )
+                    db.session.add(att)
+                count += 1
+            db.session.commit()
+            reply = f"✅ <b>Attendance Marked!</b> All <b>{count} active workers</b> marked PRESENT for today ({today.strftime('%d %b %Y')})."
+        except Exception as e:
+            db.session.rollback()
+            reply = f"❌ Error marking attendance: {str(e)}"
+        
+        send_telegram_message(reply, chat_id=chat_id)
+        return True, reply
+
+    elif cmd in ['/attendance', 'attendance']:
+        all_emps = Employee.query.filter_by(is_active=True).all()
+        total_workers = len(all_emps)
+        attendances = Attendance.query.filter_by(date=today).all()
+        
+        present_cnt = sum(1 for a in attendances if a.status == 'present')
+        absent_cnt = sum(1 for a in attendances if a.status == 'absent')
+        half_day_cnt = sum(1 for a in attendances if a.status == 'half-day')
+        unmarked_cnt = max(0, total_workers - len(attendances))
+
+        reply = (
+            f"📋 <b>Attendance Status for {today.strftime('%d %b %Y')}:</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👥 Total Active Workers: <b>{total_workers}</b>\n"
+            f"✅ Present: <b>{present_cnt}</b>\n"
+            f"❌ Absent: <b>{absent_cnt}</b>\n"
+            f"🌓 Half-Day: <b>{half_day_cnt}</b>\n"
+            f"⚠️ Unmarked: <b>{unmarked_cnt}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"Tip: Send <code>/present_all</code> to mark all as present."
+        )
+        send_telegram_message(reply, chat_id=chat_id)
+        return True, reply
+
+    elif cmd in ['/wages', 'wages', 'wage']:
+        prod_jobs = JobWageEntry.query.filter_by(date=today).filter(JobWageEntry.job_type.like('%Production%')).all()
+        outward_jobs = JobWageEntry.query.filter_by(date=today).filter(~JobWageEntry.job_type.like('%Production%')).all()
+
+        total_trays = sum(j.tray_count or 0.0 for j in prod_jobs)
+        total_bricks = sum((j.gross_quantity or j.quantity or 0.0) for j in prod_jobs)
+        prod_wages = sum(j.total_amount or 0.0 for j in prod_jobs)
+        outward_wages = sum(j.total_amount or 0.0 for j in outward_jobs)
+        total_wages = prod_wages + outward_wages
+
+        reply = (
+            f"💰 <b>Today's Wage & Production Breakdown ({today.strftime('%d %b %Y')}):</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🧱 Production Volume: <b>{total_trays:,.0f} Trays</b> ({total_bricks:,.0f} Pcs)\n"
+            f"🔨 Production Wages: <b>₹{prod_wages:,.2f}</b>\n"
+            f"🚚 Loading / Dispatch Wages: <b>₹{outward_wages:,.2f}</b>\n"
+            f"💵 <b>Total Wages Today: ₹{total_wages:,.2f}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━"
+        )
+        send_telegram_message(reply, chat_id=chat_id)
+        return True, reply
+
+    elif cmd in ['/status', '/today', 'status', 'today']:
+        msg = build_evening_reminder(app_base_url=host_url, target_date=today)
+        send_telegram_message(msg, chat_id=chat_id)
+        return True, msg
+
+    elif cmd in ['/morning', 'morning']:
+        msg = build_morning_reminder(app_base_url=host_url)
+        send_telegram_message(msg, chat_id=chat_id)
+        return True, msg
+
+    elif cmd in ['/evening', 'evening']:
+        msg = build_evening_reminder(app_base_url=host_url, target_date=today)
+        send_telegram_message(msg, chat_id=chat_id)
+        return True, msg
+
+    else:
+        reply = (
+            f"❓ Unknown command: <code>{text}</code>\n"
+            f"Send <code>/help</code> to see all available commands (such as <code>/present_all</code>, <code>/attendance</code>, <code>/wages</code>, <code>/status</code>)."
+        )
+        send_telegram_message(reply, chat_id=chat_id)
+        return True, reply
+
+
 def check_and_send_scheduled_reminders(app):
     """
-    Background worker loop that checks current time against configured
-    morning (default 07:00) and evening (default 19:00) reminder times.
+    Background worker loop called periodically to check if current time matches
+    the 7:00 AM (Morning) or 7:00 PM (Evening) scheduled reminder times.
     """
-    while True:
-        try:
-            with app.app_context():
-                from models import db, AlertSettings
+    import time
+    with app.app_context():
+        from models import AlertSettings
+        
+        last_morning_sent_date = None
+        last_evening_sent_date = None
+
+        while True:
+            try:
+                now = datetime.now()
+                current_time_str = now.strftime('%H:%M')
+                today_date = now.date()
+
                 settings = AlertSettings.query.first()
-                if settings and settings.get_telegram_token() and settings.get_telegram_chat_id():
-                    now = datetime.now()
-                    current_hm = now.strftime('%H:%M')
-                    today_date = now.date()
+                if settings:
+                    bot_token = settings.get_telegram_token()
+                    chat_id = settings.get_telegram_chat_id()
 
-                    morning_time = (settings.telegram_morning_reminder_time or '07:00').strip()
-                    morning_enabled = settings.telegram_morning_reminder_enabled if settings.telegram_morning_reminder_enabled is not None else True
-                    if morning_enabled and current_hm == morning_time and settings.last_morning_sent_date != today_date:
-                        msg = build_morning_reminder()
-                        success, res = send_telegram_message(msg, settings.get_telegram_token(), settings.get_telegram_chat_id())
-                        if success:
-                            settings.last_morning_sent_date = today_date
-                            db.session.commit()
-                            print(f"[OK] Scheduled morning Telegram reminder sent successfully for {today_date} at {current_hm}")
-                        else:
-                            print(f"[WARN] Failed to send scheduled morning Telegram reminder: {res}")
+                    if bot_token and chat_id:
+                        # 1. Morning Reminder (Default 07:00)
+                        morning_time = (settings.telegram_morning_reminder_time or '07:00').strip()
+                        if settings.telegram_morning_reminder_enabled and current_time_str == morning_time:
+                            if last_morning_sent_date != today_date:
+                                logger.info(f"Triggering scheduled 7 AM Morning Reminder to Telegram at {current_time_str}")
+                                msg = build_morning_reminder()
+                                success, _ = send_telegram_message(msg, bot_token=bot_token, chat_id=chat_id)
+                                if success:
+                                    last_morning_sent_date = today_date
 
-                    evening_time = (settings.telegram_evening_reminder_time or '19:00').strip()
-                    evening_enabled = settings.telegram_evening_reminder_enabled if settings.telegram_evening_reminder_enabled is not None else True
-                    if evening_enabled and current_hm == evening_time and settings.last_evening_sent_date != today_date:
-                        msg = build_evening_reminder(target_date=today_date)
-                        success, res = send_telegram_message(msg, settings.get_telegram_token(), settings.get_telegram_chat_id())
-                        if success:
-                            settings.last_evening_sent_date = today_date
-                            db.session.commit()
-                            print(f"[OK] Scheduled evening Telegram reminder sent successfully for {today_date} at {current_hm}")
-                        else:
-                            print(f"[WARN] Failed to send scheduled evening Telegram reminder: {res}")
+                        # 2. Evening Reminder (Default 19:00)
+                        evening_time = (settings.telegram_evening_reminder_time or '19:00').strip()
+                        if settings.telegram_evening_reminder_enabled and current_time_str == evening_time:
+                            if last_evening_sent_date != today_date:
+                                logger.info(f"Triggering scheduled 7 PM Evening Reminder to Telegram at {current_time_str}")
+                                msg = build_evening_reminder(target_date=today_date)
+                                success, _ = send_telegram_message(msg, bot_token=bot_token, chat_id=chat_id)
+                                if success:
+                                    last_evening_sent_date = today_date
 
-        except Exception as e:
-            pass
+            except Exception as e:
+                logger.error(f"Error in Telegram reminder background scheduler: {e}")
 
-        time.sleep(30)
+            time.sleep(30)
 
 
-_scheduler_started = False
 def start_telegram_scheduler(app):
-    """Starts the background scheduler thread if not already active."""
-    global _scheduler_started
-    if not _scheduler_started:
-        _scheduler_started = True
-        thread = threading.Thread(target=check_and_send_scheduled_reminders, args=(app,), daemon=True)
-        thread.start()
-        return thread
-    return None
+    """Starts the Telegram reminder background loop daemon thread."""
+    t = threading.Thread(target=check_and_send_scheduled_reminders, args=(app,), daemon=True)
+    t.start()
+    return t
