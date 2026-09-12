@@ -143,9 +143,13 @@ def get_report_data(report_type, from_date, to_date, party_id):
 @bp.route('/')
 @login_required
 def index():
-    report_type = request.args.get('report_type')
-    from_date = request.args.get('from_date')
-    to_date = request.args.get('to_date')
+    from datetime import timedelta
+    today = date.today()
+    mon = today - timedelta(days=today.weekday())
+    sun = mon + timedelta(days=6)
+    report_type = request.args.get('report_type', 'stock_summary')
+    from_date = request.args.get('from_date', mon.strftime('%Y-%m-%d'))
+    to_date = request.args.get('to_date', sun.strftime('%Y-%m-%d'))
     party_id = request.args.get('party_id')
     
     data = {}
