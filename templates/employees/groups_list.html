@@ -56,6 +56,12 @@
                 </div>
             </div>
             <div class="card-footer bg-white border-top d-flex justify-content-between align-items-center py-2 px-3">
+                <form method="POST" action="{{ url_for('employees.mark_group_attendance', id=g.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-success btn-sm fw-bold shadow-xs" title="Mark all members of this group as FULL PRESENT for today">
+                        <i class="bi bi-check2-circle me-1"></i> Full Attendance Today
+                    </button>
+                </form>
                 <a href="{{ url_for('employees.job_wages_add') }}?group_id={{ g.id }}" class="btn btn-outline-success btn-sm">
                     <i class="bi bi-play-fill me-1"></i> Start Job
                 </a>
