@@ -789,3 +789,278 @@ def api_party_rates(id):
         'rates': rates_dict
     })
 
+
+
+
+# ==============================================================================
+# PARTY EARLY EXPENSES, PREVIOUS BALANCES & OUTSTANDING SHEET
+# ==============================================================================
+
+@bp.route('/early-statement')
+@login_required
+def early_statement():
+    """Comprehensive statement of party initial opening balances, early expenses, past unpaid dues, and live ledger balances."""
+    filter_type = request.args.get('filter', 'all')  # all, receivable, payable, has_early, zero
+    party_type = request.args.get('type', 'all')      # all, customer, supplier, both
+    search = request.args.get('search', '').strip()
+
+    query = Party.query
+    if party_type != 'all':
+        query = query.filter_by(party_type=party_type)
+    if search:
+        search_fmt = f'%{search}%'
+        query = query.filter(
+            (Party.name.ilike(search_fmt)) |
+            (Party.phone.ilike(search_fmt)) |
+            (Party.gstin.ilike(search_fmt))
+        )
+
+    all_parties = query.order_by(Party.name).all()
+    all_parties_list = Party.query.order_by(Party.name).all()
+
+    # Fast bulk aggregate queries
+    inward_sums = dict(db.session.query(MaterialInward.party_id, func.sum(MaterialInward.amount)).group_by(MaterialInward.party_id).all())
+    outward_sums = dict(db.session.query(MaterialOutward.party_id, func.sum(MaterialOutward.amount)).group_by(MaterialOutward.party_id).all())
+    paid_sums = dict(db.session.query(Payment.party_id, func.sum(Payment.amount)).filter(Payment.payment_type == 'paid').group_by(Payment.party_id).all())
+    rec_sums = dict(db.session.query(Payment.party_id, func.sum(Payment.amount)).filter(Payment.payment_type == 'received').group_by(Payment.party_id).all())
+    
+    # Early Expenses and Past Dues (+ Debit)
+    early_expenses_sums = dict(db.session.query(PartyAdjustment.party_id, func.sum(PartyAdjustment.amount)).filter(PartyAdjustment.adjustment_type.in_(['past_unpaid_due', 'debit', 'early_expense'])).group_by(PartyAdjustment.party_id).all())
+    
+    # Early Advances & Waivers (- Credit)
+    early_advances_sums = dict(db.session.query(PartyAdjustment.party_id, func.sum(PartyAdjustment.amount)).filter(PartyAdjustment.adjustment_type.in_(['past_advance', 'discount_waiver', 'credit'])).group_by(PartyAdjustment.party_id).all())
+
+    statement_rows = []
+    total_opening_bal = 0.0
+    total_early_expenses = 0.0
+    total_early_advances = 0.0
+    total_net_prior = 0.0
+    total_inward_all = 0.0
+    total_outward_all = 0.0
+    total_rec_all = 0.0
+    total_paid_all = 0.0
+    total_net_outstanding = 0.0
+    total_receivable = 0.0
+    total_payable = 0.0
+
+    for p in all_parties:
+        op_bal = round(p.opening_balance or 0.0, 2)
+        early_exp = round(early_expenses_sums.get(p.id, 0.0), 2)
+        early_adv = round(early_advances_sums.get(p.id, 0.0), 2)
+        net_prior = round(op_bal + early_exp - early_adv, 2)
+        
+        inw = round(inward_sums.get(p.id, 0.0), 2)
+        outw = round(outward_sums.get(p.id, 0.0), 2)
+        p_rec = round(rec_sums.get(p.id, 0.0), 2)
+        p_paid = round(paid_sums.get(p.id, 0.0), 2)
+        
+        # Outstanding Formula: opening_balance + outward - inward - rec + paid + early_exp - early_adv
+        outstanding = round(op_bal + outw - inw - p_rec + p_paid + early_exp - early_adv, 2)
+        abs_outstanding = abs(outstanding)
+
+        # Apply filter_type
+        if filter_type == 'receivable' and outstanding <= 0.01:
+            continue
+        if filter_type == 'payable' and outstanding >= -0.01:
+            continue
+        if filter_type == 'has_early' and early_exp == 0 and early_adv == 0 and op_bal == 0:
+            continue
+        if filter_type == 'zero' and abs_outstanding > 0.01:
+            continue
+
+        total_opening_bal += op_bal
+        total_early_expenses += early_exp
+        total_early_advances += early_adv
+        total_net_prior += net_prior
+        total_inward_all += inw
+        total_outward_all += outw
+        total_rec_all += p_rec
+        total_paid_all += p_paid
+        total_net_outstanding += outstanding
+
+        if outstanding > 0:
+            total_receivable += outstanding
+        else:
+            total_payable += abs_outstanding
+
+        whatsapp_url = generate_whatsapp_url(p, outstanding)
+
+        statement_rows.append({
+            'party': p,
+            'opening_balance': op_bal,
+            'early_expenses': early_exp,
+            'early_advances': early_adv,
+            'net_prior': net_prior,
+            'inward_amount': inw,
+            'outward_amount': outw,
+            'payments_rec': p_rec,
+            'payments_paid': p_paid,
+            'outstanding': outstanding,
+            'abs_outstanding': abs_outstanding,
+            'whatsapp_url': whatsapp_url
+        })
+
+    return render_template(
+        'parties/early_statement.html',
+        statement_rows=statement_rows,
+        all_parties_list=all_parties_list,
+        filter_type=filter_type,
+        party_type=party_type,
+        search=search,
+        total_opening_bal=round(total_opening_bal, 2),
+        total_early_expenses=round(total_early_expenses, 2),
+        total_early_advances=round(total_early_advances, 2),
+        total_net_prior=round(total_net_prior, 2),
+        total_inward_all=round(total_inward_all, 2),
+        total_outward_all=round(total_outward_all, 2),
+        total_rec_all=round(total_rec_all, 2),
+        total_paid_all=round(total_paid_all, 2),
+        total_net_outstanding=round(total_net_outstanding, 2),
+        total_receivable=round(total_receivable, 2),
+        total_payable=round(total_payable, 2),
+        today=date.today()
+    )
+
+
+@bp.route('/early-statement/export')
+@login_required
+def early_statement_export():
+    """Export Party Early Expenses, Previous Balances & Outstanding Sheet to CSV/Excel."""
+    filter_type = request.args.get('filter', 'all')
+    party_type = request.args.get('type', 'all')
+    search = request.args.get('search', '').strip()
+
+    query = Party.query
+    if party_type != 'all':
+        query = query.filter_by(party_type=party_type)
+    if search:
+        search_fmt = f'%{search}%'
+        query = query.filter(
+            (Party.name.ilike(search_fmt)) |
+            (Party.phone.ilike(search_fmt)) |
+            (Party.gstin.ilike(search_fmt))
+        )
+
+    all_parties = query.order_by(Party.name).all()
+
+    inward_sums = dict(db.session.query(MaterialInward.party_id, func.sum(MaterialInward.amount)).group_by(MaterialInward.party_id).all())
+    outward_sums = dict(db.session.query(MaterialOutward.party_id, func.sum(MaterialOutward.amount)).group_by(MaterialOutward.party_id).all())
+    paid_sums = dict(db.session.query(Payment.party_id, func.sum(Payment.amount)).filter(Payment.payment_type == 'paid').group_by(Payment.party_id).all())
+    rec_sums = dict(db.session.query(Payment.party_id, func.sum(Payment.amount)).filter(Payment.payment_type == 'received').group_by(Payment.party_id).all())
+    early_expenses_sums = dict(db.session.query(PartyAdjustment.party_id, func.sum(PartyAdjustment.amount)).filter(PartyAdjustment.adjustment_type.in_(['past_unpaid_due', 'debit', 'early_expense'])).group_by(PartyAdjustment.party_id).all())
+    early_advances_sums = dict(db.session.query(PartyAdjustment.party_id, func.sum(PartyAdjustment.amount)).filter(PartyAdjustment.adjustment_type.in_(['past_advance', 'discount_waiver', 'credit'])).group_by(PartyAdjustment.party_id).all())
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        'Party ID', 'Party Name', 'Party Type', 'Phone', 'GSTIN',
+        'Initial Opening Balance (₹)', 'Early Expenses & Past Dues (₹)', 'Early Advances & Credits (₹)',
+        'Net Prior Balance (₹)', 'Inward Amount (₹)', 'Outward Amount (₹)',
+        'Payments Received (₹)', 'Payments Paid (₹)', 'Current Outstanding (₹)', 'Balance Type', 'Status'
+    ])
+
+    for p in all_parties:
+        op_bal = round(p.opening_balance or 0.0, 2)
+        early_exp = round(early_expenses_sums.get(p.id, 0.0), 2)
+        early_adv = round(early_advances_sums.get(p.id, 0.0), 2)
+        net_prior = round(op_bal + early_exp - early_adv, 2)
+        
+        inw = round(inward_sums.get(p.id, 0.0), 2)
+        outw = round(outward_sums.get(p.id, 0.0), 2)
+        p_rec = round(rec_sums.get(p.id, 0.0), 2)
+        p_paid = round(paid_sums.get(p.id, 0.0), 2)
+        
+        outstanding = round(op_bal + outw - inw - p_rec + p_paid + early_exp - early_adv, 2)
+        abs_outstanding = abs(outstanding)
+
+        if filter_type == 'receivable' and outstanding <= 0.01:
+            continue
+        if filter_type == 'payable' and outstanding >= -0.01:
+            continue
+        if filter_type == 'has_early' and early_exp == 0 and early_adv == 0 and op_bal == 0:
+            continue
+        if filter_type == 'zero' and abs_outstanding > 0.01:
+            continue
+
+        bal_type = 'Debit (Dr)' if outstanding > 0 else ('Credit (Cr)' if outstanding < 0 else 'Nil')
+        status = 'Customer Due' if outstanding > 0 else ('Supplier Advance / Payable' if outstanding < 0 else 'Settled')
+
+        writer.writerow([
+            p.id, p.name, p.party_type, p.phone or '', p.gstin or '',
+            f"{op_bal:.2f}", f"{early_exp:.2f}", f"{early_adv:.2f}",
+            f"{net_prior:.2f}", f"{inw:.2f}", f"{outw:.2f}",
+            f"{p_rec:.2f}", f"{p_paid:.2f}", f"{abs_outstanding:.2f}", bal_type, status
+        ])
+
+    response = Response(output.getvalue(), mimetype='text/csv')
+    response.headers['Content-Disposition'] = f'attachment; filename=party_early_statement_{date.today().strftime("%Y%m%d")}.csv'
+    return response
+
+
+@bp.route('/<int:id>/update-opening-balance', methods=['POST'])
+@login_required
+def update_opening_balance(id):
+    """Update party initial opening balance."""
+    party = Party.query.get_or_404(id)
+    opening_bal_val = request.form.get('opening_balance', '0').strip()
+    try:
+        opening_bal = float(opening_bal_val) if opening_bal_val else 0.0
+        party.opening_balance = opening_bal
+        db.session.commit()
+        flash(f'Initial opening balance updated to ₹{opening_bal:,.2f} for {party.name}.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating opening balance: {str(e)}', 'error')
+
+    redirect_url = request.form.get('redirect_to') or url_for('parties.early_statement')
+    return redirect(redirect_url)
+
+
+
+@bp.route('/adjustments/add', methods=['POST'])
+@login_required
+def record_past_due_adjustment():
+    """Add a past due, early expense, or past advance adjustment from any modal or sheet."""
+    party_id = request.form.get('party_id')
+    if not party_id:
+        flash("Party is required to record early expense / past due.", "error")
+        return redirect(request.form.get('redirect_to') or url_for('parties.early_statement'))
+
+    party = Party.query.get_or_404(party_id)
+    amount_str = request.form.get('amount', '').strip()
+    adj_type = request.form.get('adjustment_type', 'past_unpaid_due')
+    reason = request.form.get('reason', '').strip()
+    ref_no = request.form.get('reference_no', '').strip()
+    due_date_str = request.form.get('date', '').strip()
+
+    if not amount_str or not reason:
+        flash("Amount and reason are required.", "error")
+        return redirect(request.form.get('redirect_to') or url_for('parties.early_statement'))
+
+    try:
+        amount = float(amount_str)
+        if amount <= 0:
+            flash("Amount must be greater than zero.", "error")
+            return redirect(request.form.get('redirect_to') or url_for('parties.early_statement'))
+
+        due_date = date.today()
+        if due_date_str:
+            due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
+
+        adj = PartyAdjustment(
+            party_id=party.id,
+            date=due_date,
+            adjustment_type=adj_type,
+            amount=round(amount, 2),
+            reason=reason,
+            reference_no=ref_no
+        )
+        db.session.add(adj)
+        db.session.commit()
+        flash(f"Successfully recorded adjustment of ₹{amount:,.2f} for {party.name}.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error recording adjustment: {str(e)}", "error")
+
+    redirect_url = request.form.get('redirect_to') or url_for('parties.early_statement')
+    return redirect(redirect_url)

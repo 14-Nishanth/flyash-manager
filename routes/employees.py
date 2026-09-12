@@ -1261,3 +1261,78 @@ def check_duplicate_job():
         })
 
     return jsonify({'exists': False})
+
+
+
+# ==============================================================================
+# TELEGRAM BOT WEBHOOK & QUICK ATTENDANCE ACTIONS
+# ==============================================================================
+
+@bp.route('/attendance/mark-all-present', methods=['POST'])
+@login_required
+def mark_all_present():
+    """Quick 1-click endpoint to mark all active employees as Present for a selected date."""
+    date_str = request.form.get('date', '')
+    target_date = date.today()
+    if date_str:
+        try:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+
+    employees = Employee.query.filter_by(is_active=True).all()
+    count = 0
+    try:
+        for emp in employees:
+            att = Attendance.query.filter_by(employee_id=emp.id, date=target_date).first()
+            if att:
+                att.status = 'present'
+            else:
+                att = Attendance(
+                    employee_id=emp.id,
+                    date=target_date,
+                    status='present',
+                    notes='Marked present via Quick Attendance'
+                )
+                db.session.add(att)
+            count += 1
+        db.session.commit()
+        flash(f"✅ Successfully marked all {count} active workers as PRESENT for {target_date.strftime('%d %b %Y')}!", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error marking all present: {str(e)}", "error")
+
+    return redirect(url_for('employees.attendance', date=target_date.strftime('%Y-%m-%d')))
+
+
+@bp.route('/telegram-webhook', methods=['POST', 'GET'])
+def telegram_webhook():
+    """Public webhook endpoint to receive interactive commands directly from Telegram bot."""
+    if request.method == 'GET':
+        return jsonify({
+            'status': 'ok',
+            'message': 'FlyAsh Telegram Webhook is active and listening for 7 AM / 7 PM commands.'
+        })
+
+    try:
+        data = request.get_json(force=True, silent=True)
+        if not data:
+            return jsonify({'ok': True, 'msg': 'No JSON payload'})
+
+        # Telegram Message object
+        msg_obj = data.get('message') or data.get('edited_message') or data.get('channel_post')
+        if not msg_obj:
+            return jsonify({'ok': True, 'msg': 'No message field'})
+
+        chat = msg_obj.get('chat', {})
+        chat_id = str(chat.get('id', ''))
+        text = msg_obj.get('text', '').strip()
+
+        if text and chat_id:
+            from utils.telegram_service import handle_telegram_command
+            host_url = request.host_url.rstrip('/')
+            handle_telegram_command(text, chat_id, host_url=host_url)
+
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 200

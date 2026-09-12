@@ -9,9 +9,9 @@
         <div>
             <h3 class="fw-bold mb-1 text-slate-800 d-flex align-items-center gap-2">
                 <i class="bi bi-calendar-check text-primary"></i>
-                <span>Daily Worker Attendance</span>
+                <span>Daily Worker Attendance & Telegram Bot</span>
             </h3>
-            <p class="text-muted small mb-0">Record daily staff & gang worker attendance, present/absent logs, and dispatch automated Telegram work reminders.</p>
+            <p class="text-muted small mb-0">Record daily staff & gang worker attendance, present/absent logs, and receive scheduled Telegram reminders (7:00 AM & 7:00 PM).</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
             <!-- 1-Click Morning Start Work Reminder -->
@@ -20,7 +20,7 @@
                 <input type="hidden" name="reminder_type" value="morning">
                 <input type="hidden" name="date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
                 <button type="submit" class="btn btn-outline-warning text-dark btn-sm shadow-xs fw-bold" title="Send Start-of-Day Morning Reminder to Telegram (07:00 AM)">
-                    <i class="bi bi-sun-fill text-warning me-1"></i> 🌅 Morning Work Start (7 AM)
+                    <i class="bi bi-sun-fill text-warning me-1"></i> 🌅 Morning Reminder (7 AM)
                 </button>
             </form>
 
@@ -30,7 +30,7 @@
                 <input type="hidden" name="reminder_type" value="evening">
                 <input type="hidden" name="date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
                 <button type="submit" class="btn btn-outline-primary btn-sm shadow-xs fw-bold" title="Send Work-Completed Evening Recap to Telegram (07:00 PM)">
-                    <i class="bi bi-moon-stars-fill text-primary me-1"></i> 🌙 Evening Work Complete (7 PM)
+                    <i class="bi bi-moon-stars-fill text-primary me-1"></i> 🌙 Evening Recap (7 PM)
                 </button>
             </form>
 
@@ -42,6 +42,32 @@
             <a href="{{ url_for('employees.attendance_history') }}" class="btn btn-outline-secondary btn-sm shadow-xs">
                 <i class="bi bi-clock-history me-1"></i> Attendance History
             </a>
+        </div>
+    </div>
+
+    <!-- Telegram Bot Scheduled Alert Status Strip -->
+    <div class="alert alert-light border shadow-sm rounded-3 py-2 px-3 mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 small">
+            <span class="badge bg-info bg-opacity-20 text-dark fw-bold border border-info px-2 py-1">
+                <i class="bi bi-robot text-primary me-1"></i> Telegram Bot Active
+            </span>
+            <span class="text-muted">
+                <i class="bi bi-alarm text-warning me-1"></i> <b>7:00 AM</b>: Morning Shift Start Prompt &nbsp;|&nbsp; 
+                <i class="bi bi-alarm-fill text-primary me-1"></i> <b>7:00 PM</b>: Evening Shift Production & Wages Summary
+            </span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <!-- 1-Click Server Side Mark All Present -->
+            <form method="POST" action="{{ url_for('employees.mark_all_present') }}" class="d-inline" onsubmit="return confirm('Mark all active workers as PRESENT for today?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+                <button type="submit" class="btn btn-success btn-sm fw-bold px-3 shadow-xs">
+                    <i class="bi bi-check2-circle me-1"></i> 1-Click All Present (7 AM Start)
+                </button>
+            </form>
+            <button type="button" class="btn btn-outline-dark btn-sm py-1" data-bs-toggle="modal" data-bs-target="#telegramCommandsModal">
+                <i class="bi bi-terminal me-1"></i> Bot Commands
+            </button>
         </div>
     </div>
 
@@ -72,7 +98,7 @@
                         {% endif %}
                     </span>
                     <button type="button" class="btn btn-link btn-sm text-decoration-none p-0 small fw-bold text-primary" onclick="markAllPresent()">
-                        <i class="bi bi-check2-all me-1"></i> Mark All Present
+                        <i class="bi bi-check2-all me-1"></i> Mark All (Client Form)
                     </button>
                 </div>
             </div>
@@ -171,14 +197,13 @@
                                     <input class="form-check-input status-radio-half" type="radio" name="status_{{ emp.id }}" value="half-day" {% if att and att.status == 'half-day' %}checked{% endif %}>
                                 </td>
                                 <td>
-                                    <input type="text" class="form-control form-control-sm" name="notes_{{ emp.id }}" value="{{ att.notes if att and att.notes else '' }}" placeholder="e.g. Press operator, 9 hrs shift">
+                                    <input type="text" name="notes_{{ emp.id }}" class="form-control form-control-sm" placeholder="Optional notes" value="{{ att.notes if att else '' }}">
                                 </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="7" class="text-center py-5 text-muted">
-                                    <i class="bi bi-people fs-1 text-muted d-block mb-2"></i>
-                                    No active employees found in the system.
+                                <td colspan="7" class="text-center py-4 text-muted">
+                                    No active employees found. <a href="{{ url_for('employees.add_employee') }}">Add Employee</a>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -186,12 +211,12 @@
                     </table>
                 </div>
             </div>
-
+            
             {% if employees %}
-            <div class="card-footer bg-light py-3 d-flex justify-content-between align-items-center">
-                <span class="small text-muted">Click save to lock and record worker daily wages & attendance logs.</span>
-                <button type="submit" class="btn btn-success btn-lg px-4 fw-bold shadow-sm">
-                    <i class="bi bi-check-circle me-1"></i> Save Attendance Records
+            <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center">
+                <span class="text-muted small">Select status for each worker and save daily records</span>
+                <button type="submit" class="btn btn-primary fw-bold px-4 shadow-sm">
+                    <i class="bi bi-save me-1"></i> Save Attendance
                 </button>
             </div>
             {% endif %}
@@ -199,7 +224,64 @@
     </form>
 </div>
 
-<!-- Telegram Notification & Scheduling Settings Modal -->
+<!-- ==============================================================================
+     MODAL 1: TELEGRAM BOT COMMANDS & INTERACTIVE GUIDE
+     ============================================================================== -->
+<div class="modal fade" id="telegramCommandsModal" tabindex="-1" aria-labelledby="telegramCommandsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-dark text-white border-0 py-3">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="telegramCommandsModalLabel">
+                    <i class="bi bi-terminal text-warning"></i>
+                    <span>Telegram Bot Interactive Commands</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="small text-muted mb-3">You can send any of the following commands to your Telegram Bot anytime from <strong>7 AM to 7 PM</strong>:</p>
+                
+                <div class="list-group list-group-flush mb-3">
+                    <div class="list-group-item px-0 py-2">
+                        <code class="fw-bold fs-6 text-primary">/present_all</code> or <span class="badge bg-light text-dark border">all present</span>
+                        <div class="small text-muted">Instantly marks all active plant employees as <b>Present</b> for today.</div>
+                    </div>
+                    <div class="list-group-item px-0 py-2">
+                        <code class="fw-bold fs-6 text-primary">/attendance</code>
+                        <div class="small text-muted">Returns live attendance breakdown (Present, Absent, Half-day, and names).</div>
+                    </div>
+                    <div class="list-group-item px-0 py-2">
+                        <code class="fw-bold fs-6 text-primary">/wages</code>
+                        <div class="small text-muted">Returns today's production wages & loading/unloading wages summary.</div>
+                    </div>
+                    <div class="list-group-item px-0 py-2">
+                        <code class="fw-bold fs-6 text-primary">/status</code> or <code class="fw-bold fs-6 text-primary">/today</code>
+                        <div class="small text-muted">Returns full daily plant status (inward, outward, dispatches, worker count).</div>
+                    </div>
+                    <div class="list-group-item px-0 py-2">
+                        <code class="fw-bold fs-6 text-primary">/morning</code>
+                        <div class="small text-muted">Triggers the 7:00 AM Morning Shift Start reminder preview.</div>
+                    </div>
+                    <div class="list-group-item px-0 py-2">
+                        <code class="fw-bold fs-6 text-primary">/evening</code>
+                        <div class="small text-muted">Triggers the 7:00 PM Evening Work Completed recap preview.</div>
+                    </div>
+                </div>
+
+                <div class="alert alert-light border small text-muted mb-0">
+                    <i class="bi bi-link-45deg text-primary me-1"></i> Webhook URL for your bot: <br>
+                    <code>{{ request.host_url.rstrip('/') }}/employees/telegram-webhook</code>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-primary btn-sm fw-bold px-3" data-bs-dismiss="modal">Got it</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==============================================================================
+     MODAL 2: TELEGRAM SETTINGS & SCHEDULING
+     ============================================================================== -->
 <div class="modal fade" id="telegramSettingsModal" tabindex="-1" aria-labelledby="telegramSettingsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 shadow-lg rounded-4">
@@ -301,4 +383,3 @@ function markAllAbsent() {
 }
 </script>
 {% endblock %}
-
