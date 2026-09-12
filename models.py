@@ -104,6 +104,14 @@ class JobRateSetting(db.Model):
 
     __table_args__ = (db.UniqueConstraint('product_name', 'job_type', name='uq_product_job_rate'),)
 
+    @property
+    def is_production(self):
+        return 'production' in (self.job_type or '').lower()
+
+    @property
+    def is_outward(self):
+        return any(k in (self.job_type or '').lower() for k in ['loading', 'unloading', 'outward', 'dispatch'])
+
     def __repr__(self):
         return f'<JobRateSetting {self.product_name} - {self.job_type}: ₹{self.rate_per_piece} (Tray:{self.pieces_per_tray}, Waste:{self.wastage_per_tray})>'
 
@@ -173,6 +181,14 @@ class JobWageEntry(db.Model):
             return self.wastage_amount
         w_qty = self.total_wastage or 0.0
         return round(w_qty * self.rate_per_unit, 2)
+
+    @property
+    def is_production(self):
+        return 'production' in (self.job_type or '').lower() or (self.tray_count is not None and self.tray_count > 0)
+
+    @property
+    def is_outward(self):
+        return (not self.is_production) and (any(k in (self.job_type or '').lower() for k in ['loading', 'unloading', 'outward', 'dispatch']) or bool(self.vehicle_no))
 
     def __repr__(self):
         return f'<JobWageEntry {self.date} {self.job_type} Gross:₹{self.calculated_gross_amount} WasteCut:₹{self.calculated_wastage_amount} NetSalary:₹{self.total_amount}>'
