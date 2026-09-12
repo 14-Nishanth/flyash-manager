@@ -406,6 +406,7 @@ def attendance_history():
 def job_rates_list():
     product = request.args.get('product')
     job_type = request.args.get('job_type')
+    category = request.args.get('category', 'all')  # 'all', 'production', 'outward'
 
     query = JobRateSetting.query.filter_by(is_active=True)
     if product:
@@ -413,9 +414,26 @@ def job_rates_list():
     if job_type:
         query = query.filter(JobRateSetting.job_type == job_type)
 
-    rates = query.order_by(JobRateSetting.product_name, JobRateSetting.job_type).all()
+    all_rates = query.order_by(JobRateSetting.product_name, JobRateSetting.job_type).all()
+    
+    production_rates = [r for r in all_rates if r.is_production]
+    outward_rates = [r for r in all_rates if r.is_outward]
+    other_rates = [r for r in all_rates if not r.is_production and not r.is_outward]
+
+    if category == 'production':
+        rates = production_rates
+    elif category == 'outward':
+        rates = outward_rates
+    else:
+        rates = all_rates
+
     return render_template('employees/job_rates_list.html',
                            rates=rates,
+                           all_rates=all_rates,
+                           production_rates=production_rates,
+                           outward_rates=outward_rates,
+                           other_rates=other_rates,
+                           category=category,
                            job_products=JOB_PRODUCTS,
                            job_types=JOB_TYPES,
                            selected_product=product,
@@ -651,6 +669,7 @@ def job_wages_list():
     to_date_raw = request.args.get('to_date', '')
     from_date_str, to_date_str = resolve_employee_period(period_param, from_date_raw, to_date_raw)
 
+    category = request.args.get('category', 'all')  # 'all', 'production', 'outward'
     job_type = request.args.get('job_type')
     product_name = request.args.get('product_name')
     employee_id = request.args.get('employee_id', type=int)
@@ -671,15 +690,47 @@ def job_wages_list():
     if employee_id:
         query = query.join(JobWageEntry.allocations).filter(EmployeeJobAllocation.employee_id == employee_id)
 
-    entries = query.order_by(JobWageEntry.date.desc(), JobWageEntry.id.desc()).all()
-    total_amount = sum(e.total_amount for e in entries)
-    total_qty = calculate_net_job_quantity(entries)
+    all_entries = query.order_by(JobWageEntry.date.desc(), JobWageEntry.id.desc()).all()
+    
+    # Categorize entries
+    production_entries = [e for e in all_entries if e.is_production]
+    outward_entries = [e for e in all_entries if e.is_outward]
+    other_entries = [e for e in all_entries if not e.is_production and not e.is_outward]
+
+    if category == 'production':
+        entries = production_entries
+    elif category == 'outward':
+        entries = outward_entries
+    else:
+        entries = all_entries
+
+    # Production Metrics
+    prod_total_amount = sum(e.total_amount for e in production_entries)
+    prod_gross_qty = sum((e.gross_quantity if (e.gross_quantity and e.gross_quantity > 0) else (e.tray_count * (e.pieces_per_tray or 105.0) if e.tray_count else e.quantity)) for e in production_entries)
+    prod_net_qty = sum(e.quantity for e in production_entries)
+    prod_total_trays = sum((e.tray_count or 0.0) for e in production_entries)
+    prod_total_wastage = sum((e.total_wastage or 0.0) for e in production_entries)
+    prod_wastage_amount = sum(e.calculated_wastage_amount for e in production_entries)
+
+    # Outward / Loading Metrics
+    outward_total_amount = sum(e.total_amount for e in outward_entries)
+    outward_net_qty = calculate_net_job_quantity(outward_entries)
+    outward_vehicle_count = len(set((e.date, (e.vehicle_no or '').strip().upper()) for e in outward_entries if e.vehicle_no))
+
+    # Overall Totals
+    total_amount = sum(e.total_amount for e in all_entries)
+    total_qty = calculate_net_job_quantity(all_entries)
     
     employees = Employee.query.filter_by(is_active=True).order_by(Employee.name).all()
     groups = EmployeeGroup.query.filter_by(is_active=True).all()
 
     return render_template('employees/job_wages_list.html',
                            entries=entries,
+                           all_entries=all_entries,
+                           production_entries=production_entries,
+                           outward_entries=outward_entries,
+                           other_entries=other_entries,
+                           category=category,
                            from_date=from_date_str,
                            to_date=to_date_str,
                            period=period_param,
@@ -691,7 +742,16 @@ def job_wages_list():
                            job_types=JOB_TYPES,
                            job_products=JOB_PRODUCTS,
                            total_amount=total_amount,
-                           total_qty=total_qty)
+                           total_qty=total_qty,
+                           prod_total_amount=prod_total_amount,
+                           prod_gross_qty=prod_gross_qty,
+                           prod_net_qty=prod_net_qty,
+                           prod_total_trays=prod_total_trays,
+                           prod_total_wastage=prod_total_wastage,
+                           prod_wastage_amount=prod_wastage_amount,
+                           outward_total_amount=outward_total_amount,
+                           outward_net_qty=outward_net_qty,
+                           outward_vehicle_count=outward_vehicle_count)
 
 
 @bp.route('/job-wages/add', methods=['GET', 'POST'])
