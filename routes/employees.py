@@ -1045,7 +1045,7 @@ def job_wages_delete(id):
 @bp.route('/salary-sheet')
 @login_required
 def salary_sheet():
-    """Weekly & Periodic Employee Salary & Wage Sheet with 1-Click Mark-As-Paid, Notes, and Separate Production/Loading Wages."""
+    """Weekly & Periodic Employee Salary & Wage Sheet with 1-Click Mark-As-Paid, Notes, and Pure Piece-Rate Wages (Production + Loading)."""
     from datetime import timedelta
     today = date.today()
     period_param = request.args.get('period', '')
@@ -1070,20 +1070,7 @@ def salary_sheet():
 
     employees = Employee.query.order_by(Employee.name).all()
 
-    # Bulk query 1: Attendance counts per employee & status
-    att_rows = db.session.query(
-        Attendance.employee_id,
-        Attendance.status,
-        func.count(Attendance.id)
-    ).filter(Attendance.date >= from_date, Attendance.date <= to_date).group_by(Attendance.employee_id, Attendance.status).all()
-
-    att_map = {}
-    for emp_id, st, cnt in att_rows:
-        if emp_id not in att_map:
-            att_map[emp_id] = {'present': 0, 'half-day': 0, 'absent': 0}
-        att_map[emp_id][st] = cnt
-
-    # Bulk query 2: All piece-rate job allocations with JobWageEntry details
+    # Bulk query: All piece-rate job allocations with JobWageEntry details
     alloc_rows = db.session.query(
         EmployeeJobAllocation.employee_id,
         EmployeeJobAllocation.allocated_wage,
@@ -1116,7 +1103,7 @@ def salary_sheet():
             emp_load_map[emp_id]['wage'] += (alloc_wage or 0.0)
             emp_load_map[emp_id]['volume'] += (qty or 0.0)
 
-    # Bulk query 3: Salary payment status records for this exact weekly period
+    # Bulk query: Salary payment status records for this exact weekly period
     payments = EmployeeSalaryPayment.query.filter(
         EmployeeSalaryPayment.period_from == from_date,
         EmployeeSalaryPayment.period_to == to_date
@@ -1130,18 +1117,11 @@ def salary_sheet():
     grand_load_wage = 0.0
     grand_load_volume = 0.0
     grand_load_jobs = 0
-    grand_attendance_wage = 0.0
     grand_total_salary = 0.0
     grand_paid_salary = 0.0
     paid_workers_count = 0
 
     for emp in employees:
-        e_att = att_map.get(emp.id, {'present': 0, 'half-day': 0, 'absent': 0})
-        days_present = e_att.get('present', 0)
-        days_half = e_att.get('half-day', 0)
-        days_absent = e_att.get('absent', 0)
-        attendance_wages = (days_present * emp.daily_wage) + (days_half * emp.daily_wage * 0.5)
-
         p_info = emp_prod_map.get(emp.id, {'jobs': 0, 'wage': 0.0, 'volume': 0.0})
         l_info = emp_load_map.get(emp.id, {'jobs': 0, 'wage': 0.0, 'volume': 0.0})
 
@@ -1153,9 +1133,9 @@ def salary_sheet():
         load_wage = l_info['wage']
         load_volume = l_info['volume']
 
-        net_salary = attendance_wages + prod_wage + load_wage
+        # Pure piece-rate wage (Production + Loading/Unloading) without attendance base
+        net_salary = prod_wage + load_wage
 
-        grand_attendance_wage += attendance_wages
         grand_prod_wage += prod_wage
         grand_prod_volume += prod_volume
         grand_prod_jobs += prod_jobs
@@ -1173,17 +1153,13 @@ def salary_sheet():
 
         salary_data.append({
             'employee': emp,
-            'days_present': days_present,
-            'days_half': days_half,
-            'days_absent': days_absent,
-            'attendance_wages': attendance_wages,
             'prod_jobs': prod_jobs,
             'prod_volume': prod_volume,
             'prod_wage': prod_wage,
             'load_jobs': load_jobs,
             'load_volume': load_volume,
             'load_wage': load_wage,
-            'piece_rate_wages': prod_wage + load_wage,
+            'piece_rate_wages': net_salary,
             'net_salary': net_salary,
             'is_paid': is_paid,
             'payment': pay_record,
@@ -1208,14 +1184,13 @@ def salary_sheet():
                            next_week_from=next_week_from,
                            next_week_to=next_week_to,
                            today=today,
-                           grand_attendance_wage=grand_attendance_wage,
                            grand_prod_wage=grand_prod_wage,
                            grand_prod_volume=grand_prod_volume,
                            grand_prod_jobs=grand_prod_jobs,
                            grand_load_wage=grand_load_wage,
                            grand_load_volume=grand_load_volume,
                            grand_load_jobs=grand_load_jobs,
-                           grand_piece_wage=grand_prod_wage + grand_load_wage,
+                           grand_piece_wage=grand_total_salary,
                            grand_total_salary=grand_total_salary,
                            grand_paid_salary=grand_paid_salary,
                            grand_pending_salary=grand_pending_salary,
@@ -1279,7 +1254,7 @@ def salary_sheet_mark_paid():
 
     db.session.commit()
     note_msg = f" (Note: {notes})" if notes else ""
-    flash(f"✅ Salary of ₹{amount:,.2f} marked as PAID for {emp.name} (Week: {from_date_str} to {to_date_str}) via {payment_mode.upper()}!{note_msg}", "success")
+    flash(f"✅ Wage of ₹{amount:,.2f} marked as PAID for {emp.name} (Week: {from_date_str} to {to_date_str}) via {payment_mode.upper()}!{note_msg}", "success")
     return redirect(url_for('employees.salary_sheet', from_date=from_date_str, to_date=to_date_str))
 
 
@@ -1302,15 +1277,6 @@ def salary_sheet_mark_all_paid():
         return redirect(url_for('employees.salary_sheet'))
 
     employees = Employee.query.order_by(Employee.name).all()
-    att_rows = db.session.query(
-        Attendance.employee_id, Attendance.status, func.count(Attendance.id)
-    ).filter(Attendance.date >= from_date_val, Attendance.date <= to_date_val).group_by(Attendance.employee_id, Attendance.status).all()
-
-    att_map = {}
-    for emp_id, st, cnt in att_rows:
-        if emp_id not in att_map:
-            att_map[emp_id] = {'present': 0, 'half-day': 0, 'absent': 0}
-        att_map[emp_id][st] = cnt
 
     alloc_rows = db.session.query(
         EmployeeJobAllocation.employee_id,
@@ -1326,10 +1292,7 @@ def salary_sheet_mark_all_paid():
     total_paid_val = 0.0
 
     for emp in employees:
-        e_att = att_map.get(emp.id, {'present': 0, 'half-day': 0, 'absent': 0})
-        att_wage = (e_att.get('present', 0) * emp.daily_wage) + (e_att.get('half-day', 0) * emp.daily_wage * 0.5)
-        piece_wage = emp_piece_map.get(emp.id, 0.0)
-        net_salary = att_wage + piece_wage
+        net_salary = emp_piece_map.get(emp.id, 0.0)
 
         if net_salary > 0:
             payment = EmployeeSalaryPayment.query.filter_by(
@@ -1346,7 +1309,7 @@ def salary_sheet_mark_all_paid():
                     amount=net_salary,
                     payment_mode=payment_mode,
                     status='paid',
-                    notes=notes or f"Batch weekly salary payout for {from_date_str} to {to_date_str}"
+                    notes=notes or f"Batch weekly wage payout for {from_date_str} to {to_date_str}"
                 )
                 db.session.add(payment)
                 paid_count += 1
@@ -1378,7 +1341,7 @@ def salary_sheet_revert_payment(payment_id):
     db.session.delete(payment)
     db.session.commit()
 
-    flash(f"ℹ️ Reverted salary payment status for {emp_name} ({from_date_str} to {to_date_str}) back to UNPAID.", "info")
+    flash(f"ℹ️ Reverted wage payment status for {emp_name} ({from_date_str} to {to_date_str}) back to UNPAID.", "info")
     return redirect(url_for('employees.salary_sheet', from_date=from_date_str, to_date=to_date_str))
 
 
@@ -1430,41 +1393,39 @@ def salary_payments_history():
 @bp.route('/salary-sheet/export')
 @login_required
 def salary_sheet_export():
+    from datetime import timedelta
     today = date.today()
-    first_day = today.replace(day=1)
+    mon = today - timedelta(days=today.weekday())
+    sun = mon + timedelta(days=6)
     
-    from_date_str = request.args.get('from_date', first_day.strftime('%Y-%m-%d'))
-    to_date_str = request.args.get('to_date', today.strftime('%Y-%m-%d'))
+    from_date_str = request.args.get('from_date', mon.strftime('%Y-%m-%d'))
+    to_date_str = request.args.get('to_date', sun.strftime('%Y-%m-%d'))
 
     try:
         from_date = datetime.strptime(from_date_str, '%Y-%m-%d').date()
         to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date()
     except ValueError:
-        from_date = first_day
-        to_date = today
+        from_date = mon
+        to_date = sun
 
     employees = Employee.query.order_by(Employee.name).all()
+    payments = EmployeeSalaryPayment.query.filter(
+        EmployeeSalaryPayment.period_from == from_date,
+        EmployeeSalaryPayment.period_to == to_date
+    ).all()
+    payment_map = {p.employee_id: p for p in payments}
 
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
-        'Employee Name', 'Role', 'Present Days', 'Half Days', 'Daily Wage Rate (₹)',
-        'Attendance Wages (₹)', 
-        'Production Jobs', 'Production Volume (Pcs)', 'Production Wage (₹)', 
-        'Loading/Unloading Jobs', 'Loading Volume (Pcs)', 'Loading/Unloading Wage (₹)', 
-        'Net Total Salary (₹)'
+        'Worker Name', 'Role', 
+        'Production Runs', 'Production Volume (Pcs)', 'Production Wage (₹)', 
+        'Loading/Unloading Trips', 'Loading Volume (Pcs)', 'Loading/Unloading Wage (₹)', 
+        'Net Total Weekly Wage (₹)',
+        'Payment Status', 'Paid Date', 'Payment Mode', 'Payment Notes'
     ])
 
     for emp in employees:
-        attendances = Attendance.query.filter(
-            Attendance.employee_id == emp.id,
-            Attendance.date >= from_date,
-            Attendance.date <= to_date
-        ).all()
-        days_present = sum(1 for a in attendances if a.status == 'present')
-        days_half = sum(1 for a in attendances if a.status == 'half-day')
-        attendance_wages = (days_present * emp.daily_wage) + (days_half * emp.daily_wage * 0.5)
-
         allocations = EmployeeJobAllocation.query.join(JobWageEntry).filter(
             EmployeeJobAllocation.employee_id == emp.id,
             JobWageEntry.date >= from_date,
@@ -1482,19 +1443,25 @@ def salary_sheet_export():
         load_volume = sum(a.job_entry.quantity for a in load_allocs)
         load_wage = sum(a.allocated_wage for a in load_allocs)
 
-        net_salary = attendance_wages + prod_wage + load_wage
+        net_salary = prod_wage + load_wage
+        pay_rec = payment_map.get(emp.id)
+        is_paid = (pay_rec is not None and pay_rec.status == 'paid')
 
         writer.writerow([
-            emp.name, emp.role or '', days_present, days_half, emp.daily_wage,
-            f'{attendance_wages:.2f}', 
+            emp.name, emp.role or 'Worker',
             prod_jobs, f'{prod_volume:,.0f}', f'{prod_wage:.2f}',
             load_jobs, f'{load_volume:,.0f}', f'{load_wage:.2f}',
-            f'{net_salary:.2f}'
+            f'{net_salary:.2f}',
+            'PAID' if is_paid else 'UNPAID',
+            pay_rec.payment_date.strftime('%Y-%m-%d') if (pay_rec and pay_rec.payment_date) else '',
+            pay_rec.payment_mode.upper() if pay_rec else '',
+            pay_rec.notes if pay_rec else ''
         ])
 
     response = Response(output.getvalue(), content_type='text/csv')
-    response.headers["Content-Disposition"] = f"attachment; filename=employee_salary_sheet_{from_date_str}_to_{to_date_str}.csv"
+    response.headers["Content-Disposition"] = f"attachment; filename=employee_weekly_wage_sheet_{from_date_str}_to_{to_date_str}.csv"
     return response
+
 
 @bp.route('/api/check-duplicate-job')
 @login_required
