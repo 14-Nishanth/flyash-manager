@@ -3,410 +3,127 @@
 {% block page_title %}Party Ledger{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-2">
-    <!-- Page Header & Action Bar -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-        <div>
-            <h3 class="fw-bold mb-1 text-slate-800 d-flex align-items-center gap-2">
-                <i class="bi bi-journal-text text-primary"></i> Party Ledger: {{ party.name }}
-            </h3>
-            <p class="text-muted small mb-0">Detailed transaction statement, inward purchases, sales dispatches, payments & past due adjustments.</p>
-        </div>
-        <div class="d-flex flex-wrap gap-2">
-            <button onclick="window.print()" class="btn btn-outline-secondary btn-sm shadow-xs btn-print">
-                <i class="bi bi-printer me-1"></i> Print Statement
-            </button>
-            
-            <!-- Add Past Due Button -->
-            <button type="button" class="btn btn-warning btn-sm text-dark shadow-xs fw-semibold" data-bs-toggle="modal" data-bs-target="#addPastDueModal">
-                <i class="bi bi-plus-circle me-1"></i> Add Past Due / Old Balance
-            </button>
-
-            <!-- 1-Click Settle Full Balance Button -->
-            {% if cur_outstanding|abs > 0.01 %}
-            <button type="button" class="btn {% if cur_outstanding > 0 %}btn-success{% else %}btn-danger{% endif %} btn-sm shadow-xs fw-bold" data-bs-toggle="modal" data-bs-target="#settleFullModal">
-                <i class="bi bi-lightning-charge-fill me-1"></i>
-                {% if cur_outstanding > 0 %}
-                Receive Full (₹{{ "{:,.2f}".format(cur_outstanding) }})
-                {% else %}
-                Pay Full (₹{{ "{:,.2f}".format(cur_outstanding|abs) }})
-                {% endif %}
-            </button>
-            {% endif %}
-
-            <a href="{{ url_for('parties.payment_add', party_id=party.id) }}" class="btn btn-primary btn-sm shadow-xs">
-                <i class="bi bi-cash-stack me-1"></i> Record Custom Payment
-            </a>
-        </div>
+<div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <h2>Party Ledger</h2>
+    <div class="d-flex gap-2">
+        <button onclick="window.print()" class="btn btn-outline-secondary btn-print">
+            <i class="bi bi-printer"></i> Print
+        </button>
+        <a href="{{ url_for('parties.payment_add', party_id=party.id) }}" class="btn btn-primary">
+            <i class="bi bi-cash"></i> Record Payment
+        </a>
     </div>
+</div>
 
-    <!-- Party Info & Live Account Health Card -->
-    <div class="row g-3 mb-4">
-        <!-- Left: Party Contact & GST Profile -->
-        <div class="col-12 col-lg-7">
-            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
-                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-                    <div>
-                        <div class="d-flex align-items-center gap-2 mb-1">
-                            <h4 class="fw-bold mb-0 text-dark">{{ party.name }}</h4>
-                            <span class="badge {% if party.party_type == 'customer' %}bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25{% elif party.party_type == 'supplier' %}bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25{% else %}bg-info bg-opacity-10 text-info border border-info border-opacity-25{% endif %} fw-semibold px-2.5 py-1">
-                                {{ party.party_type|capitalize }}
-                            </span>
-                        </div>
-                        <div class="text-muted small mt-2 d-flex flex-wrap gap-3">
-                            <span><i class="bi bi-telephone text-success me-1"></i> {{ party.phone or 'No phone' }}</span>
-                            <span><i class="bi bi-geo-alt text-danger me-1"></i> {{ party.address or 'No address' }}</span>
-                            {% if party.gstin %}
-                            <span class="font-monospace"><i class="bi bi-card-text text-secondary me-1"></i> GSTIN: {{ party.gstin }}</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <a href="{{ url_for('parties.edit_party', id=party.id) }}" class="btn btn-outline-secondary btn-sm" title="Edit Profile">
-                            <i class="bi bi-pencil-square"></i> Edit Party
-                        </a>
-                    </div>
-                </div>
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h4 class="mb-1">{{ party.name }}</h4>
+                <div class="mb-1"><span class="badge badge-{{ party.party_type }}">{{ party.party_type|capitalize }}</span></div>
             </div>
-        </div>
-
-        <!-- Right: Current Outstanding Financial Status Card -->
-        <div class="col-12 col-lg-5">
-            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 {% if cur_outstanding > 0.01 %}border-start border-4 border-success{% elif cur_outstanding < -0.01 %}border-start border-4 border-danger{% else %}border-start border-4 border-secondary{% endif %}">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <span class="text-muted small fw-bold text-uppercase tracking-wider">Live Outstanding Account Status</span>
-                        {% if cur_outstanding > 0.01 %}
-                        <div class="h3 fw-bold mb-0 mt-1 text-success">
-                            ₹{{ "{:,.2f}".format(cur_outstanding) }} <span class="fs-6 fw-normal">(Customer Due Dr)</span>
-                        </div>
-                        <small class="text-success fw-semibold">Customer owes plant money</small>
-                        {% elif cur_outstanding < -0.01 %}
-                        <div class="h3 fw-bold mb-0 mt-1 text-danger">
-                            ₹{{ "{:,.2f}".format(cur_outstanding|abs) }} <span class="fs-6 fw-normal">(Supplier Due Cr)</span>
-                        </div>
-                        <small class="text-danger fw-semibold">Plant owes supplier money</small>
-                        {% else %}
-                        <div class="h3 fw-bold mb-0 mt-1 text-secondary">
-                            ₹0.00 <span class="fs-6 fw-normal">(Fully Settled)</span>
-                        </div>
-                        <small class="text-muted">Account is completely clear & paid in full</small>
-                        {% endif %}
-                    </div>
-                    <div>
-                        {% if cur_outstanding > 0.01 %}
-                        <span class="badge bg-success text-white px-3 py-2 rounded-pill fs-7">Receivable</span>
-                        {% elif cur_outstanding < -0.01 %}
-                        <span class="badge bg-danger text-white px-3 py-2 rounded-pill fs-7">Payable</span>
-                        {% else %}
-                        <span class="badge bg-light text-dark border px-3 py-2 rounded-pill fs-7"><i class="bi bi-check2-circle text-success"></i> Nil Dues</span>
-                        {% endif %}
-                    </div>
-                </div>
+            <div class="col-md-6 text-md-end">
+                <div><i class="bi bi-telephone"></i> {{ party.phone or 'N/A' }}</div>
+                <div><i class="bi bi-geo-alt"></i> {{ party.address or 'N/A' }}</div>
+                <div><strong>GSTIN:</strong> {{ party.gstin or 'N/A' }}</div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Date Filter Bar -->
-    <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
-        <div class="card-body p-3">
-            <form method="GET" class="row g-2 align-items-end">
-                <div class="col-12 col-md-4">
-                    <label for="from_date" class="form-label small fw-semibold text-muted mb-1">From Date</label>
-                    <input type="date" class="form-control form-control-sm" id="from_date" name="from_date" value="{{ from_date or '' }}">
-                </div>
-                <div class="col-12 col-md-4">
-                    <label for="to_date" class="form-label small fw-semibold text-muted mb-1">To Date</label>
-                    <input type="date" class="form-control form-control-sm" id="to_date" name="to_date" value="{{ to_date or '' }}">
-                </div>
-                <div class="col-12 col-md-4 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
-                        <i class="bi bi-funnel-fill me-1"></i> Filter Ledger
-                    </button>
-                    {% if from_date or to_date %}
-                    <a href="{{ url_for('parties.party_ledger', id=party.id) }}" class="btn btn-light btn-sm border" title="Reset Filters">
-                        <i class="bi bi-arrow-counterclockwise"></i>
-                    </a>
-                    {% endif %}
-                </div>
-            </form>
-        </div>
+<div class="filter-bar card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label for="from_date" class="form-label">From Date</label>
+                <input type="date" class="form-control" id="from_date" name="from_date" value="{{ from_date or '' }}">
+            </div>
+            <div class="col-md-4">
+                <label for="to_date" class="form-label">To Date</label>
+                <input type="date" class="form-control" id="to_date" name="to_date" value="{{ to_date or '' }}">
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary w-100">Filter</button>
+            </div>
+        </form>
     </div>
+</div>
 
-    <!-- Detailed Ledger Table -->
-    <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
+<div class="table-container card shadow-sm">
+    <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-hover table-bordered align-middle mb-0 small">
-                <thead class="table-light text-center">
+            <table class="table table-hover table-bordered align-middle">
+                <thead class="table-light">
                     <tr>
-                        <th style="width: 100px;">Date</th>
-                        <th style="width: 200px;">Transaction Type</th>
-                        <th>Description / Details</th>
-                        <th style="width: 120px;">Vehicle No</th>
-                        <th class="text-end" style="width: 140px;">Debit (₹) <small class="text-muted d-block fw-normal">Receivable (+)</small></th>
-                        <th class="text-end" style="width: 140px;">Credit (₹) <small class="text-muted d-block fw-normal">Payment/Adv (-)</small></th>
-                        <th class="text-end" style="width: 160px;">Running Balance (₹)</th>
-                        <th style="width: 60px;" class="text-center d-print-none">Action</th>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Vehicle</th>
+                        <th class="text-end">Debit (₹)</th>
+                        <th class="text-end">Credit (₹)</th>
+                        <th class="text-end">Balance (₹)</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% set running_balance = [party.opening_balance] %}
                     
-                    <!-- Opening Balance Row -->
-                    <tr class="table-light fw-bold">
-                        <td class="text-center text-muted font-monospace">-</td>
-                        <td>
-                            <span class="badge bg-secondary bg-opacity-10 text-secondary border px-2 py-1">
-                                Opening Balance
-                            </span>
+                    <tr class="table-secondary fw-bold">
+                        <td colspan="4">Opening Balance</td>
+                        <td class="text-end">
+                            {% if party.opening_balance > 0 %}₹{{ "%.2f"|format(party.opening_balance) }}{% else %}-{% endif %}
                         </td>
-                        <td class="text-muted">Account Initial Balance from Setup</td>
-                        <td class="text-center text-muted">-</td>
-                        <td class="text-end text-dark">
-                            {% if party.opening_balance > 0 %}₹{{ "{:,.2f}".format(party.opening_balance) }}{% else %}-{% endif %}
+                        <td class="text-end">
+                            {% if party.opening_balance < 0 %}₹{{ "%.2f"|format(party.opening_balance|abs) }}{% else %}-{% endif %}
                         </td>
-                        <td class="text-end text-dark">
-                            {% if party.opening_balance < 0 %}₹{{ "{:,.2f}".format(party.opening_balance|abs) }}{% else %}-{% endif %}
-                        </td>
-                        <td class="text-end fw-bold">
-                            {% if running_balance[0] > 0.01 %}
-                                <span class="text-success">₹{{ "{:,.2f}".format(running_balance[0]|abs) }} Dr</span>
-                            {% elif running_balance[0] < -0.01 %}
-                                <span class="text-danger">₹{{ "{:,.2f}".format(running_balance[0]|abs) }} Cr</span>
+                        <td class="text-end">
+                            {% if running_balance[0] > 0 %}
+                                <span class="amount-receivable">₹{{ "%.2f"|format(running_balance[0]|abs) }} Dr</span>
+                            {% elif running_balance[0] < 0 %}
+                                <span class="amount-payable">₹{{ "%.2f"|format(running_balance[0]|abs) }} Cr</span>
                             {% else %}
-                                <span class="text-muted">₹0.00</span>
+                                <span class="amount-zero">₹0.00</span>
                             {% endif %}
                         </td>
-                        <td class="text-center d-print-none">-</td>
                     </tr>
                     
-                    <!-- Transactions Stream -->
                     {% for t in transactions %}
                     {% set _ = running_balance.append(running_balance.pop() + t.debit - t.credit) %}
-                    <tr class="{% if t.is_adj %}table-warning table-opacity-10{% endif %}">
-                        <td class="text-nowrap text-secondary text-center">{{ t.date.strftime('%d %b %Y') }}</td>
-                        <td>
-                            {% if 'Outward' in t.type %}
-                            <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2 py-1">
-                                <i class="bi bi-box-arrow-up me-1"></i> {{ t.type }}
-                            </span>
-                            {% elif 'Inward' in t.type %}
-                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
-                                <i class="bi bi-box-arrow-in-down me-1"></i> {{ t.type }}
-                            </span>
-                            {% elif 'Received' in t.type %}
-                            <span class="badge bg-success text-white px-2 py-1">
-                                <i class="bi bi-cash-coin me-1"></i> {{ t.type }}
-                            </span>
-                            {% elif 'Paid' in t.type %}
-                            <span class="badge bg-danger text-white px-2 py-1">
-                                <i class="bi bi-check2-all me-1"></i> {{ t.type }}
-                            </span>
-                            {% elif 'Past Unpaid Due' in t.type %}
-                            <span class="badge bg-warning text-dark px-2 py-1">
-                                <i class="bi bi-exclamation-triangle-fill me-1"></i> Past Due (Before)
-                            </span>
-                            {% else %}
-                            <span class="badge bg-secondary text-white px-2 py-1">
-                                {{ t.type }}
-                            </span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div class="fw-semibold text-dark">{{ t.description }}</div>
-                        </td>
-                        <td class="text-center font-monospace">{{ t.vehicle or '-' }}</td>
-                        <td class="text-end fw-semibold {% if t.debit > 0 %}text-success{% else %}text-muted{% endif %}">
-                            {% if t.debit > 0 %}₹{{ "{:,.2f}".format(t.debit) }}{% else %}-{% endif %}
-                        </td>
-                        <td class="text-end fw-semibold {% if t.credit > 0 %}text-danger{% else %}text-muted{% endif %}">
-                            {% if t.credit > 0 %}₹{{ "{:,.2f}".format(t.credit) }}{% else %}-{% endif %}
-                        </td>
-                        <td class="text-end fw-bold">
-                            {% if running_balance[0] > 0.01 %}
-                                <span class="text-success">₹{{ "{:,.2f}".format(running_balance[0]|abs) }} Dr</span>
-                            {% elif running_balance[0] < -0.01 %}
-                                <span class="text-danger">₹{{ "{:,.2f}".format(running_balance[0]|abs) }} Cr</span>
-                            {% else %}
-                                <span class="badge bg-light text-dark border">₹0.00 (Clear)</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center d-print-none">
-                            {% if t.is_adj %}
-                            <form method="POST" action="{{ url_for('parties.delete_adjustment', id=t.adj_id) }}" onsubmit="return confirm('Delete this adjustment entry?');" class="d-inline">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn btn-outline-danger btn-sm p-0 px-1 border-0" title="Delete adjustment">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </form>
-                            {% else %}
-                            -
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% else %}
                     <tr>
-                        <td colspan="8" class="text-center py-4 text-muted">
-                            No ledger transactions recorded in this period.
+                        <td>{{ t.date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ t.type }}</td>
+                        <td>{{ t.description }}</td>
+                        <td>{{ t.vehicle }}</td>
+                        <td class="text-end">{% if t.debit > 0 %}₹{{ "%.2f"|format(t.debit) }}{% else %}-{% endif %}</td>
+                        <td class="text-end">{% if t.credit > 0 %}₹{{ "%.2f"|format(t.credit) }}{% else %}-{% endif %}</td>
+                        <td class="text-end fw-bold">
+                            {% if running_balance[0] > 0 %}
+                                <span class="amount-receivable">₹{{ "%.2f"|format(running_balance[0]|abs) }} Dr</span>
+                            {% elif running_balance[0] < 0 %}
+                                <span class="amount-payable">₹{{ "%.2f"|format(running_balance[0]|abs) }} Cr</span>
+                            {% else %}
+                                <span class="amount-zero">₹0.00</span>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
                     
-                    <!-- Statement Summary Row -->
                     <tr class="table-dark fw-bold">
-                        <td colspan="4" class="text-end text-uppercase">Period Totals & Final Closing Balance:</td>
-                        <td class="text-end text-success fs-6">₹{{ "{:,.2f}".format(total_debit) }}</td>
-                        <td class="text-end text-danger fs-6">₹{{ "{:,.2f}".format(total_credit) }}</td>
-                        <td class="text-end fs-6 {% if running_balance[0] > 0.01 %}text-success{% elif running_balance[0] < -0.01 %}text-warning{% else %}text-white{% endif %}">
-                            {% if running_balance[0] > 0.01 %}
-                                ₹{{ "{:,.2f}".format(running_balance[0]|abs) }} Dr (Customer Due)
-                            {% elif running_balance[0] < -0.01 %}
-                                ₹{{ "{:,.2f}".format(running_balance[0]|abs) }} Cr (Supplier Due)
+                        <td colspan="4" class="text-end">Closing Balance</td>
+                        <td class="text-end">-</td>
+                        <td class="text-end">-</td>
+                        <td class="text-end fs-5">
+                            {% if running_balance[0] > 0 %}
+                                <span class="text-info">₹{{ "%.2f"|format(running_balance[0]|abs) }} Dr</span>
+                            {% elif running_balance[0] < 0 %}
+                                <span class="text-warning">₹{{ "%.2f"|format(running_balance[0]|abs) }} Cr</span>
                             {% else %}
-                                ₹0.00 (Fully Settled)
+                                <span>₹0.00</span>
                             {% endif %}
                         </td>
-                        <td class="d-print-none"></td>
                     </tr>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
-
-<!-- MODAL 1: 1-Click Settle Full Balance Modal -->
-<div class="modal fade" id="settleFullModal" tabindex="-1" aria-labelledby="settleFullModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-3 border-0 shadow">
-            <div class="modal-header {% if cur_outstanding > 0 %}bg-success text-white{% else %}bg-danger text-white{% endif %}">
-                <h5 class="modal-title fw-bold" id="settleFullModalLabel">
-                    <i class="bi bi-lightning-charge-fill me-1"></i>
-                    {% if cur_outstanding > 0 %}
-                    Receive Full Settlement from {{ party.name }}
-                    {% else %}
-                    Pay Full Settlement to {{ party.name }}
-                    {% endif %}
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form method="POST" action="{{ url_for('parties.settle_full', id=party.id) }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="redirect_to" value="{{ url_for('parties.party_ledger', id=party.id) }}">
-                <div class="modal-body p-4">
-                    <div class="alert {% if cur_outstanding > 0 %}alert-success{% else %}alert-danger{% endif %} border-0 p-3 mb-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <span class="small fw-semibold text-uppercase">Exact Balance to Settle</span>
-                                <div class="h3 fw-bold mb-0">₹{{ "{:,.2f}".format(cur_outstanding|abs) }}</div>
-                            </div>
-                            <span class="badge bg-white text-dark border px-2 py-1">
-                                {% if cur_outstanding > 0 %}Customer Payment{% else %}Supplier Payment{% endif %}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <label class="form-label small fw-semibold text-muted">Settlement Date</label>
-                            <input type="date" name="date" class="form-control form-control-sm" required value="{{ today }}">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small fw-semibold text-muted">Payment Mode</label>
-                            <select name="mode" class="form-select form-select-sm" required>
-                                <option value="bank">Bank Transfer / NEFT</option>
-                                <option value="upi">UPI / GPay / PhonePe</option>
-                                <option value="cash">Cash</option>
-                                <option value="cheque">Cheque</option>
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label small fw-semibold text-muted">Reference / Cheque / UTR No</label>
-                            <input type="text" name="reference_no" class="form-control form-control-sm" placeholder="e.g. UTR123456 / Cheque #">
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label small fw-semibold text-muted">Notes / Remarks</label>
-                            <input type="text" name="notes" class="form-control form-control-sm" value="Full account settlement (cleared to ₹0.00)">
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn {% if cur_outstanding > 0 %}btn-success{% else %}btn-danger{% endif %} btn-sm fw-bold">
-                        <i class="bi bi-check2-circle me-1"></i> Confirm Full Settlement (₹{{ "{:,.2f}".format(cur_outstanding|abs) }})
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL 2: Add Past Unpaid Due / Old Balance Modal -->
-<div class="modal fade" id="addPastDueModal" tabindex="-1" aria-labelledby="addPastDueModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-3 border-0 shadow">
-            <div class="modal-header bg-warning text-dark">
-                <h5 class="modal-title fw-bold" id="addPastDueModalLabel">
-                    <i class="bi bi-plus-circle-fill me-1"></i> Add Past Unpaid Due / Old Balance
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form method="POST" action="{{ url_for('parties.add_past_due', id=party.id) }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="redirect_to" value="{{ url_for('parties.party_ledger', id=party.id) }}">
-                <div class="modal-body p-4">
-                    <p class="text-muted small mb-3">
-                        Use this form to add money that <strong>{{ party.name }}</strong> did not give before (e.g. unpaid old bills, prior pending balances from before software, or advance adjustments).
-                    </p>
-
-                    <div class="row g-3">
-                        <div class="col-12">
-                            <label class="form-label small fw-semibold text-muted">Adjustment Type *</label>
-                            <select name="adjustment_type" class="form-select form-select-sm" required>
-                                <option value="past_unpaid_due" selected>
-                                    Previous Unpaid Due (Customer didn't pay before -> Adds to Due Debit)
-                                </option>
-                                <option value="past_advance">
-                                    Past Advance / Excess Paid Before (Credit -> Reduces Due)
-                                </option>
-                                <option value="discount_waiver">
-                                    Discount / Settlement Waiver (Credit -> Reduces Due)
-                                </option>
-                            </select>
-                        </div>
-
-                        <div class="col-6">
-                            <label class="form-label small fw-semibold text-muted">Amount (₹) *</label>
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text">₹</span>
-                                <input type="number" step="0.01" min="0.01" name="amount" class="form-control" required placeholder="e.g. 15000">
-                            </div>
-                        </div>
-
-                        <div class="col-6">
-                            <label class="form-label small fw-semibold text-muted">Due Date *</label>
-                            <input type="date" name="date" class="form-control form-control-sm" required value="{{ today }}">
-                        </div>
-
-                        <div class="col-12">
-                            <label class="form-label small fw-semibold text-muted">Description / Reason *</label>
-                            <input type="text" name="reason" class="form-control form-control-sm" required placeholder="e.g. Uncollected old bill from August dispatch before software">
-                        </div>
-
-                        <div class="col-12">
-                            <label class="form-label small fw-semibold text-muted">Old Bill / Reference No (Optional)</label>
-                            <input type="text" name="reference_no" class="form-control form-control-sm" placeholder="e.g. Old Bill #402">
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-warning text-dark btn-sm fw-bold">
-                        <i class="bi bi-plus-lg me-1"></i> Add Past Due to Account
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
 {% endblock %}

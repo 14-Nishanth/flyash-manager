@@ -1,49 +1,30 @@
 {% extends "base.html" %}
-{% block title %}Record Payment - FlyAsh ERP{% endblock %}
+{% block title %}Record Payment{% endblock %}
 {% block page_title %}Record Payment{% endblock %}
 
 {% block content %}
 <div class="row">
     <div class="col-md-8 mx-auto">
-        <div class="form-card card shadow-sm border-0 rounded-3 bg-white">
-            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
-                    <i class="bi bi-cash-stack text-success"></i> Record Payment Transaction
-                </h5>
-                <a href="{{ url_for('parties.payments_list') }}" class="btn btn-outline-secondary btn-sm">
-                    Back to Payments
-                </a>
+        <div class="form-card card shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h4 class="mb-0">Record Payment</h4>
             </div>
-            <div class="card-body p-4">
-                <!-- Dynamic Party Balance Info Banner -->
-                <div id="partyBalanceBanner" class="alert alert-light border shadow-xs p-3 mb-4 rounded-3 d-none">
-                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-                        <div>
-                            <span class="small fw-bold text-muted text-uppercase" id="bannerPartyLabel">Selected Party Account:</span>
-                            <div class="h5 fw-bold mb-0 mt-0.5" id="bannerBalanceText">₹0.00</div>
-                            <small class="text-muted" id="bannerStatusSubtext">Calculating balance...</small>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-primary fw-bold px-3 shadow-xs" id="autofillFullBalanceBtn" onclick="autofillFullBalance()">
-                            <i class="bi bi-lightning-charge-fill me-1"></i> <span id="autofillBtnText">Settle Full Balance</span>
-                        </button>
-                    </div>
-                </div>
-
+            <div class="card-body">
                 <form method="POST">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="date" class="form-label small fw-semibold text-muted">Payment Date *</label>
+                            <label for="date" class="form-label">Date *</label>
                             <input type="date" class="form-control" id="date" name="date" required value="{{ today }}">
                         </div>
                         <div class="col-md-6">
-                            <label for="party_id" class="form-label small fw-semibold text-muted">Party Name *</label>
-                            <select class="form-select" id="party_id" name="party_id" required onchange="fetchPartyBalance(this.value)">
-                                <option value="">-- Select Party --</option>
+                            <label for="party_id" class="form-label">Party *</label>
+                            <select class="form-select" id="party_id" name="party_id" required>
+                                <option value="">Select Party</option>
                                 {% for party in parties %}
                                 <option value="{{ party.id }}" {% if request.args.get('party_id')|int == party.id %}selected{% endif %}>
-                                    {{ party.name }} ({{ party.party_type|capitalize }})
+                                    {{ party.name }}
                                 </option>
                                 {% endfor %}
                             </select>
@@ -52,124 +33,49 @@
                     
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="payment_type" class="form-label small fw-semibold text-muted">Payment Type *</label>
+                            <label for="payment_type" class="form-label">Payment Type *</label>
                             <select class="form-select" id="payment_type" name="payment_type" required>
-                                <option value="received" {% if request.args.get('type') == 'received' %}selected{% endif %}>Received (From Customer / Client)</option>
-                                <option value="paid" {% if request.args.get('type') == 'paid' %}selected{% endif %}>Paid (To Supplier / Transporter)</option>
+                                <option value="received">Received (From Customer)</option>
+                                <option value="paid">Paid (To Supplier)</option>
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label for="amount" class="form-label small fw-semibold text-muted">Amount (₹) *</label>
+                            <label for="amount" class="form-label">Amount (₹) *</label>
                             <div class="input-group">
-                                <span class="input-group-text bg-light">₹</span>
-                                <input type="number" step="0.01" min="0.01" class="form-control" id="amount" name="amount" required placeholder="Enter amount">
+                                <span class="input-group-text">₹</span>
+                                <input type="text" class="form-control" id="amount" name="amount" required placeholder="Enter payment amount">
                             </div>
                         </div>
                     </div>
                     
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="mode" class="form-label small fw-semibold text-muted">Payment Mode *</label>
+                            <label for="mode" class="form-label">Payment Mode *</label>
                             <select class="form-select" id="mode" name="mode" required>
-                                <option value="bank">Bank Transfer / NEFT / RTGS</option>
-                                <option value="upi">UPI / GPay / PhonePe</option>
+                                <option value="bank">Bank Transfer</option>
                                 <option value="cash">Cash</option>
+                                <option value="upi">UPI</option>
                                 <option value="cheque">Cheque</option>
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label for="reference_no" class="form-label small fw-semibold text-muted">Reference / UTR / Cheque No</label>
-                            <input type="text" class="form-control" id="reference_no" name="reference_no" placeholder="e.g. UTR123456 / Cheque #">
+                            <label for="reference_no" class="form-label">Reference No (Cheque/Txn ID)</label>
+                            <input type="text" class="form-control" id="reference_no" name="reference_no">
                         </div>
                     </div>
                     
                     <div class="mb-4">
-                        <label for="notes" class="form-label small fw-semibold text-muted">Notes / Remarks</label>
-                        <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="e.g. Partial payment against bill #102 or Full settlement"></textarea>
+                        <label for="notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="2"></textarea>
                     </div>
                     
-                    <div class="d-flex justify-content-end gap-2 pt-2 border-top">
-                        <a href="{{ url_for('parties.payments_list') }}" class="btn btn-secondary btn-sm">Cancel</a>
-                        <button type="submit" class="btn btn-primary btn-sm px-4 fw-bold">
-                            <i class="bi bi-check2-circle me-1"></i> Save Payment
-                        </button>
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('parties.payments_list') }}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Save Payment</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
-
-<script>
-let currentPartyData = null;
-
-function fetchPartyBalance(partyId) {
-    if (!partyId) {
-        document.getElementById('partyBalanceBanner').classList.add('d-none');
-        currentPartyData = null;
-        return;
-    }
-
-    fetch('/parties/api/' + partyId + '/balance')
-        .then(res => res.json())
-        .then(data => {
-            currentPartyData = data;
-            const banner = document.getElementById('partyBalanceBanner');
-            const balanceText = document.getElementById('bannerBalanceText');
-            const subtext = document.getElementById('bannerStatusSubtext');
-            const autofillBtn = document.getElementById('autofillFullBalanceBtn');
-            const btnText = document.getElementById('autofillBtnText');
-
-            banner.classList.remove('d-none');
-            
-            if (data.is_receivable) {
-                banner.className = 'alert alert-success border-success border-opacity-25 shadow-xs p-3 mb-4 rounded-3';
-                balanceText.className = 'h5 fw-bold mb-0 text-success';
-                balanceText.innerText = '₹' + data.abs_outstanding.toLocaleString('en-IN', {minimumFractionDigits: 2}) + ' (Customer Due Dr)';
-                subtext.innerText = 'Customer owes this pending amount to plant.';
-                autofillBtn.className = 'btn btn-sm btn-success fw-bold px-3 shadow-xs';
-                btnText.innerText = '⚡ Receive Full (₹' + data.abs_outstanding.toLocaleString('en-IN') + ')';
-                autofillBtn.style.display = 'inline-block';
-            } else if (data.is_payable) {
-                banner.className = 'alert alert-danger border-danger border-opacity-25 shadow-xs p-3 mb-4 rounded-3';
-                balanceText.className = 'h5 fw-bold mb-0 text-danger';
-                balanceText.innerText = '₹' + data.abs_outstanding.toLocaleString('en-IN', {minimumFractionDigits: 2}) + ' (Supplier Due Cr)';
-                subtext.innerText = 'Plant owes this pending amount to supplier.';
-                autofillBtn.className = 'btn btn-sm btn-danger fw-bold px-3 shadow-xs';
-                btnText.innerText = '⚡ Pay Full (₹' + data.abs_outstanding.toLocaleString('en-IN') + ')';
-                autofillBtn.style.display = 'inline-block';
-            } else {
-                banner.className = 'alert alert-secondary border shadow-xs p-3 mb-4 rounded-3';
-                balanceText.className = 'h5 fw-bold mb-0 text-secondary';
-                balanceText.innerText = '₹0.00 (Account Clear)';
-                subtext.innerText = 'No outstanding balance on this account.';
-                autofillBtn.style.display = 'none';
-            }
-        })
-        .catch(err => {
-            console.error('Error fetching balance:', err);
-        });
-}
-
-function autofillFullBalance() {
-    if (!currentPartyData || currentPartyData.is_settled) return;
-    
-    document.getElementById('amount').value = currentPartyData.abs_outstanding.toFixed(2);
-    if (currentPartyData.is_receivable) {
-        document.getElementById('payment_type').value = 'received';
-        document.getElementById('notes').value = 'Full payment settlement received from customer';
-    } else if (currentPartyData.is_payable) {
-        document.getElementById('payment_type').value = 'paid';
-        document.getElementById('notes').value = 'Full payment settlement paid to supplier';
-    }
-}
-
-// Auto-fetch if party_id preselected
-document.addEventListener('DOMContentLoaded', function() {
-    const preselectedParty = document.getElementById('party_id').value;
-    if (preselectedParty) {
-        fetchPartyBalance(preselectedParty);
-    }
-});
-</script>
 {% endblock %}

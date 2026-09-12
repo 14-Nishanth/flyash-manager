@@ -43,16 +43,12 @@
                     </div>
                     
                     <div class="mb-4">
-                        <label for="opening_balance" class="form-label small fw-semibold text-muted">Initial Opening Balance / Past Unpaid Due (₹)</label>
-                        <div class="input-group mb-1">
-                            <span class="input-group-text bg-light">₹</span>
-                            <input type="number" step="0.01" class="form-control" id="opening_balance" name="opening_balance" value="{{ party.opening_balance if party else '0.00' }}" placeholder="0.00">
+                        <label for="opening_balance" class="form-label">Opening Balance (₹)</label>
+                        <div class="input-group">
+                            <span class="input-group-text">₹</span>
+                            <input type="text" class="form-control" id="opening_balance" name="opening_balance" value="{{ party.opening_balance if party else '0.00' }}" placeholder="0.00">
                         </div>
-                        <div class="form-text small text-muted">
-                            <i class="bi bi-info-circle me-1"></i>
-                            <strong>Positive (+)</strong>: Money party owes us from before (Customer previous unpaid dues).<br>
-                            <strong>Negative (-)</strong>: Money we owe party from before (Advance received or Supplier pending payable).
-                        </div>
+                        <div class="form-text">Use positive value for receivable (Dr) and negative for payable (Cr).</div>
                     </div>
                     
                     <div class="d-flex justify-content-end gap-2">
