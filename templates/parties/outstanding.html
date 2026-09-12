@@ -298,7 +298,7 @@
                     <div class="row g-3">
                         <div class="col-6">
                             <label class="form-label small fw-semibold text-muted">Settlement Date</label>
-                            <input type="date" name="date" class="form-control form-control-sm" required value="{{ date.today().strftime('%Y-%m-%d') }}">
+                            <input type="date" name="date" class="form-control form-control-sm" required value="{{ today }}">
                         </div>
                         <div class="col-6">
                             <label class="form-label small fw-semibold text-muted">Payment Mode</label>
@@ -374,7 +374,7 @@
 
                         <div class="col-6">
                             <label class="form-label small fw-semibold text-muted">Due Date *</label>
-                            <input type="date" name="date" class="form-control form-control-sm" required value="{{ date.today().strftime('%Y-%m-%d') }}">
+                            <input type="date" name="date" class="form-control form-control-sm" required value="{{ today }}">
                         </div>
 
                         <div class="col-12">

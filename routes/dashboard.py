@@ -7,6 +7,48 @@ import calendar
 
 bp = Blueprint('dashboard', __name__, url_prefix='/')
 
+
+def format_quantity_summary(entries):
+    """Summarizes quantities grouped by unit, e.g., '5,000 Pieces • 45.0 MT • 2 Loads'."""
+    if not entries:
+        return '0 Units'
+    unit_totals = {}
+    for e in entries:
+        qty = e.quantity_mt or 0.0
+        u = (e.quantity_unit or 'Pieces / Pcs').strip()
+        u_lower = u.lower()
+        if 'piece' in u_lower or 'pcs' in u_lower or 'nos' in u_lower:
+            key = 'Pieces'
+        elif 'ton' in u_lower or 'mt' in u_lower:
+            key = 'MT'
+        elif 'load' in u_lower or 'trip' in u_lower:
+            key = 'Loads'
+        elif 'bag' in u_lower:
+            key = 'Bags'
+        elif 'cft' in u_lower:
+            key = 'CFT'
+        elif 'kg' in u_lower:
+            key = 'Kg'
+        else:
+            key = u
+        unit_totals[key] = unit_totals.get(key, 0.0) + qty
+    
+    parts = []
+    # Display pieces, MT, loads, bags first in standard ERP order
+    for k in ['Pieces', 'MT', 'Loads', 'Bags', 'CFT', 'Kg']:
+        if k in unit_totals and unit_totals[k] > 0:
+            if k in ('Pieces', 'Bags'):
+                parts.append(f"{unit_totals[k]:,.0f} {k}")
+            else:
+                parts.append(f"{unit_totals[k]:,.1f} {k}")
+            del unit_totals[k]
+    for k, v in unit_totals.items():
+        if v > 0:
+            parts.append(f"{v:,.1f} {k}")
+    
+    return " • ".join(parts) if parts else "0 Units"
+
+
 @bp.route('/')
 @login_required
 def index():
@@ -16,22 +58,14 @@ def index():
     total_employees = Employee.query.filter_by(is_active=True).count()
     total_parties = Party.query.count()
     
-    # 2. Today's Inward & Outward (Single queries)
-    today_inward_query = db.session.query(
-        func.sum(MaterialInward.quantity_mt).label('qty'),
-        func.sum(MaterialInward.amount).label('amount')
-    ).filter(MaterialInward.date == today).first()
-    
-    today_inward = today_inward_query.qty or 0.0
-    today_inward_amount = today_inward_query.amount or 0.0
+    # 2. Today's Inward & Outward (Accurate multi-unit breakdown)
+    today_inward_entries = MaterialInward.query.filter(MaterialInward.date == today).all()
+    today_inward_summary = format_quantity_summary(today_inward_entries)
+    today_inward_amount = sum(e.amount for e in today_inward_entries if e.amount) or 0.0
 
-    today_outward_query = db.session.query(
-        func.sum(MaterialOutward.quantity_mt).label('qty'),
-        func.sum(MaterialOutward.amount).label('amount')
-    ).filter(MaterialOutward.date == today).first()
-    
-    today_outward = today_outward_query.qty or 0.0
-    today_outward_amount = today_outward_query.amount or 0.0
+    today_outward_entries = MaterialOutward.query.filter(MaterialOutward.date == today).all()
+    today_outward_summary = format_quantity_summary(today_outward_entries)
+    today_outward_amount = sum(e.amount for e in today_outward_entries if e.amount) or 0.0
 
     # 3. Operational Expenses
     first_of_month = today.replace(day=1)
@@ -105,17 +139,20 @@ def index():
         first_d = date(target_year, target_month, 1)
         last_d = date(target_year, target_month, calendar.monthrange(target_year, target_month)[1])
 
-        in_m = db.session.query(func.sum(MaterialInward.amount)).filter(MaterialInward.date >= first_d, MaterialInward.date <= last_d).scalar() or 0.0
-        out_m = db.session.query(func.sum(MaterialOutward.amount)).filter(MaterialOutward.date >= first_d, MaterialOutward.date <= last_d).scalar() or 0.0
-        in_qty = db.session.query(func.sum(MaterialInward.quantity_mt)).filter(MaterialInward.date >= first_d, MaterialInward.date <= last_d).scalar() or 0.0
-        out_qty = db.session.query(func.sum(MaterialOutward.quantity_mt)).filter(MaterialOutward.date >= first_d, MaterialOutward.date <= last_d).scalar() or 0.0
+        in_entries = MaterialInward.query.filter(MaterialInward.date >= first_d, MaterialInward.date <= last_d).all()
+        out_entries = MaterialOutward.query.filter(MaterialOutward.date >= first_d, MaterialOutward.date <= last_d).all()
+
+        in_m = sum(e.amount for e in in_entries if e.amount) or 0.0
+        out_m = sum(e.amount for e in out_entries if e.amount) or 0.0
+        in_summary = format_quantity_summary(in_entries)
+        out_summary = format_quantity_summary(out_entries)
 
         monthly_performance.append({
             'label': month_label,
             'inward_amount': round(in_m, 2),
             'outward_amount': round(out_m, 2),
-            'inward_qty': round(in_qty, 1),
-            'outward_qty': round(out_qty, 1),
+            'inward_qty_summary': in_summary,
+            'outward_qty_summary': out_summary,
             'net_balance': round(out_m - in_m, 2),
             'is_current': (target_month == today.month and target_year == today.year)
         })
@@ -123,9 +160,9 @@ def index():
     return render_template('dashboard.html',
                            total_employees=total_employees,
                            total_parties=total_parties,
-                           today_inward=today_inward,
+                           today_inward_summary=today_inward_summary,
                            today_inward_amount=today_inward_amount,
-                           today_outward=today_outward,
+                           today_outward_summary=today_outward_summary,
                            today_outward_amount=today_outward_amount,
                            today_jobs_count=today_jobs_count,
                            today_jobs_pieces=today_jobs_pieces,

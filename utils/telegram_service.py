@@ -101,7 +101,8 @@ def build_evening_reminder(app_base_url="http://localhost:5000", target_date=Non
     total_wages = sum(j.total_wage or 0.0 for j in prod_jobs)
 
     outwards = MaterialOutward.query.filter_by(date=target_date).all()
-    total_dispatch_qty = sum(o.quantity_mt for o in outwards)
+    from routes.dashboard import format_quantity_summary
+    dispatch_summary = format_quantity_summary(outwards)
 
     attendance_link = f"{app_base_url.rstrip('/')}/employees/attendance"
     wages_link = f"{app_base_url.rstrip('/')}/employees/job-wages"
@@ -121,7 +122,7 @@ def build_evening_reminder(app_base_url="http://localhost:5000", target_date=Non
         f" • 📦 Trays Produced: <b>{total_trays:,.0f} Trays</b>\n"
         f" • 🧱 Total Bricks / Blocks: <b>{total_gross_qty:,.0f} Pcs</b>\n"
         f" • 💰 Daily Piece Wages: <b>₹{total_wages:,.2f}</b>\n"
-        f" • 🚚 Material Dispatched: <b>{total_dispatch_qty:,.2f} MT</b>\n\n"
+        f" • 🚚 Sales Dispatched: <b>{dispatch_summary}</b>\n\n"
         f"🔔 <b>Evening Action Checklist:</b>\n"
         f" 1️⃣ Verify all worker attendance is locked\n"
         f" 2️⃣ Confirm all gang job sheets and vehicle dispatches are recorded\n"
