@@ -65,6 +65,29 @@
                            value="{{ entry.vehicle_no if entry else '' }}">
                 </div>
 
+                <!-- Auto-Apply Customer Agreed Selling Rate Banner / Checkbox Switch -->
+                <div class="col-12 bg-info bg-opacity-10 p-3 rounded-3 border border-info border-opacity-25">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div class="form-check form-switch mb-0 d-flex align-items-center">
+                            <input class="form-check-input me-2" type="checkbox" role="switch" id="autoApplyPartyRate" checked style="width: 2.5em; height: 1.3em; cursor: pointer;">
+                            <label class="form-check-label fw-bold text-dark" for="autoApplyPartyRate" style="cursor: pointer;">
+                                <i class="bi bi-lightning-charge-fill text-warning me-1"></i> Auto-Apply Party Agreed Selling Rate
+                            </label>
+                        </div>
+                        <div id="agreedRateBadgeContainer" class="d-none align-items-center gap-2">
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2.5 py-1.5 fs-7 fw-bold" id="agreedRateBadge">
+                                <i class="bi bi-tag-fill me-1"></i> Agreed: ₹<span id="agreedRateValue">0.00</span> <span id="agreedRateUnit" class="text-muted fw-normal">/ Piece</span>
+                            </span>
+                            <button type="button" class="btn btn-sm btn-outline-success py-0 px-2 fw-semibold shadow-xs" id="applyAgreedRateBtn">
+                                ⚡ Use Rate
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-text small text-slate-600 mt-1 mb-0">
+                        When enabled, picking a customer and material automatically loads their negotiated agreed selling price without typing every time.
+                    </div>
+                </div>
+
                 <!-- Unit Presets & Default Setter -->
                 <div class="col-12 bg-light p-3 rounded-3 border">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
@@ -106,10 +129,10 @@
                     </label>
                     <div class="input-group">
                         <input type="number" step="any" class="form-control fw-bold" id="quantity_mt" name="quantity_mt" required 
-                               placeholder="0" value="{{ entry.quantity_mt if entry else '' }}" min="0.001">
+                                placeholder="0" value="{{ entry.quantity_mt if entry else '' }}" min="0.001">
                         <input type="text" class="form-control text-center fw-semibold bg-white border-primary" id="quantity_unit" name="quantity_unit" 
-                               style="max-width: 130px;" placeholder="Unit" list="units_list"
-                               value="{{ entry.quantity_unit if entry else 'Pieces / Pcs' }}" required>
+                                style="max-width: 130px;" placeholder="Unit" list="units_list"
+                                value="{{ entry.quantity_unit if entry else 'Pieces / Pcs' }}" required>
                         <datalist id="units_list">
                             {% for unit in quantity_units %}
                             <option value="{{ unit }}">
@@ -126,6 +149,12 @@
                         <span class="input-group-text bg-light">₹</span>
                         <input type="number" step="any" class="form-control fw-semibold" id="rate" name="rate" 
                                placeholder="0.00" value="{{ entry.rate if entry else '' }}">
+                    </div>
+                    <div class="form-check mt-1">
+                        <input class="form-check-input" type="checkbox" id="save_as_party_rate" name="save_as_party_rate" value="1">
+                        <label class="form-check-label small text-muted fw-semibold" for="save_as_party_rate" style="cursor: pointer;">
+                            💾 Save as party's agreed rate
+                        </label>
                     </div>
                 </div>
 
@@ -165,11 +194,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const rateInput = document.getElementById('rate');
     const amountInput = document.getElementById('amount');
     const materialInput = document.getElementById('material_type');
+    const partySelect = document.getElementById('party_id');
+    const autoApplyToggle = document.getElementById('autoApplyPartyRate');
+    const badgeContainer = document.getElementById('agreedRateBadgeContainer');
+    const agreedRateValue = document.getElementById('agreedRateValue');
+    const agreedRateUnit = document.getElementById('agreedRateUnit');
+    const applyAgreedRateBtn = document.getElementById('applyAgreedRateBtn');
     const qtyLabel = document.getElementById('quantityLabel');
     const rateLabel = document.getElementById('rateLabel');
     const unitPills = document.querySelectorAll('.unit-pill');
     const saveDefaultBtn = document.getElementById('saveDefaultUnitBtn');
     const isEdit = {{ 'true' if entry else 'false' }};
+    
+    // Server-provided party rates dictionary
+    const partyRatesMap = {{ party_rates_map | tojson | safe if party_rates_map else '{}' }};
 
     // Load saved default unit preference on page load if adding new entry
     const savedDefaultUnit = localStorage.getItem('flyash_default_outward_unit');
@@ -179,6 +217,88 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             unitInput.value = 'Pieces / Pcs';
         }
+    }
+
+    // Lookup agreed rate for party + material
+    function getAgreedRate(partyId, materialName) {
+        if (!partyId || !partyRatesMap[partyId]) return null;
+        
+        const pData = partyRatesMap[partyId];
+        const mat = (materialName || '').trim().toLowerCase();
+        
+        // 1. Direct match or case-insensitive match in custom products
+        if (pData.products) {
+            for (const [prodName, info] of Object.entries(pData.products)) {
+                if (prodName.trim().toLowerCase() === mat && info.rate > 0) {
+                    return info;
+                }
+            }
+            // Partial substring match (e.g. "brick" -> "Fly Ash Brick")
+            if (mat.length > 2) {
+                for (const [prodName, info] of Object.entries(pData.products)) {
+                    if ((prodName.toLowerCase().includes(mat) || mat.includes(prodName.toLowerCase())) && info.rate > 0) {
+                        return info;
+                    }
+                }
+            }
+        }
+        
+        // 2. Default party rate fallback
+        if (pData.default_rate && pData.default_rate > 0) {
+            return { rate: pData.default_rate, unit: unitInput.value || 'Pieces / Pcs' };
+        }
+        
+        return null;
+    }
+
+    // Refresh agreed rate badge & auto-fill
+    function syncPartyAgreedRate(forceApply = false) {
+        const pId = partySelect ? partySelect.value : null;
+        const mat = materialInput ? materialInput.value : '';
+        const agreed = getAgreedRate(pId, mat);
+
+        if (agreed && agreed.rate > 0) {
+            badgeContainer.classList.remove('d-none');
+            badgeContainer.classList.add('d-flex');
+            agreedRateValue.innerText = Number(agreed.rate).toFixed(2);
+            if (agreed.unit) {
+                agreedRateUnit.innerText = `/ ${agreed.unit}`;
+            }
+
+            // Auto-apply if toggle is on or button was clicked
+            if (forceApply || (autoApplyToggle && autoApplyToggle.checked && (!isEdit || forceApply))) {
+                rateInput.value = agreed.rate;
+                if (agreed.unit && !isEdit) {
+                    unitInput.value = agreed.unit;
+                    updateUnitUI();
+                }
+                calculateAmount();
+            }
+        } else {
+            badgeContainer.classList.remove('d-flex');
+            badgeContainer.classList.add('d-none');
+        }
+    }
+
+    // Button 1-click apply
+    if (applyAgreedRateBtn) {
+        applyAgreedRateBtn.addEventListener('click', function() {
+            syncPartyAgreedRate(true);
+        });
+    }
+
+    if (partySelect) {
+        partySelect.addEventListener('change', function() {
+            syncPartyAgreedRate(false);
+        });
+    }
+
+    if (autoApplyToggle) {
+        autoApplyToggle.addEventListener('change', function() {
+            if (this.checked) {
+                syncPartyAgreedRate(true);
+            }
+        });
     }
 
     function updateUnitUI() {
@@ -245,7 +365,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Auto-detect unit when material is selected/typed
+    // Auto-detect unit & check agreed rate when material is selected/typed
     if (materialInput) {
         materialInput.addEventListener('input', function() {
             const mat = (this.value || '').toLowerCase();
@@ -256,6 +376,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 unitInput.value = 'Ton';
                 updateUnitUI();
             }
+            syncPartyAgreedRate(false);
         });
     }
 
@@ -277,6 +398,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial setup
     updateUnitUI();
     calculateAmount();
+    syncPartyAgreedRate(false);
 });
 </script>
 {% endblock %}

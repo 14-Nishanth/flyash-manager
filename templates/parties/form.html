@@ -42,6 +42,18 @@
                         <input type="text" class="form-control" id="gstin" name="gstin" value="{{ party.gstin if party else '' }}">
                     </div>
                     
+                    <div class="mb-3">
+                        <label for="default_selling_rate" class="form-label small fw-semibold text-muted">Default Agreed Selling Rate (₹ / Unit)</label>
+                        <div class="input-group mb-1">
+                            <span class="input-group-text bg-light">₹</span>
+                            <input type="number" step="0.01" class="form-control" id="default_selling_rate" name="default_selling_rate" value="{{ party.default_selling_rate if party and party.default_selling_rate else '0.00' }}" placeholder="0.00">
+                        </div>
+                        <div class="form-text small text-muted">
+                            <i class="bi bi-tag me-1"></i>
+                            Preset selling price applied automatically when creating outward sales entries for this customer.
+                        </div>
+                    </div>
+
                     <div class="mb-4">
                         <label for="opening_balance" class="form-label small fw-semibold text-muted">Initial Opening Balance / Past Unpaid Due (₹)</label>
                         <div class="input-group mb-1">
