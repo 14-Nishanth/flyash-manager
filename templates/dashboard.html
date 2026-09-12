@@ -33,8 +33,8 @@
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <span class="text-muted small fw-bold text-uppercase tracking-wider">Today's Inward</span>
-                        <div class="h3 fw-bold mb-0 mt-2 text-dark">
-                            {{ "{:,.1f}".format(today_inward) }} <span class="fs-6 text-muted fw-normal">MT</span>
+                        <div class="h4 fw-bold mb-0 mt-2 text-dark">
+                            {{ today_inward_summary }}
                         </div>
                         <div class="mt-2 text-success fw-semibold small">
                             <i class="bi bi-arrow-down-left-circle me-1"></i> ₹{{ "{:,.2f}".format(today_inward_amount) }}
@@ -57,8 +57,8 @@
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <span class="text-muted small fw-bold text-uppercase tracking-wider">Today's Outward</span>
-                        <div class="h3 fw-bold mb-0 mt-2 text-dark">
-                            {{ "{:,.1f}".format(today_outward) }} <span class="fs-6 text-muted fw-normal">MT</span>
+                        <div class="h4 fw-bold mb-0 mt-2 text-dark">
+                            {{ today_outward_summary }}
                         </div>
                         <div class="mt-2 text-info fw-semibold small">
                             <i class="bi bi-arrow-up-right-circle me-1"></i> ₹{{ "{:,.2f}".format(today_outward_amount) }}
@@ -261,9 +261,9 @@
                         <thead class="table-light text-center">
                             <tr>
                                 <th class="text-start">Month</th>
-                                <th>Inward Purchases (MT)</th>
+                                <th>Inward Purchases</th>
                                 <th>Inward Value (₹)</th>
-                                <th>Outward Sales (MT)</th>
+                                <th>Outward Sales</th>
                                 <th>Outward Value (₹)</th>
                                 <th>Net Balance (₹)</th>
                                 <th>Status</th>
@@ -278,9 +278,9 @@
                                     <span class="badge bg-primary ms-1">Current</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-center">{{ "{:,.1f}".format(m.inward_qty) }} MT</td>
+                                <td class="text-center font-monospace">{{ m.inward_qty_summary }}</td>
                                 <td class="text-end text-success fw-semibold">₹{{ "{:,.2f}".format(m.inward_amount) }}</td>
-                                <td class="text-center">{{ "{:,.1f}".format(m.outward_qty) }} MT</td>
+                                <td class="text-center font-monospace">{{ m.outward_qty_summary }}</td>
                                 <td class="text-end text-info fw-semibold">₹{{ "{:,.2f}".format(m.outward_amount) }}</td>
                                 <td class="text-end fw-bold {% if m.net_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
                                     ₹{{ "{:,.2f}".format(m.net_balance) }}
@@ -400,7 +400,10 @@
                             <tr>
                                 <td class="text-nowrap text-secondary">{{ out.date.strftime('%d %b') }}</td>
                                 <td class="fw-semibold text-dark">{{ out.party.name if out.party else '-' }}</td>
-                                <td>{{ out.material_type }} ({{ out.quantity_mt }} MT)</td>
+                                <td>
+                                    {{ out.material_type }} 
+                                    <span class="text-muted small">({{ "{:,.0f}".format(out.quantity_mt) if 'piece' in (out.quantity_unit or '').lower() or 'pcs' in (out.quantity_unit or '').lower() or 'bag' in (out.quantity_unit or '').lower() else "{:,.1f}".format(out.quantity_mt) }} {{ out.quantity_unit or 'Ton' }})</span>
+                                </td>
                                 <td class="text-end fw-bold text-info">₹{{ "{:,.2f}".format(out.amount) }}</td>
                             </tr>
                             {% else %}
