@@ -126,18 +126,23 @@
 
     <!-- Secondary Operations Summary Strip -->
     <div class="row g-3 mb-4">
-        <!-- Piece Rate Production Output -->
+        <!-- Piece Rate Production & Loading Output -->
         <div class="col-12 col-md-6 col-xl-4">
-            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-3 border-primary">
                 <div class="d-flex align-items-center justify-content-between">
                     <div class="d-flex align-items-center gap-3">
                         <div class="bg-primary bg-opacity-10 text-primary p-2.5 rounded-circle">
                             <i class="bi bi-hammer fs-4"></i>
                         </div>
                         <div>
-                            <div class="text-muted small fw-bold text-uppercase">Today's Piece-Rate Work</div>
-                            <div class="fw-bold text-dark fs-5 mt-0.5">{{ "{:,.0f}".format(today_jobs_pieces) }} <span class="fs-7 text-muted fw-normal">Units / Bricks</span></div>
-                            <small class="text-primary fw-semibold">{{ today_jobs_count }} Job Allocations • ₹{{ "{:,.2f}".format(today_jobs_amount) }}</small>
+                            <div class="text-muted small fw-bold text-uppercase">Today's Labor & Wage Volume</div>
+                            <div class="d-flex align-items-center gap-2 mt-0.5">
+                                <span class="text-success small fw-bold"><i class="bi bi-gear-wide-connected me-0.5"></i>Prod: {{ "{:,.0f}".format(today_prod_pieces) }} pcs (₹{{ "{:,.0f}".format(today_prod_amount) }})</span>
+                            </div>
+                            <div class="small text-info fw-bold">
+                                <i class="bi bi-truck me-0.5"></i>Load: {{ "{:,.0f}".format(today_load_pieces) }} pcs (₹{{ "{:,.0f}".format(today_load_amount) }})
+                            </div>
+                            <small class="text-muted fw-semibold">Total Wages: <strong>₹{{ "{:,.2f}".format(today_jobs_amount) }}</strong> ({{ today_jobs_count }} jobs)</small>
                         </div>
                     </div>
                     <a href="{{ url_for('employees.job_wages_list') }}" class="btn btn-outline-primary btn-sm rounded-pill px-2.5">

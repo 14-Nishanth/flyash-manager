@@ -72,10 +72,19 @@ def index():
     today_expenses = db.session.query(func.sum(Expense.amount)).filter(Expense.date == today).scalar() or 0.0
     month_expenses = db.session.query(func.sum(Expense.amount)).filter(Expense.date >= first_of_month, Expense.date <= today).scalar() or 0.0
 
-    # 4. Piece-Rate Job Metrics (Deduplicated so Group Loading + Group Unloading shows net physical pieces)
+    # 4. Piece-Rate Job Metrics (Separated into Production & Loading/Unloading)
     today_jobs_list = JobWageEntry.query.filter(JobWageEntry.date == today).all()
     today_jobs_count = len(today_jobs_list)
+    today_prod_jobs = [j for j in today_jobs_list if j.is_production]
+    today_load_jobs = [j for j in today_jobs_list if j.is_outward]
+
     from routes.employees import calculate_net_job_quantity
+    today_prod_pieces = sum((j.gross_quantity if (j.gross_quantity and j.gross_quantity > 0) else j.quantity) for j in today_prod_jobs)
+    today_prod_amount = sum(j.total_amount for j in today_prod_jobs)
+    
+    today_load_pieces = calculate_net_job_quantity(today_load_jobs)
+    today_load_amount = sum(j.total_amount for j in today_load_jobs)
+
     today_jobs_pieces = calculate_net_job_quantity(today_jobs_list)
     today_jobs_amount = sum(j.total_amount for j in today_jobs_list)
 
@@ -167,6 +176,10 @@ def index():
                            today_jobs_count=today_jobs_count,
                            today_jobs_pieces=today_jobs_pieces,
                            today_jobs_amount=today_jobs_amount,
+                           today_prod_pieces=today_prod_pieces,
+                           today_prod_amount=today_prod_amount,
+                           today_load_pieces=today_load_pieces,
+                           today_load_amount=today_load_amount,
                            today_expenses=today_expenses,
                            month_expenses=month_expenses,
                            total_receivable=total_receivable,

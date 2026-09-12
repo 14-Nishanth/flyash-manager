@@ -1014,7 +1014,7 @@ def job_wages_delete(id):
 @bp.route('/salary-sheet')
 @login_required
 def salary_sheet():
-    """Ultra-fast Bulk Salary Sheet with Weekly and Monthly basis tracking."""
+    """Ultra-fast Bulk Salary Sheet with separate Production & Loading/Unloading Wage and Volume tracking."""
     today = date.today()
     period_param = request.args.get('period', '')
     from_date_raw = request.args.get('from_date', '')
@@ -1043,19 +1043,47 @@ def salary_sheet():
             att_map[emp_id] = {'present': 0, 'half-day': 0, 'absent': 0}
         att_map[emp_id][st] = cnt
 
-    # Bulk query 2: Piece-rate job allocations per employee
+    # Bulk query 2: All piece-rate job allocations with JobWageEntry details
     alloc_rows = db.session.query(
         EmployeeJobAllocation.employee_id,
-        func.count(EmployeeJobAllocation.id),
-        func.sum(EmployeeJobAllocation.allocated_wage)
-    ).join(JobWageEntry).filter(JobWageEntry.date >= from_date, JobWageEntry.date <= to_date).group_by(EmployeeJobAllocation.employee_id).all()
+        EmployeeJobAllocation.allocated_wage,
+        JobWageEntry.job_type,
+        JobWageEntry.quantity,
+        JobWageEntry.gross_quantity,
+        JobWageEntry.tray_count,
+        JobWageEntry.vehicle_no
+    ).join(JobWageEntry, EmployeeJobAllocation.job_entry_id == JobWageEntry.id)\
+     .filter(JobWageEntry.date >= from_date, JobWageEntry.date <= to_date).all()
 
-    alloc_map = {}
-    for emp_id, cnt, total_w in alloc_rows:
-        alloc_map[emp_id] = {'count': cnt, 'wage': total_w or 0.0}
+    emp_prod_map = {}
+    emp_load_map = {}
+
+    for emp_id, alloc_wage, jt, qty, gross_qty, tray_cnt, veh_no in alloc_rows:
+        jt_clean = (jt or '').lower()
+        is_prod = 'production' in jt_clean or (tray_cnt is not None and tray_cnt > 0)
+        
+        vol = (gross_qty if (gross_qty and gross_qty > 0) else qty) or 0.0
+
+        if is_prod:
+            if emp_id not in emp_prod_map:
+                emp_prod_map[emp_id] = {'jobs': 0, 'wage': 0.0, 'volume': 0.0}
+            emp_prod_map[emp_id]['jobs'] += 1
+            emp_prod_map[emp_id]['wage'] += (alloc_wage or 0.0)
+            emp_prod_map[emp_id]['volume'] += vol
+        else:
+            if emp_id not in emp_load_map:
+                emp_load_map[emp_id] = {'jobs': 0, 'wage': 0.0, 'volume': 0.0}
+            emp_load_map[emp_id]['jobs'] += 1
+            emp_load_map[emp_id]['wage'] += (alloc_wage or 0.0)
+            emp_load_map[emp_id]['volume'] += (qty or 0.0)
 
     salary_data = []
-    grand_piece_wage = 0.0
+    grand_prod_wage = 0.0
+    grand_prod_volume = 0.0
+    grand_prod_jobs = 0
+    grand_load_wage = 0.0
+    grand_load_volume = 0.0
+    grand_load_jobs = 0
     grand_attendance_wage = 0.0
     grand_total_salary = 0.0
 
@@ -1066,14 +1094,26 @@ def salary_sheet():
         days_absent = e_att.get('absent', 0)
         attendance_wages = (days_present * emp.daily_wage) + (days_half * emp.daily_wage * 0.5)
 
-        e_alloc = alloc_map.get(emp.id, {'count': 0, 'wage': 0.0})
-        job_count = e_alloc.get('count', 0)
-        piece_rate_wages = e_alloc.get('wage', 0.0)
+        p_info = emp_prod_map.get(emp.id, {'jobs': 0, 'wage': 0.0, 'volume': 0.0})
+        l_info = emp_load_map.get(emp.id, {'jobs': 0, 'wage': 0.0, 'volume': 0.0})
 
-        net_salary = attendance_wages + piece_rate_wages
+        prod_jobs = p_info['jobs']
+        prod_wage = p_info['wage']
+        prod_volume = p_info['volume']
+
+        load_jobs = l_info['jobs']
+        load_wage = l_info['wage']
+        load_volume = l_info['volume']
+
+        net_salary = attendance_wages + prod_wage + load_wage
 
         grand_attendance_wage += attendance_wages
-        grand_piece_wage += piece_rate_wages
+        grand_prod_wage += prod_wage
+        grand_prod_volume += prod_volume
+        grand_prod_jobs += prod_jobs
+        grand_load_wage += load_wage
+        grand_load_volume += load_volume
+        grand_load_jobs += load_jobs
         grand_total_salary += net_salary
 
         salary_data.append({
@@ -1082,8 +1122,13 @@ def salary_sheet():
             'days_half': days_half,
             'days_absent': days_absent,
             'attendance_wages': attendance_wages,
-            'job_count': job_count,
-            'piece_rate_wages': piece_rate_wages,
+            'prod_jobs': prod_jobs,
+            'prod_volume': prod_volume,
+            'prod_wage': prod_wage,
+            'load_jobs': load_jobs,
+            'load_volume': load_volume,
+            'load_wage': load_wage,
+            'piece_rate_wages': prod_wage + load_wage,
             'net_salary': net_salary
         })
 
@@ -1093,7 +1138,13 @@ def salary_sheet():
                            to_date=to_date_str,
                            period=period_param,
                            grand_attendance_wage=grand_attendance_wage,
-                           grand_piece_wage=grand_piece_wage,
+                           grand_prod_wage=grand_prod_wage,
+                           grand_prod_volume=grand_prod_volume,
+                           grand_prod_jobs=grand_prod_jobs,
+                           grand_load_wage=grand_load_wage,
+                           grand_load_volume=grand_load_volume,
+                           grand_load_jobs=grand_load_jobs,
+                           grand_piece_wage=grand_prod_wage + grand_load_wage,
                            grand_total_salary=grand_total_salary)
 
 
@@ -1119,7 +1170,10 @@ def salary_sheet_export():
     writer = csv.writer(output)
     writer.writerow([
         'Employee Name', 'Role', 'Present Days', 'Half Days', 'Daily Wage Rate (₹)',
-        'Attendance Wages (₹)', 'Job Count', 'Piece-Rate Job Wages (₹)', 'Net Total Salary (₹)'
+        'Attendance Wages (₹)', 
+        'Production Jobs', 'Production Volume (Pcs)', 'Production Wage (₹)', 
+        'Loading/Unloading Jobs', 'Loading Volume (Pcs)', 'Loading/Unloading Wage (₹)', 
+        'Net Total Salary (₹)'
     ])
 
     for emp in employees:
@@ -1137,13 +1191,26 @@ def salary_sheet_export():
             JobWageEntry.date >= from_date,
             JobWageEntry.date <= to_date
         ).all()
-        job_count = len(allocations)
-        piece_rate_wages = sum(a.allocated_wage for a in allocations)
-        net_salary = attendance_wages + piece_rate_wages
+
+        prod_allocs = [a for a in allocations if a.job_entry.is_production]
+        load_allocs = [a for a in allocations if a.job_entry.is_outward]
+
+        prod_jobs = len(prod_allocs)
+        prod_volume = sum((a.job_entry.gross_quantity if (a.job_entry.gross_quantity and a.job_entry.gross_quantity > 0) else a.job_entry.quantity) for a in prod_allocs)
+        prod_wage = sum(a.allocated_wage for a in prod_allocs)
+
+        load_jobs = len(load_allocs)
+        load_volume = sum(a.job_entry.quantity for a in load_allocs)
+        load_wage = sum(a.allocated_wage for a in load_allocs)
+
+        net_salary = attendance_wages + prod_wage + load_wage
 
         writer.writerow([
             emp.name, emp.role or '', days_present, days_half, emp.daily_wage,
-            f'{attendance_wages:.2f}', job_count, f'{piece_rate_wages:.2f}', f'{net_salary:.2f}'
+            f'{attendance_wages:.2f}', 
+            prod_jobs, f'{prod_volume:,.0f}', f'{prod_wage:.2f}',
+            load_jobs, f'{load_volume:,.0f}', f'{load_wage:.2f}',
+            f'{net_salary:.2f}'
         ])
 
     response = Response(output.getvalue(), content_type='text/csv')
