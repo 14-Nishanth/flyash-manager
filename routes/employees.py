@@ -224,13 +224,14 @@ def attendance():
     alert_settings = AlertSettings.query.first()
 
     groups = EmployeeGroup.query.filter_by(is_active=True).all()
-    groups_data = {g.id: {'name': g.name, 'member_ids': [m.id for m in g.members]} for g in groups}
+    groups_data = {str(g.id): {'id': g.id, 'name': g.name, 'member_ids': [m.id for m in g.members]} for g in groups}
 
     return render_template('employees/attendance.html', 
                            employees=employees, 
                            groups=groups,
                            groups_data=groups_data,
                            selected_date=selected_date, 
+                           today=date.today(),
                            attendance_map=attendance_map,
                            present_cnt=present_cnt,
                            absent_cnt=absent_cnt,
