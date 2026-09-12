@@ -54,6 +54,7 @@ def _migrate_db():
             'CREATE TABLE IF NOT EXISTS "expense" (id SERIAL PRIMARY KEY, date DATE NOT NULL DEFAULT CURRENT_DATE, category VARCHAR(60) NOT NULL DEFAULT \'Diesel / Fuel\', title VARCHAR(150) NOT NULL, amount DOUBLE PRECISION NOT NULL DEFAULT 0.0, payment_mode VARCHAR(30) DEFAULT \'cash\', paid_to VARCHAR(100), reference_no VARCHAR(50), notes TEXT, created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP);',
             'CREATE TABLE IF NOT EXISTS "party_adjustment" (id SERIAL PRIMARY KEY, party_id INTEGER NOT NULL REFERENCES "party"(id) ON DELETE CASCADE, date DATE NOT NULL DEFAULT CURRENT_DATE, adjustment_type VARCHAR(30) NOT NULL DEFAULT \'past_unpaid_due\', amount DOUBLE PRECISION NOT NULL DEFAULT 0.0, reason VARCHAR(255) NOT NULL, reference_no VARCHAR(50), created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP);',
             'CREATE TABLE IF NOT EXISTS "party_product_rate" (id SERIAL PRIMARY KEY, party_id INTEGER NOT NULL REFERENCES "party"(id) ON DELETE CASCADE, product_name VARCHAR(120) NOT NULL, rate DOUBLE PRECISION NOT NULL DEFAULT 0.0, unit VARCHAR(30) DEFAULT \'Pieces / Pcs\', notes VARCHAR(255), created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP, CONSTRAINT uq_party_product_rate UNIQUE (party_id, product_name));',
+                        'CREATE TABLE IF NOT EXISTS "employee_salary_payment" (id SERIAL PRIMARY KEY, employee_id INTEGER NOT NULL REFERENCES "employee"(id) ON DELETE CASCADE, period_from DATE NOT NULL, period_to DATE NOT NULL, payment_date DATE NOT NULL DEFAULT CURRENT_DATE, amount DOUBLE PRECISION NOT NULL DEFAULT 0.0, payment_mode VARCHAR(30) DEFAULT \'cash\', status VARCHAR(20) DEFAULT \'paid\', reference_no VARCHAR(50), notes TEXT, created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP);',
             'CREATE TABLE IF NOT EXISTS "stock_adjustment" (id SERIAL PRIMARY KEY, date DATE NOT NULL DEFAULT CURRENT_DATE, item_type VARCHAR(30) NOT NULL DEFAULT \'product\', item_name VARCHAR(120) NOT NULL, quantity DOUBLE PRECISION NOT NULL DEFAULT 0.0, unit VARCHAR(30) DEFAULT \'Pieces\', adjustment_type VARCHAR(40) NOT NULL DEFAULT \'past_month_stock\', notes VARCHAR(255), created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP);'
         ]
 
@@ -114,6 +115,22 @@ def _migrate_db():
                     adjustment_type VARCHAR(40) NOT NULL DEFAULT 'past_month_stock',
                     notes VARCHAR(255),
                     created_at DATETIME
+                )
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS "employee_salary_payment" (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    employee_id INTEGER NOT NULL,
+                    period_from DATE NOT NULL,
+                    period_to DATE NOT NULL,
+                    payment_date DATE NOT NULL,
+                    amount FLOAT NOT NULL DEFAULT 0.0,
+                    payment_mode VARCHAR(30) DEFAULT 'cash',
+                    status VARCHAR(20) DEFAULT 'paid',
+                    reference_no VARCHAR(50),
+                    notes TEXT,
+                    created_at DATETIME,
+                    FOREIGN KEY (employee_id) REFERENCES employee(id) ON DELETE CASCADE
                 )
             ''')
             cursor.execute('''
