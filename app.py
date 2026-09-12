@@ -378,7 +378,7 @@ def create_app():
         db.create_all()
         _create_default_admin()
         _create_default_rates_and_groups()
-        if not app.config.get('TESTING'):
+        if not app.config.get('TESTING') and not os.environ.get('VERCEL') and not os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
             try:
                 from utils.telegram_service import start_telegram_scheduler
                 start_telegram_scheduler(app)
