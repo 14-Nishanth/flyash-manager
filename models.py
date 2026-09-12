@@ -60,6 +60,14 @@ class AlertSettings(db.Model):
     smtp_password = db.Column(db.String(120), default='')
     api_key = db.Column(db.String(255))      # WhatsApp / Fast2SMS API Key or Telegram Bot Token
     chat_id = db.Column(db.String(100))      # Telegram chat ID or webhook secret
+    telegram_bot_token = db.Column(db.String(255))  # Dedicated Telegram Bot Token
+    telegram_chat_id = db.Column(db.String(100))    # Dedicated Telegram Chat ID / Channel ID
+    telegram_morning_reminder_enabled = db.Column(db.Boolean, default=True)  # Daily morning work start alert
+    telegram_morning_reminder_time = db.Column(db.String(10), default='07:00') # e.g. 07:00 AM
+    telegram_evening_reminder_enabled = db.Column(db.Boolean, default=True)  # Daily evening work complete alert
+    telegram_evening_reminder_time = db.Column(db.String(10), default='19:00') # e.g. 19:00 (7:00 PM)
+    last_morning_sent_date = db.Column(db.Date, nullable=True)
+    last_evening_sent_date = db.Column(db.Date, nullable=True)
     webhook_url = db.Column(db.String(255))
     alert_on_all_users = db.Column(db.Boolean, default=True)  # Alert when staff/other users log in
     cooldown_minutes = db.Column(db.Integer, default=30)  # Cooldown between alerts per user (mins)
@@ -69,6 +77,12 @@ class AlertSettings(db.Model):
     alert_on_staff_login = db.Column(db.Boolean, default=True)  # Alert on staff logins
     alert_on_failed_attempts = db.Column(db.Boolean, default=True)  # Alert on wrong passwords
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    def get_telegram_token(self):
+        return self.telegram_bot_token or self.api_key or ''
+
+    def get_telegram_chat_id(self):
+        return self.telegram_chat_id or self.chat_id or ''
 
     def __repr__(self):
         return f'<AlertSettings {self.channel} enabled={self.is_enabled}>'
@@ -331,3 +345,20 @@ class PartyAdjustment(db.Model):
 
     def __repr__(self):
         return f'<PartyAdjustment {self.party_id} {self.adjustment_type} ₹{self.amount}>'
+
+
+class StockAdjustment(db.Model):
+    """Past month stock records, opening inventory and yard adjustments for finished goods & raw materials."""
+    __tablename__ = 'stock_adjustment'
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    item_type = db.Column(db.String(30), nullable=False, default='product')  # 'product' (Bricks/Blocks) or 'raw_material'
+    item_name = db.Column(db.String(120), nullable=False)                    # Product name or Raw Material name
+    quantity = db.Column(db.Float, nullable=False, default=0.0)              # Quantity in Pieces or Tons
+    unit = db.Column(db.String(30), default='Pieces')                        # 'Pieces', 'Tons (MT)', 'Bags', 'Trays'
+    adjustment_type = db.Column(db.String(40), default='past_month_stock')  # 'past_month_stock', 'opening_balance', 'physical_correction', 'wastage_loss'
+    notes = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<StockAdjustment {self.date} {self.item_name} {self.quantity} {self.unit} ({self.adjustment_type})>'

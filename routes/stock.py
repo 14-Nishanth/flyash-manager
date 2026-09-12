@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 import calendar
 from flask import Blueprint, render_template, request, Response, url_for, flash, redirect
 from flask_login import login_required
-from models import db, JobWageEntry, MaterialInward, MaterialOutward, JobRateSetting, EmployeeGroup, Employee
+from models import db, JobWageEntry, MaterialInward, MaterialOutward, JobRateSetting, EmployeeGroup, Employee, StockAdjustment
 from sqlalchemy import func, distinct
 
 bp = Blueprint('stock', __name__, url_prefix='/stock')
@@ -126,22 +126,36 @@ def index():
         JobWageEntry.product_name, 
         func.sum(func.coalesce(func.nullif(JobWageEntry.gross_quantity, 0), JobWageEntry.quantity))
     ).filter(JobWageEntry.job_type.ilike('%Production%')).group_by(JobWageEntry.product_name).all())
+    
     dispatched_map = dict(db.session.query(MaterialOutward.material_type, func.sum(MaterialOutward.quantity_mt)).group_by(MaterialOutward.material_type).all())
     inward_mat_map = dict(db.session.query(MaterialInward.material_type, func.sum(MaterialInward.quantity_mt)).group_by(MaterialInward.material_type).all())
+
+    # Past Month & Opening Stock Adjustments
+    past_product_map = dict(db.session.query(
+        StockAdjustment.item_name,
+        func.sum(StockAdjustment.quantity)
+    ).filter_by(item_type='product').group_by(StockAdjustment.item_name).all())
+
+    past_raw_map = dict(db.session.query(
+        StockAdjustment.item_name,
+        func.sum(StockAdjustment.quantity)
+    ).filter_by(item_type='raw_material').group_by(StockAdjustment.item_name).all())
 
     finished_goods_stock = []
     total_yard_pieces = 0.0
     total_produced_all = 0.0
     total_dispatched_all = 0.0
+    total_past_stock_pieces = 0.0
 
     for prod in all_products:
         if search and search.lower() not in prod.lower():
             continue
 
+        past_stock_qty = sum(qty for k, qty in past_product_map.items() if prod.lower() in (k or '').lower())
         produced_qty = sum(qty for k, qty in produced_map.items() if prod.lower() in (k or '').lower())
         dispatched_qty = sum(qty for k, qty in dispatched_map.items() if prod.lower() in (k or '').lower())
 
-        current_balance = produced_qty - dispatched_qty
+        current_balance = past_stock_qty + produced_qty - dispatched_qty
         
         if current_balance > 3000:
             stock_status = 'In Stock'
@@ -166,10 +180,12 @@ def index():
             elif status_filter == 'negative' and current_balance >= 0:
                 continue
 
-        if produced_qty > 0 or dispatched_qty > 0 or current_balance != 0 or prod in STANDARD_PRODUCTS[:5]:
+        if past_stock_qty > 0 or produced_qty > 0 or dispatched_qty > 0 or current_balance != 0 or prod in STANDARD_PRODUCTS[:5]:
             finished_goods_stock.append({
                 'name': prod,
                 'product_name': prod,
+                'past_stock': past_stock_qty,
+                'past_stock_qty': past_stock_qty,
                 'produced': produced_qty,
                 'produced_qty': produced_qty,
                 'dispatched': dispatched_qty,
@@ -183,23 +199,28 @@ def index():
             total_yard_pieces += current_balance
             total_produced_all += produced_qty
             total_dispatched_all += dispatched_qty
+            total_past_stock_pieces += past_stock_qty
 
     raw_materials_stock = []
     total_raw_tons = 0.0
+    total_past_raw_tons = 0.0
 
     for mat in all_raw_mats:
         if search and search.lower() not in mat.lower():
             continue
 
+        past_mat_qty = sum(qty for k, qty in past_raw_map.items() if mat.lower() in (k or '').lower())
         inward_qty = sum(qty for k, qty in inward_mat_map.items() if mat.lower() in (k or '').lower())
         outward_qty = sum(qty for k, qty in dispatched_map.items() if mat.lower() in (k or '').lower())
 
-        current_balance = inward_qty - outward_qty
+        current_balance = past_mat_qty + inward_qty - outward_qty
 
-        if inward_qty > 0 or outward_qty > 0 or current_balance != 0 or mat in STANDARD_RAW_MATERIALS[:4]:
+        if past_mat_qty > 0 or inward_qty > 0 or outward_qty > 0 or current_balance != 0 or mat in STANDARD_RAW_MATERIALS[:4]:
             raw_materials_stock.append({
                 'name': mat,
                 'material_name': mat,
+                'past_stock': past_mat_qty,
+                'past_stock_qty': past_mat_qty,
                 'inward': inward_qty,
                 'inward_qty': inward_qty,
                 'outward': outward_qty,
@@ -209,6 +230,7 @@ def index():
                 'unit': 'Tons (MT)'
             })
             total_raw_tons += current_balance
+            total_past_raw_tons += past_mat_qty
 
     recent_additions = JobWageEntry.query.filter(JobWageEntry.job_type.ilike('%Production%')).order_by(JobWageEntry.date.desc(), JobWageEntry.id.desc()).limit(6).all()
     recent_deductions = MaterialOutward.query.order_by(MaterialOutward.date.desc(), MaterialOutward.id.desc()).limit(6).all()
@@ -221,11 +243,122 @@ def index():
         total_raw_tons=total_raw_tons,
         total_produced_all=total_produced_all,
         total_dispatched_all=total_dispatched_all,
+        total_past_stock_pieces=total_past_stock_pieces,
+        total_past_raw_tons=total_past_raw_tons,
         recent_additions=recent_additions,
         recent_deductions=recent_deductions,
         search=search,
         status_filter=status_filter
     )
+
+
+@bp.route('/past-stock')
+@login_required
+def past_stock():
+    """Past month stock records and opening balance inventory manager."""
+    month_filter = request.args.get('month', '').strip() # e.g. '2026-08'
+    item_type = request.args.get('item_type', 'all')
+    search = request.args.get('search', '').strip()
+    
+    query = StockAdjustment.query
+    
+    if item_type != 'all':
+        query = query.filter_by(item_type=item_type)
+        
+    if month_filter:
+        try:
+            yr, mo = map(int, month_filter.split('-'))
+            last_day = calendar.monthrange(yr, mo)[1]
+            from_d = date(yr, mo, 1)
+            to_d = date(yr, mo, last_day)
+            query = query.filter(StockAdjustment.date >= from_d, StockAdjustment.date <= to_d)
+        except Exception:
+            pass
+            
+    if search:
+        query = query.filter(StockAdjustment.item_name.ilike(f'%{search}%') | StockAdjustment.notes.ilike(f'%{search}%'))
+        
+    adjustments = query.order_by(StockAdjustment.date.desc(), StockAdjustment.id.desc()).all()
+    
+    total_product_adj = sum(a.quantity for a in adjustments if a.item_type == 'product')
+    total_raw_adj = sum(a.quantity for a in adjustments if a.item_type == 'raw_material')
+    
+    all_products = get_all_finished_products()
+    all_raw_mats = get_all_raw_materials()
+    
+    return render_template(
+        'stock/past_stock.html',
+        adjustments=adjustments,
+        total_product_adj=total_product_adj,
+        total_raw_adj=total_raw_adj,
+        all_products=all_products,
+        all_raw_mats=all_raw_mats,
+        month_filter=month_filter,
+        item_type=item_type,
+        search=search,
+        today=date.today()
+    )
+
+
+@bp.route('/past-stock/add', methods=['POST'])
+@login_required
+def add_past_stock():
+    """Add a past month stock entry or opening inventory record."""
+    item_type = request.form.get('item_type', 'product')
+    item_name = request.form.get('item_name', '').strip()
+    custom_name = request.form.get('custom_item_name', '').strip()
+    final_name = custom_name if item_name == '__custom__' or not item_name else item_name
+    
+    qty_str = request.form.get('quantity', '').strip()
+    unit = request.form.get('unit', 'Pieces' if item_type == 'product' else 'Tons (MT)')
+    adj_type = request.form.get('adjustment_type', 'past_month_stock')
+    notes = request.form.get('notes', '').strip()
+    date_str = request.form.get('date', '').strip()
+    
+    if not final_name or not qty_str:
+        flash("Product/Material name and quantity are required to record past stock.", "error")
+        return redirect(url_for('stock.past_stock'))
+        
+    try:
+        qty = float(qty_str)
+        adj_date = date.today()
+        if date_str:
+            adj_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            
+        adj = StockAdjustment(
+            date=adj_date,
+            item_type=item_type,
+            item_name=final_name,
+            quantity=qty,
+            unit=unit,
+            adjustment_type=adj_type,
+            notes=notes
+        )
+        db.session.add(adj)
+        db.session.commit()
+        flash(f"Successfully recorded past stock of {qty:,.2f} {unit} for '{final_name}' ({adj_date.strftime('%b %Y')}). Added to yard stock balance!", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error saving past stock adjustment: {str(e)}", "error")
+        
+    redirect_url = request.form.get('redirect_to') or url_for('stock.past_stock')
+    return redirect(redirect_url)
+
+
+@bp.route('/past-stock/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_past_stock(id):
+    """Delete a past month stock adjustment entry."""
+    adj = StockAdjustment.query.get_or_404(id)
+    item_name = adj.item_name
+    try:
+        db.session.delete(adj)
+        db.session.commit()
+        flash(f"Past stock record for '{item_name}' removed successfully.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error deleting past stock record: {str(e)}", "error")
+    return redirect(request.referrer or url_for('stock.past_stock'))
 
 
 @bp.route('/production')

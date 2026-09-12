@@ -15,10 +15,13 @@
             <p class="text-muted small mb-0" data-i18n="stock_subtitle">Real-time stock tracking: Daily Production adds to stock (+), Outward Dispatches minus from stock (-)</p>
         </div>
         <div class="d-flex gap-2">
+            <a href="{{ url_for('stock.past_stock') }}" class="btn btn-warning text-dark btn-sm d-flex align-items-center gap-1 shadow-sm fw-bold">
+                <i class="bi bi-calendar-plus-fill"></i> + Add Past Month Stock
+            </a>
             <a href="{{ url_for('stock.export_csv') }}" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 shadow-sm">
                 <i class="bi bi-download"></i> <span data-i18n="export_csv">Export CSV</span>
             </a>
-            <a href="{{ url_for('employees.job_wages_add') }}?job_type=Production (Per Piece)" class="btn btn-warning btn-sm d-flex align-items-center gap-1 shadow-sm text-dark fw-bold">
+            <a href="{{ url_for('employees.job_wages_add') }}?job_type=Production (Per Piece)" class="btn btn-outline-primary btn-sm d-flex align-items-center gap-1 shadow-sm fw-bold">
                 <i class="bi bi-plus-circle-fill"></i> + Add Production
             </a>
             <a href="{{ url_for('materials.outward_add') }}" class="btn btn-info btn-sm d-flex align-items-center gap-1 shadow-sm text-white fw-bold">
@@ -42,6 +45,11 @@
         <li class="nav-item">
             <a class="nav-link fw-semibold text-dark" href="{{ url_for('stock.loading_sheet') }}">
                 <i class="bi bi-truck me-1 text-info"></i> Loading & Dispatch Sheet (-)
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link fw-semibold text-dark" href="{{ url_for('stock.past_stock') }}">
+                <i class="bi bi-calendar2-range me-1 text-primary"></i> Past Month Stock and Opening
             </a>
         </li>
         <li class="nav-item">
@@ -165,11 +173,12 @@
                     <tr class="small text-muted text-uppercase">
                         <th style="width: 50px;">#</th>
                         <th>Product Name</th>
-                        <th class="text-end" style="width: 170px;">Total Produced (+)</th>
-                        <th class="text-end" style="width: 170px;">Total Dispatched (-)</th>
-                        <th class="text-end" style="width: 200px;">Current Balance in Yard</th>
-                        <th class="text-center" style="width: 150px;">Stock Status</th>
-                        <th class="text-center" style="width: 160px;">Quick Action</th>
+                        <th class="text-end" style="width: 140px;">Past / Opening Stock</th>
+                        <th class="text-end" style="width: 150px;">Produced (+)</th>
+                        <th class="text-end" style="width: 150px;">Dispatched (-)</th>
+                        <th class="text-end" style="width: 180px;">Current Balance</th>
+                        <th class="text-center" style="width: 130px;">Status</th>
+                        <th class="text-center" style="width: 150px;">Quick Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -179,6 +188,12 @@
                         <td>
                             <div class="fw-bold text-dark fs-6">{{ item.name }}</div>
                             <small class="text-muted">Unit: Pieces / Pcs</small>
+                        </td>
+                        <td class="text-end">
+                            <span class="fw-semibold text-secondary">
+                                {% if item.past_stock > 0 %}+{{ "{:,.0f}".format(item.past_stock) }}{% else %}-{% endif %}
+                            </span>
+                            <small class="d-block text-muted">Past / Opening</small>
                         </td>
                         <td class="text-end">
                             <span class="fw-bold text-success fs-6">+{{ "{:,.0f}".format(item.produced) }}</span>
@@ -212,10 +227,13 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="text-center py-5 text-muted">
+                        <td colspan="8" class="text-center py-5 text-muted">
                             <i class="bi bi-box-seam fs-1 d-block mb-2 text-muted text-opacity-50"></i>
                             <p class="mb-2">No finished products found.</p>
-                            <a href="{{ url_for('employees.job_wages_add') }}" class="btn btn-warning btn-sm text-dark">
+                            <a href="{{ url_for('stock.past_stock') }}" class="btn btn-warning btn-sm text-dark me-2">
+                                + Add Past Month Stock
+                            </a>
+                            <a href="{{ url_for('employees.job_wages_add') }}" class="btn btn-primary btn-sm">
                                 Record Daily Production
                             </a>
                         </td>
@@ -225,7 +243,7 @@
                 {% if finished_goods %}
                 <tfoot class="table-light fw-bold border-top">
                     <tr>
-                        <td colspan="4" class="text-end text-uppercase">Total Available Yard Stock:</td>
+                        <td colspan="5" class="text-end text-uppercase">Total Available Yard Stock:</td>
                         <td class="text-end text-primary fs-5">{{ "{:,.0f}".format(total_yard_pieces) }} Pcs</td>
                         <td colspan="2"></td>
                     </tr>
@@ -245,15 +263,21 @@
                         <i class="bi bi-truck text-success"></i>
                         <span>Raw Material Stock (Tons / MT)</span>
                     </h5>
-                    <a href="{{ url_for('materials.inward_add') }}" class="btn btn-success btn-sm">
-                        <i class="bi bi-plus-circle"></i> + Add Inward
-                    </a>
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('stock.past_stock') }}?item_type=raw_material" class="btn btn-outline-warning text-dark btn-sm fw-bold">
+                            + Past Stock
+                        </a>
+                        <a href="{{ url_for('materials.inward_add') }}" class="btn btn-success btn-sm">
+                            <i class="bi bi-plus-circle"></i> + Add Inward
+                        </a>
+                    </div>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr class="small text-muted text-uppercase">
                                 <th>Raw Material</th>
+                                <th class="text-end">Past / Opening</th>
                                 <th class="text-end">Inward (+)</th>
                                 <th class="text-end">Outward (-)</th>
                                 <th class="text-end">Balance (MT)</th>
@@ -265,6 +289,9 @@
                                 <td>
                                     <div class="fw-bold text-dark">{{ mat.name }}</div>
                                 </td>
+                                <td class="text-end text-secondary fw-semibold">
+                                    {% if mat.past_stock > 0 %}+{{ "{:,.2f}".format(mat.past_stock) }}{% else %}-{% endif %}
+                                </td>
                                 <td class="text-end text-success fw-semibold">{{ "{:,.2f}".format(mat.inward) }} MT</td>
                                 <td class="text-end text-info fw-semibold">{{ "{:,.2f}".format(mat.outward) }} MT</td>
                                 <td class="text-end">
@@ -274,7 +301,7 @@
                                 </td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="4" class="text-center py-4 text-muted">No raw material stock records.</td></tr>
+                            <tr><td colspan="5" class="text-center py-4 text-muted">No raw material stock records.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>

@@ -34,7 +34,7 @@ import csv
 import json
 from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify
 from flask_login import login_required
-from models import db, Employee, Attendance, JobWageEntry, EmployeeJobAllocation, JobRateSetting, EmployeeGroup
+from models import db, Employee, Attendance, JobWageEntry, EmployeeJobAllocation, JobRateSetting, EmployeeGroup, AlertSettings
 from datetime import datetime, date
 from sqlalchemy import func
 
@@ -215,10 +215,126 @@ def attendance():
             db.session.rollback()
             flash(f'Error saving attendance: {str(e)}', 'error')
 
+    # Calculate live attendance counters
+    present_cnt = sum(1 for a in existing_attendance if a.status == 'present')
+    absent_cnt = sum(1 for a in existing_attendance if a.status == 'absent')
+    half_day_cnt = sum(1 for a in existing_attendance if a.status == 'half-day')
+    unmarked_cnt = max(0, len(employees) - len(existing_attendance))
+    
+    alert_settings = AlertSettings.query.first()
+
     return render_template('employees/attendance.html', 
                            employees=employees, 
                            selected_date=selected_date, 
-                           attendance_map=attendance_map)
+                           attendance_map=attendance_map,
+                           present_cnt=present_cnt,
+                           absent_cnt=absent_cnt,
+                           half_day_cnt=half_day_cnt,
+                           unmarked_cnt=unmarked_cnt,
+                           total_workers=len(employees),
+                           alert_settings=alert_settings)
+
+
+@bp.route('/attendance/send-telegram-reminder', methods=['POST'])
+@login_required
+def send_telegram_reminder():
+    """Manual 1-click trigger to send morning or evening work attendance reminder to Telegram."""
+    reminder_type = request.form.get('reminder_type', 'morning')
+    date_str = request.form.get('date', '')
+    target_date = date.today()
+    if date_str:
+        try:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+
+    from utils.telegram_service import build_morning_reminder, build_evening_reminder, send_telegram_message
+
+    settings = AlertSettings.query.first()
+    bot_token = settings.get_telegram_token() if settings else ''
+    chat_id = settings.get_telegram_chat_id() if settings else ''
+
+    if not bot_token or not chat_id:
+        flash("Telegram Bot Token or Chat ID is not configured! Please click 'Telegram Settings' to enter your Bot Token and Chat ID.", "error")
+        return redirect(url_for('employees.attendance', date=target_date.strftime('%Y-%m-%d')))
+
+    app_base_url = request.host_url.rstrip('/')
+    if reminder_type == 'morning':
+        msg = build_morning_reminder(app_base_url)
+        action_name = "Morning Start Work Reminder"
+    else:
+        msg = build_evening_reminder(app_base_url, target_date=target_date)
+        action_name = "Evening Work Complete Reminder"
+
+    success, res = send_telegram_message(msg, bot_token=bot_token, chat_id=chat_id)
+    if success:
+        flash(f"⚡ {action_name} sent successfully to Telegram chat/channel!", "success")
+    else:
+        flash(f"Failed to send Telegram reminder: {res}", "error")
+
+    return redirect(url_for('employees.attendance', date=target_date.strftime('%Y-%m-%d')))
+
+
+@bp.route('/attendance/telegram-settings', methods=['POST'])
+@login_required
+def update_telegram_settings():
+    """Configure Telegram Bot Token, Chat ID, and Morning (7 AM) & Evening (7 PM) reminder times."""
+    settings = AlertSettings.query.first()
+    if not settings:
+        settings = AlertSettings()
+        db.session.add(settings)
+
+    settings.telegram_bot_token = request.form.get('telegram_bot_token', '').strip()
+    settings.telegram_chat_id = request.form.get('telegram_chat_id', '').strip()
+    settings.telegram_morning_reminder_time = request.form.get('telegram_morning_reminder_time', '07:00').strip()
+    settings.telegram_morning_reminder_enabled = request.form.get('telegram_morning_reminder_enabled') == 'on'
+    settings.telegram_evening_reminder_time = request.form.get('telegram_evening_reminder_time', '19:00').strip()
+    settings.telegram_evening_reminder_enabled = request.form.get('telegram_evening_reminder_enabled') == 'on'
+
+    try:
+        db.session.commit()
+        flash("Telegram notification and schedule settings updated successfully!", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error saving Telegram settings: {str(e)}", "error")
+
+    redirect_date = request.form.get('redirect_date', '')
+    return redirect(url_for('employees.attendance', date=redirect_date) if redirect_date else url_for('employees.attendance'))
+
+
+@bp.route('/attendance/telegram-test', methods=['POST'])
+@login_required
+def test_telegram():
+    """Send an immediate test message to Telegram."""
+    from utils.telegram_service import send_telegram_message
+    
+    settings = AlertSettings.query.first()
+    bot_token = request.form.get('telegram_bot_token', '').strip() or (settings.get_telegram_token() if settings else '')
+    chat_id = request.form.get('telegram_chat_id', '').strip() or (settings.get_telegram_chat_id() if settings else '')
+
+    if not bot_token or not chat_id:
+        flash("Please enter both Telegram Bot Token and Chat ID to send a test message.", "error")
+        return redirect(url_for('employees.attendance'))
+
+    test_msg = (
+        "🚀 <b>FlyAsh ERP - Telegram Bot Connection Test</b> 🚀\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "✅ <b>Status:</b> Connected & Active!\n"
+        f"⏰ <b>Server Time:</b> {datetime.now().strftime('%d %b %Y, %I:%M %p')}\n\n"
+        "🔔 <b>Automated Attendance Schedule:</b>\n"
+        f" • ☀️ Morning Work Start: {settings.telegram_morning_reminder_time if settings else '07:00'} (Daily)\n"
+        f" • 🌙 Evening Work Complete: {settings.telegram_evening_reminder_time if settings else '19:00'} (Daily)\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "<i>Ready to dispatch daily plant alerts!</i>"
+    )
+    success, res = send_telegram_message(test_msg, bot_token=bot_token, chat_id=chat_id)
+    if success:
+        flash("✅ Test message sent successfully to Telegram! Bot is connected.", "success")
+    else:
+        flash(f"❌ Telegram Test Failed: {res}", "error")
+
+    redirect_date = request.form.get('redirect_date', '')
+    return redirect(url_for('employees.attendance', date=redirect_date) if redirect_date else url_for('employees.attendance'))
 
 
 @bp.route('/attendance/history')
