@@ -44,6 +44,18 @@ def _migrate_db():
                         created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
                     );
                 '''))
+                conn.execute(db.text('''
+                    CREATE TABLE IF NOT EXISTS "party_adjustment" (
+                        id SERIAL PRIMARY KEY,
+                        party_id INTEGER NOT NULL REFERENCES "party"(id) ON DELETE CASCADE,
+                        date DATE NOT NULL DEFAULT CURRENT_DATE,
+                        adjustment_type VARCHAR(30) NOT NULL DEFAULT 'past_unpaid_due',
+                        amount DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                        reason VARCHAR(255) NOT NULL,
+                        reference_no VARCHAR(50),
+                        created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+                '''))
                 conn.commit()
         except Exception as e:
             print(f"[WARN] PostgreSQL migration notice: {e}")
@@ -54,6 +66,21 @@ def _migrate_db():
     if os.path.exists(db_path):
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS "party_adjustment" (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                party_id INTEGER NOT NULL,
+                date DATE NOT NULL,
+                adjustment_type VARCHAR(30) NOT NULL DEFAULT 'past_unpaid_due',
+                amount FLOAT NOT NULL DEFAULT 0.0,
+                reason VARCHAR(255) NOT NULL,
+                reference_no VARCHAR(50),
+                created_at DATETIME,
+                FOREIGN KEY (party_id) REFERENCES party(id) ON DELETE CASCADE
+            )
+        ''')
+        conn.commit()
         
         # Migrations definition
         table_migrations = {
@@ -329,4 +356,4 @@ if __name__ == '__main__':
     print('  http://localhost:5000')
     print('  Login: admin / admin123')
     print('=' * 50)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000, use_reloader=False)
