@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template
 from flask_login import login_required
-from models import db, Employee, Party, MaterialInward, MaterialOutward, JobWageEntry, JobRateSetting, Expense, Payment
+from models import db, Employee, Party, MaterialInward, MaterialOutward, JobWageEntry, JobRateSetting, Expense, Payment, PartyAdjustment
 from datetime import date, timedelta
 from sqlalchemy import func
 import calendar
@@ -45,22 +45,28 @@ def index():
     today_jobs_pieces = calculate_net_job_quantity(today_jobs_list)
     today_jobs_amount = sum(j.total_amount for j in today_jobs_list)
 
-    # 5. Fast Bulk Outstanding Calculation (4 queries total, 0 loop queries)
+    # 5. Fast Bulk Outstanding Calculation (0 loop queries)
     parties = Party.query.all()
     inward_sums = dict(db.session.query(MaterialInward.party_id, func.sum(MaterialInward.amount)).group_by(MaterialInward.party_id).all())
     outward_sums = dict(db.session.query(MaterialOutward.party_id, func.sum(MaterialOutward.amount)).group_by(MaterialOutward.party_id).all())
     paid_sums = dict(db.session.query(Payment.party_id, func.sum(Payment.amount)).filter(Payment.payment_type == 'paid').group_by(Payment.party_id).all())
     rec_sums = dict(db.session.query(Payment.party_id, func.sum(Payment.amount)).filter(Payment.payment_type == 'received').group_by(Payment.party_id).all())
+    debit_adjs = dict(db.session.query(PartyAdjustment.party_id, func.sum(PartyAdjustment.amount)).filter(PartyAdjustment.adjustment_type.in_(['past_unpaid_due', 'debit'])).group_by(PartyAdjustment.party_id).all())
+    credit_adjs = dict(db.session.query(PartyAdjustment.party_id, func.sum(PartyAdjustment.amount)).filter(PartyAdjustment.adjustment_type.in_(['past_advance', 'discount_waiver', 'credit'])).group_by(PartyAdjustment.party_id).all())
 
     total_receivable = 0.0
     total_payable = 0.0
     for p in parties:
-        # supplier: debit = inward + paid, credit = received => balance = debit - credit
-        # customer: debit = inward + paid, credit = outward + received
-        bal = (p.opening_balance or 0.0) + inward_sums.get(p.id, 0.0) - outward_sums.get(p.id, 0.0) + paid_sums.get(p.id, 0.0) - rec_sums.get(p.id, 0.0)
-        if bal > 0:
+        bal = ((p.opening_balance or 0.0) 
+               + outward_sums.get(p.id, 0.0) 
+               - inward_sums.get(p.id, 0.0) 
+               - rec_sums.get(p.id, 0.0) 
+               + paid_sums.get(p.id, 0.0) 
+               + debit_adjs.get(p.id, 0.0) 
+               - credit_adjs.get(p.id, 0.0))
+        if bal > 0.01:
             total_receivable += bal
-        elif bal < 0:
+        elif bal < -0.01:
             total_payable += abs(bal)
 
     # 6. Recent records
