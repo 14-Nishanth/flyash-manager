@@ -2,9 +2,9 @@ import io
 import csv
 import urllib.parse
 from datetime import datetime, date
-from flask import Blueprint, render_template, request, redirect, url_for, flash, Response
+from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify
 from flask_login import login_required
-from models import db, Party, MaterialInward, MaterialOutward, Payment
+from models import db, Party, MaterialInward, MaterialOutward, Payment, PartyAdjustment
 from sqlalchemy import func
 
 bp = Blueprint('parties', __name__, url_prefix='/parties')
@@ -34,16 +34,24 @@ def generate_whatsapp_url(party, outstanding):
 
 
 def get_all_parties_outstanding_map():
-    """Calculates outstanding balance for all parties in 4 fast bulk SQL queries."""
+    """Calculates outstanding balance for all parties in fast bulk SQL queries."""
     inward_sums = dict(db.session.query(MaterialInward.party_id, func.sum(MaterialInward.amount)).group_by(MaterialInward.party_id).all())
     outward_sums = dict(db.session.query(MaterialOutward.party_id, func.sum(MaterialOutward.amount)).group_by(MaterialOutward.party_id).all())
     paid_sums = dict(db.session.query(Payment.party_id, func.sum(Payment.amount)).filter(Payment.payment_type == 'paid').group_by(Payment.party_id).all())
     rec_sums = dict(db.session.query(Payment.party_id, func.sum(Payment.amount)).filter(Payment.payment_type == 'received').group_by(Payment.party_id).all())
+    debit_adjs = dict(db.session.query(PartyAdjustment.party_id, func.sum(PartyAdjustment.amount)).filter(PartyAdjustment.adjustment_type.in_(['past_unpaid_due', 'debit'])).group_by(PartyAdjustment.party_id).all())
+    credit_adjs = dict(db.session.query(PartyAdjustment.party_id, func.sum(PartyAdjustment.amount)).filter(PartyAdjustment.adjustment_type.in_(['past_advance', 'discount_waiver', 'credit'])).group_by(PartyAdjustment.party_id).all())
     
     all_parties = Party.query.all()
     outstanding_map = {}
     for p in all_parties:
-        bal = (p.opening_balance or 0.0) + inward_sums.get(p.id, 0.0) - outward_sums.get(p.id, 0.0) + paid_sums.get(p.id, 0.0) - rec_sums.get(p.id, 0.0)
+        bal = ((p.opening_balance or 0.0) 
+               + outward_sums.get(p.id, 0.0) 
+               - inward_sums.get(p.id, 0.0) 
+               - rec_sums.get(p.id, 0.0) 
+               + paid_sums.get(p.id, 0.0) 
+               + debit_adjs.get(p.id, 0.0) 
+               - credit_adjs.get(p.id, 0.0))
         outstanding_map[p.id] = round(bal, 2)
     return outstanding_map
 
@@ -164,7 +172,8 @@ def party_outstanding():
         net_balance=net_balance,
         receivable_count=receivable_count,
         payable_count=payable_count,
-        zero_count=zero_count
+        zero_count=zero_count,
+        today=date.today()
     )
 
 
@@ -256,6 +265,7 @@ def party_ledger(id):
     inwards_query = MaterialInward.query.filter_by(party_id=party.id)
     outwards_query = MaterialOutward.query.filter_by(party_id=party.id)
     payments_query = Payment.query.filter_by(party_id=party.id)
+    adjs_query = PartyAdjustment.query.filter_by(party_id=party.id)
     
     if from_date_str:
         try:
@@ -263,6 +273,7 @@ def party_ledger(id):
             inwards_query = inwards_query.filter(MaterialInward.date >= f_d)
             outwards_query = outwards_query.filter(MaterialOutward.date >= f_d)
             payments_query = payments_query.filter(Payment.date >= f_d)
+            adjs_query = adjs_query.filter(PartyAdjustment.date >= f_d)
         except ValueError:
             pass
             
@@ -272,55 +283,109 @@ def party_ledger(id):
             inwards_query = inwards_query.filter(MaterialInward.date <= t_d)
             outwards_query = outwards_query.filter(MaterialOutward.date <= t_d)
             payments_query = payments_query.filter(Payment.date <= t_d)
+            adjs_query = adjs_query.filter(PartyAdjustment.date <= t_d)
         except ValueError:
             pass
             
     inwards = inwards_query.all()
     outwards = outwards_query.all()
     payments = payments_query.all()
+    adjustments = adjs_query.all()
     
     transactions = []
     
-    for m in inwards:
-        unit = m.quantity_unit if hasattr(m, 'quantity_unit') and m.quantity_unit else 'MT'
-        transactions.append({
-            'date': m.date,
-            'type': 'Inward',
-            'description': f'{m.material_type} - {m.quantity_mt} {unit}',
-            'debit': m.amount,
-            'credit': 0.0,
-            'vehicle': m.vehicle_no or ''
-        })
-        
+    # 1. Outward Goods Dispatch to Customer (Debit: Customer owes money)
     for m in outwards:
         unit = m.quantity_unit if hasattr(m, 'quantity_unit') and m.quantity_unit else 'MT'
         transactions.append({
+            'id': f'out_{m.id}',
             'date': m.date,
-            'type': 'Outward',
+            'type': 'Outward (Sales Dispatch)',
+            'description': f'{m.material_type} - {m.quantity_mt} {unit}',
+            'debit': m.amount,
+            'credit': 0.0,
+            'vehicle': m.vehicle_no or '',
+            'is_adj': False
+        })
+
+    # 2. Inward Raw Material from Supplier (Credit: Plant owes supplier)
+    for m in inwards:
+        unit = m.quantity_unit if hasattr(m, 'quantity_unit') and m.quantity_unit else 'MT'
+        transactions.append({
+            'id': f'in_{m.id}',
+            'date': m.date,
+            'type': 'Inward (Material Purchase)',
             'description': f'{m.material_type} - {m.quantity_mt} {unit}',
             'debit': 0.0,
             'credit': m.amount,
-            'vehicle': m.vehicle_no or ''
+            'vehicle': m.vehicle_no or '',
+            'is_adj': False
         })
         
+    # 3. Payments
     for p in payments:
         if p.payment_type == 'received':
+            # Payment Received from Customer (Credit: reduces customer debt)
             transactions.append({
+                'id': f'pay_{p.id}',
                 'date': p.date,
                 'type': 'Payment Received',
-                'description': f'{p.mode} - {p.reference_no or ""}',
+                'description': f'{p.mode.upper()} - {p.reference_no or "Receipt"} {f"({p.notes})" if p.notes else ""}',
                 'debit': 0.0,
                 'credit': p.amount,
-                'vehicle': ''
+                'vehicle': '',
+                'is_adj': False
+            })
+        else:
+            # Payment Paid to Supplier (Debit: settles supplier debt)
+            transactions.append({
+                'id': f'pay_{p.id}',
+                'date': p.date,
+                'type': 'Payment Paid (Supplier Settlement)',
+                'description': f'{p.mode.upper()} - {p.reference_no or "Paid"} {f"({p.notes})" if p.notes else ""}',
+                'debit': p.amount,
+                'credit': 0.0,
+                'vehicle': '',
+                'is_adj': False
+            })
+
+    # 4. Past Unpaid Dues / Adjustments from Before Software
+    for a in adjustments:
+        if a.adjustment_type in ('past_unpaid_due', 'debit'):
+            transactions.append({
+                'id': f'adj_{a.id}',
+                'adj_id': a.id,
+                'date': a.date,
+                'type': 'Past Unpaid Due (Before Software)',
+                'description': f'{a.reason} {f"[Ref: {a.reference_no}]" if a.reference_no else ""}',
+                'debit': a.amount,
+                'credit': 0.0,
+                'vehicle': '',
+                'is_adj': True
+            })
+        elif a.adjustment_type == 'past_advance':
+            transactions.append({
+                'id': f'adj_{a.id}',
+                'adj_id': a.id,
+                'date': a.date,
+                'type': 'Past Advance Received',
+                'description': f'{a.reason} {f"[Ref: {a.reference_no}]" if a.reference_no else ""}',
+                'debit': 0.0,
+                'credit': a.amount,
+                'vehicle': '',
+                'is_adj': True
             })
         else:
             transactions.append({
-                'date': p.date,
-                'type': 'Payment Paid',
-                'description': f'{p.mode} - {p.reference_no or ""}',
-                'debit': p.amount,
-                'credit': 0.0,
-                'vehicle': ''
+                'id': f'adj_{a.id}',
+                'adj_id': a.id,
+                'date': a.date,
+                'type': 'Discount / Settlement Waiver',
+                'description': f'{a.reason} {f"[Ref: {a.reference_no}]" if a.reference_no else ""}',
+                'debit': 0.0,
+                'credit': a.amount,
+                'vehicle': '',
+                'is_adj': True
             })
             
     transactions.sort(key=lambda x: x['date'])
@@ -333,6 +398,8 @@ def party_ledger(id):
     total_debit = sum(t['debit'] for t in transactions)
     total_credit = sum(t['credit'] for t in transactions)
     
+    cur_outstanding = party.get_outstanding()
+    
     return render_template('parties/ledger.html',
                            party=party,
                            transactions=transactions,
@@ -340,7 +407,153 @@ def party_ledger(id):
                            to_date=to_date_str,
                            total_debit=total_debit,
                            total_credit=total_credit,
-                           closing_balance=running_balance)
+                           closing_balance=running_balance,
+                           cur_outstanding=cur_outstanding,
+                           today=date.today())
+
+
+@bp.route('/<int:id>/settle-full', methods=['POST'])
+@login_required
+def settle_full(id):
+    """1-Click Full Settlement of party account to clear balance to ₹0.00."""
+    party = Party.query.get_or_404(id)
+    cur_bal = party.get_outstanding()
+    
+    mode = request.form.get('mode', 'bank')
+    reference_no = request.form.get('reference_no', '').strip()
+    notes = request.form.get('notes', '').strip()
+    settle_date_str = request.form.get('date', '')
+    
+    settle_date = date.today()
+    if settle_date_str:
+        try:
+            settle_date = datetime.strptime(settle_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+            
+    if cur_bal < -0.01:
+        # Plant owes supplier -> Plant pays in full
+        pay_amount = abs(cur_bal)
+        payment = Payment(
+            date=settle_date,
+            party_id=party.id,
+            payment_type='paid',
+            amount=round(pay_amount, 2),
+            mode=mode,
+            reference_no=reference_no or 'Full Settlement',
+            notes=notes or f"Full account payment settlement to {party.name} (₹{pay_amount:,.2f} paid in full)"
+        )
+        db.session.add(payment)
+        db.session.commit()
+        flash(f"Account Settled! Paid ₹{pay_amount:,.2f} in full to {party.name}. Balance is now ₹0.00 (Clear).", 'success')
+    elif cur_bal > 0.01:
+        # Customer owes plant -> Full payment received from customer
+        rec_amount = cur_bal
+        payment = Payment(
+            date=settle_date,
+            party_id=party.id,
+            payment_type='received',
+            amount=round(rec_amount, 2),
+            mode=mode,
+            reference_no=reference_no or 'Full Settlement',
+            notes=notes or f"Full payment receipt from {party.name} (₹{rec_amount:,.2f} received in full)"
+        )
+        db.session.add(payment)
+        db.session.commit()
+        flash(f"Account Settled! Received ₹{rec_amount:,.2f} in full from {party.name}. Balance is now ₹0.00 (Clear).", 'success')
+    else:
+        flash(f"Account balance for {party.name} is already ₹0.00 (Fully Settled).", 'info')
+        
+    redirect_url = request.form.get('redirect_to') or request.referrer or url_for('parties.party_ledger', id=party.id)
+    return redirect(redirect_url)
+
+
+@bp.route('/<int:id>/add-past-due', methods=['POST'])
+@login_required
+def add_past_due(id):
+    """Add past unpaid dues from before software or old balance adjustments."""
+    party = Party.query.get_or_404(id)
+    
+    amount_str = request.form.get('amount', '').strip()
+    adj_type = request.form.get('adjustment_type', 'past_unpaid_due')
+    reason = request.form.get('reason', '').strip()
+    ref_no = request.form.get('reference_no', '').strip()
+    due_date_str = request.form.get('date', '').strip()
+    
+    if not amount_str or not reason:
+        flash("Amount and description/reason are required to record a past due / balance adjustment.", "error")
+        return redirect(request.referrer or url_for('parties.party_ledger', id=party.id))
+        
+    try:
+        amount = float(amount_str)
+        if amount <= 0:
+            flash("Amount must be greater than zero.", "error")
+            return redirect(request.referrer or url_for('parties.party_ledger', id=party.id))
+            
+        due_date = date.today()
+        if due_date_str:
+            due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
+            
+        adj = PartyAdjustment(
+            party_id=party.id,
+            date=due_date,
+            adjustment_type=adj_type,
+            amount=round(amount, 2),
+            reason=reason,
+            reference_no=ref_no
+        )
+        db.session.add(adj)
+        db.session.commit()
+        
+        if adj_type == 'past_unpaid_due':
+            flash(f"Successfully added previous unpaid due of ₹{amount:,.2f} for {party.name}. Added to customer dues!", "success")
+        elif adj_type == 'past_advance':
+            flash(f"Successfully recorded past advance of ₹{amount:,.2f} for {party.name}.", "success")
+        else:
+            flash(f"Successfully recorded adjustment of ₹{amount:,.2f} for {party.name}.", "success")
+            
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error recording past due adjustment: {str(e)}", "error")
+        
+    redirect_url = request.form.get('redirect_to') or request.referrer or url_for('parties.party_ledger', id=party.id)
+    return redirect(redirect_url)
+
+
+@bp.route('/adjustments/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_adjustment(id):
+    """Delete a past due adjustment record."""
+    adj = PartyAdjustment.query.get_or_404(id)
+    party_id = adj.party_id
+    try:
+        db.session.delete(adj)
+        db.session.commit()
+        flash("Past due adjustment deleted successfully.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error deleting adjustment: {str(e)}", "error")
+    return redirect(request.referrer or url_for('parties.party_ledger', id=party_id))
+
+
+@bp.route('/api/<int:id>/balance')
+@login_required
+def api_party_balance(id):
+    """API endpoint to get party balance and fast settlement details."""
+    party = Party.query.get_or_404(id)
+    bal = party.get_outstanding()
+    return jsonify({
+        'party_id': party.id,
+        'party_name': party.name,
+        'party_type': party.party_type,
+        'phone': party.phone or '',
+        'outstanding': round(bal, 2),
+        'abs_outstanding': round(abs(bal), 2),
+        'is_receivable': bal > 0.01,
+        'is_payable': bal < -0.01,
+        'is_settled': abs(bal) <= 0.01,
+        'formatted': f"₹{abs(bal):,.2f} {'(Customer Due Dr)' if bal > 0.01 else ('(Supplier Due Cr)' if bal < -0.01 else '(Settled)')}"
+    })
 
 
 @bp.route('/payments')
