@@ -31,11 +31,32 @@ def resolve_mat_period(period_param, from_date_str, to_date_str):
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required
-from models import db, MaterialInward, MaterialOutward, Party
+from models import db, MaterialInward, MaterialOutward, Party, PartyProductRate
 from datetime import datetime, date
 from sqlalchemy import distinct
 
 bp = Blueprint('materials', __name__, url_prefix='/materials')
+
+
+def get_party_rates_map():
+    """Builds a JSON-serializable dictionary of agreed selling rates for all parties."""
+    try:
+        parties = Party.query.all()
+        rates_map = {}
+        for p in parties:
+            rates_dict = {}
+            for r in p.custom_rates:
+                rates_dict[r.product_name] = {
+                    'rate': r.rate,
+                    'unit': r.unit
+                }
+            rates_map[str(p.id)] = {
+                'default_rate': p.default_selling_rate or 0.0,
+                'products': rates_dict
+            }
+        return rates_map
+    except Exception:
+        return {}
 
 # Comprehensive standard list of materials
 MATERIAL_TYPES = [
@@ -342,18 +363,38 @@ def outward_list():
 def outward_add():
     if request.method == 'POST':
         try:
+            party_id = int(request.form['party_id'])
+            mat_type = request.form.get('material_type', '').strip()
+            rate_val = float(request.form['rate']) if request.form.get('rate') else 0.0
+            qty_unit = request.form.get('quantity_unit', 'Pieces / Pcs')
+
             entry = MaterialOutward(
                 date=datetime.strptime(request.form['date'], '%Y-%m-%d').date(),
-                party_id=request.form['party_id'],
-                material_type=request.form.get('material_type'),
+                party_id=party_id,
+                material_type=mat_type,
                 quantity_mt=float(request.form['quantity_mt']) if request.form.get('quantity_mt') else 0.0,
-                quantity_unit=request.form.get('quantity_unit', 'Pieces / Pcs'),
+                quantity_unit=qty_unit,
                 vehicle_no=request.form.get('vehicle_no'),
-                rate=float(request.form['rate']) if request.form.get('rate') else 0.0,
+                rate=rate_val,
                 amount=float(request.form['amount']) if request.form.get('amount') else 0.0,
                 notes=request.form.get('notes')
             )
             db.session.add(entry)
+
+            # Check if user checked "Save this Rate as Party's Agreed Rate"
+            if request.form.get('save_as_party_rate') in ('1', 'on', 'true') and mat_type and rate_val > 0:
+                p_rate = PartyProductRate.query.filter_by(party_id=party_id, product_name=mat_type).first()
+                if p_rate:
+                    p_rate.rate = rate_val
+                    p_rate.unit = qty_unit
+                else:
+                    p_rate = PartyProductRate(party_id=party_id, product_name=mat_type, rate=rate_val, unit=qty_unit)
+                    db.session.add(p_rate)
+                
+                party_obj = Party.query.get(party_id)
+                if party_obj and (not party_obj.default_selling_rate or party_obj.default_selling_rate == 0.0):
+                    party_obj.default_selling_rate = rate_val
+
             db.session.commit()
             flash('Outward dispatch entry added successfully.', 'success')
             return redirect(url_for('materials.outward_list'))
@@ -364,6 +405,7 @@ def outward_add():
     parties = Party.query.filter(Party.party_type.in_(['customer', 'both'])).order_by(Party.name).all()
     return render_template('materials/outward_form.html',
                            parties=parties,
+                           party_rates_map=get_party_rates_map(),
                            material_types=get_available_materials(),
                            quantity_units=get_available_units(),
                            today=date.today().strftime('%Y-%m-%d'),
@@ -377,16 +419,31 @@ def outward_edit(id):
     
     if request.method == 'POST':
         try:
+            party_id = int(request.form['party_id'])
+            mat_type = request.form.get('material_type', '').strip()
+            rate_val = float(request.form['rate']) if request.form.get('rate') else 0.0
+            qty_unit = request.form.get('quantity_unit', 'Pieces / Pcs')
+
             entry.date = datetime.strptime(request.form['date'], '%Y-%m-%d').date()
-            entry.party_id = request.form['party_id']
-            entry.material_type = request.form.get('material_type')
+            entry.party_id = party_id
+            entry.material_type = mat_type
             entry.quantity_mt = float(request.form['quantity_mt']) if request.form.get('quantity_mt') else 0.0
-            entry.quantity_unit = request.form.get('quantity_unit', 'Pieces / Pcs')
+            entry.quantity_unit = qty_unit
             entry.vehicle_no = request.form.get('vehicle_no')
-            entry.rate = float(request.form['rate']) if request.form.get('rate') else 0.0
+            entry.rate = rate_val
             entry.amount = float(request.form['amount']) if request.form.get('amount') else 0.0
             entry.notes = request.form.get('notes')
             
+            # Check if user checked "Save this Rate as Party's Agreed Rate"
+            if request.form.get('save_as_party_rate') in ('1', 'on', 'true') and mat_type and rate_val > 0:
+                p_rate = PartyProductRate.query.filter_by(party_id=party_id, product_name=mat_type).first()
+                if p_rate:
+                    p_rate.rate = rate_val
+                    p_rate.unit = qty_unit
+                else:
+                    p_rate = PartyProductRate(party_id=party_id, product_name=mat_type, rate=rate_val, unit=qty_unit)
+                    db.session.add(p_rate)
+
             db.session.commit()
             flash('Outward entry updated successfully.', 'success')
             return redirect(url_for('materials.outward_list'))
@@ -398,6 +455,7 @@ def outward_edit(id):
     return render_template('materials/outward_form.html',
                            entry=entry,
                            parties=parties,
+                           party_rates_map=get_party_rates_map(),
                            material_types=get_available_materials(),
                            quantity_units=get_available_units(),
                            today=date.today().strftime('%Y-%m-%d'))

@@ -233,6 +233,7 @@ class Party(db.Model):
     address = db.Column(db.Text)
     gstin = db.Column(db.String(15))
     opening_balance = db.Column(db.Float, default=0)  # positive = they owe us, negative = we owe them
+    default_selling_rate = db.Column(db.Float, default=0.0)  # Default customer selling rate (₹)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     inwards = db.relationship('MaterialInward', backref='party', lazy=True,
@@ -243,6 +244,8 @@ class Party(db.Model):
                                cascade='all, delete-orphan')
     adjustments = db.relationship('PartyAdjustment', backref='party', lazy=True,
                                   cascade='all, delete-orphan')
+    custom_rates = db.relationship('PartyProductRate', backref='party', lazy=True,
+                                   cascade='all, delete-orphan')
 
     def get_outstanding(self):
         """Calculate outstanding amount for this party.
@@ -259,6 +262,24 @@ class Party(db.Model):
 
     def __repr__(self):
         return f'<Party {self.name}>'
+
+
+class PartyProductRate(db.Model):
+    """Agreed selling rate configured for a specific customer party and product."""
+    __tablename__ = 'party_product_rate'
+    id = db.Column(db.Integer, primary_key=True)
+    party_id = db.Column(db.Integer, db.ForeignKey('party.id'), nullable=False)
+    product_name = db.Column(db.String(120), nullable=False)  # e.g. Fly Ash Brick, Solid Block 4", Fly Ash
+    rate = db.Column(db.Float, nullable=False, default=0.0)   # Agreed selling price (₹)
+    unit = db.Column(db.String(30), default='Pieces / Pcs')   # Pieces, Ton, Bags
+    notes = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint('party_id', 'product_name', name='uq_party_product_rate'),)
+
+    def __repr__(self):
+        return f'<PartyProductRate Party:{self.party_id} {self.product_name} ₹{self.rate}/{self.unit}>'
 
 
 class MaterialInward(db.Model):

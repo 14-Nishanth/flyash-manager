@@ -4,7 +4,7 @@ import urllib.parse
 from datetime import datetime, date
 from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify
 from flask_login import login_required
-from models import db, Party, MaterialInward, MaterialOutward, Payment, PartyAdjustment
+from models import db, Party, MaterialInward, MaterialOutward, Payment, PartyAdjustment, PartyProductRate
 from sqlalchemy import func
 
 bp = Blueprint('parties', __name__, url_prefix='/parties')
@@ -187,6 +187,7 @@ def add_party():
         address = request.form.get('address')
         gstin = request.form.get('gstin')
         opening_balance = request.form.get('opening_balance')
+        default_selling_rate = request.form.get('default_selling_rate')
         
         if not name or not party_type:
             flash('Party name and type are required.', 'error')
@@ -199,7 +200,8 @@ def add_party():
                 phone=phone,
                 address=address,
                 gstin=gstin,
-                opening_balance=float(opening_balance) if opening_balance else 0.0
+                opening_balance=float(opening_balance) if opening_balance else 0.0,
+                default_selling_rate=float(default_selling_rate) if default_selling_rate else 0.0
             )
             db.session.add(party)
             db.session.commit()
@@ -225,6 +227,8 @@ def edit_party(id):
         party.gstin = request.form.get('gstin')
         opening_balance = request.form.get('opening_balance')
         party.opening_balance = float(opening_balance) if opening_balance else 0.0
+        default_selling_rate = request.form.get('default_selling_rate')
+        party.default_selling_rate = float(default_selling_rate) if default_selling_rate else 0.0
         
         if not party.name or not party.party_type:
             flash('Party name and type are required.', 'error')
@@ -699,4 +703,89 @@ def export_outstanding_csv():
     response = Response(output.getvalue(), mimetype='text/csv')
     response.headers['Content-Disposition'] = f'attachment; filename=party_outstanding_{date.today().strftime("%Y%m%d")}.csv'
     return response
+
+
+@bp.route('/<int:id>/rates/update', methods=['POST'])
+@login_required
+def update_party_rate(id):
+    """Create or update an agreed selling rate for a specific product and party."""
+    party = Party.query.get_or_404(id)
+    product_name = request.form.get('product_name', '').strip()
+    rate_val = request.form.get('rate', '').strip()
+    unit = request.form.get('unit', 'Pieces / Pcs').strip()
+    notes = request.form.get('notes', '').strip()
+
+    if not product_name:
+        flash('Product name is required to set agreed rate.', 'error')
+        return redirect(url_for('parties.party_ledger', id=party.id))
+
+    try:
+        rate = float(rate_val) if rate_val else 0.0
+    except ValueError:
+        flash('Invalid rate amount.', 'error')
+        return redirect(url_for('parties.party_ledger', id=party.id))
+
+    # Check if rate already exists for this party and product
+    existing = PartyProductRate.query.filter_by(party_id=party.id, product_name=product_name).first()
+    try:
+        if existing:
+            existing.rate = rate
+            existing.unit = unit
+            existing.notes = notes
+        else:
+            new_rate = PartyProductRate(
+                party_id=party.id,
+                product_name=product_name,
+                rate=rate,
+                unit=unit,
+                notes=notes
+            )
+            db.session.add(new_rate)
+        db.session.commit()
+        flash(f'Agreed selling rate of ₹{rate:,.2f} for "{product_name}" saved for {party.name}.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error saving agreed rate: {str(e)}', 'error')
+
+    return redirect(url_for('parties.party_ledger', id=party.id))
+
+
+@bp.route('/rates/<int:rate_id>/delete', methods=['POST'])
+@login_required
+def delete_party_rate(rate_id):
+    """Delete a configured agreed selling rate."""
+    rate_entry = PartyProductRate.query.get_or_404(rate_id)
+    party_id = rate_entry.party_id
+    try:
+        db.session.delete(rate_entry)
+        db.session.commit()
+        flash('Agreed selling rate removed successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error removing rate: {str(e)}', 'error')
+
+    return redirect(url_for('parties.party_ledger', id=party_id))
+
+
+@bp.route('/api/<int:id>/rates', methods=['GET'])
+@login_required
+def api_party_rates(id):
+    """JSON API to fetch all agreed rates for a given party."""
+    party = Party.query.get_or_404(id)
+    rates_list = PartyProductRate.query.filter_by(party_id=party.id).all()
+    
+    rates_dict = {}
+    for r in rates_list:
+        rates_dict[r.product_name] = {
+            'rate': r.rate,
+            'unit': r.unit,
+            'notes': r.notes or ''
+        }
+
+    return jsonify({
+        'party_id': party.id,
+        'party_name': party.name,
+        'default_selling_rate': party.default_selling_rate or 0.0,
+        'rates': rates_dict
+    })
 

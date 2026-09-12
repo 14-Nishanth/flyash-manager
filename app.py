@@ -56,6 +56,20 @@ def _migrate_db():
                         created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
                     );
                 '''))
+                conn.execute(db.text('ALTER TABLE "party" ADD COLUMN IF NOT EXISTS default_selling_rate DOUBLE PRECISION DEFAULT 0.0;'))
+                conn.execute(db.text('''
+                    CREATE TABLE IF NOT EXISTS "party_product_rate" (
+                        id SERIAL PRIMARY KEY,
+                        party_id INTEGER NOT NULL REFERENCES "party"(id) ON DELETE CASCADE,
+                        product_name VARCHAR(120) NOT NULL,
+                        rate DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                        unit VARCHAR(30) DEFAULT 'Pieces / Pcs',
+                        notes VARCHAR(255),
+                        created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        CONSTRAINT uq_party_product_rate UNIQUE (party_id, product_name)
+                    );
+                '''))
                 conn.execute(db.text('''
                     CREATE TABLE IF NOT EXISTS "stock_adjustment" (
                         id SERIAL PRIMARY KEY,
@@ -94,6 +108,20 @@ def _migrate_db():
             )
         ''')
         cursor.execute('''
+            CREATE TABLE IF NOT EXISTS "party_product_rate" (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                party_id INTEGER NOT NULL,
+                product_name VARCHAR(120) NOT NULL,
+                rate FLOAT NOT NULL DEFAULT 0.0,
+                unit VARCHAR(30) DEFAULT 'Pieces / Pcs',
+                notes VARCHAR(255),
+                created_at DATETIME,
+                updated_at DATETIME,
+                FOREIGN KEY (party_id) REFERENCES party(id) ON DELETE CASCADE,
+                UNIQUE (party_id, product_name)
+            )
+        ''')
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS "stock_adjustment" (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 date DATE NOT NULL,
@@ -110,6 +138,7 @@ def _migrate_db():
         
         # Migrations definition
         table_migrations = {
+            'party': [('default_selling_rate', "FLOAT DEFAULT 0.0")],
             'material_inward': [('quantity_unit', "VARCHAR(20) DEFAULT 'Ton'")],
             'material_outward': [('quantity_unit', "VARCHAR(20) DEFAULT 'Ton'")],
             'job_rate_setting': [
