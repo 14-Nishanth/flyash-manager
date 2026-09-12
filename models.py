@@ -227,21 +227,17 @@ class Party(db.Model):
                                cascade='all, delete-orphan')
     payments = db.relationship('Payment', backref='party', lazy=True,
                                cascade='all, delete-orphan')
-    adjustments = db.relationship('PartyAdjustment', backref='party', lazy=True,
-                                  cascade='all, delete-orphan')
 
     def get_outstanding(self):
         """Calculate outstanding amount for this party.
         Positive = party owes us (receivable), Negative = we owe party (payable).
-        Outstanding = opening_balance + total_outward - total_inward - payments_received + payments_paid + debit_adjustments - credit_adjustments
+        Outstanding = opening_balance + total_outward - total_inward - payments_received + payments_paid
         """
         total_outward = sum(m.amount for m in self.outwards) or 0
         total_inward = sum(m.amount for m in self.inwards) or 0
         payments_received = sum(p.amount for p in self.payments if p.payment_type == 'received') or 0
         payments_paid = sum(p.amount for p in self.payments if p.payment_type == 'paid') or 0
-        debit_adjs = sum(a.amount for a in self.adjustments if a.adjustment_type in ('past_unpaid_due', 'debit')) or 0
-        credit_adjs = sum(a.amount for a in self.adjustments if a.adjustment_type in ('past_advance', 'discount_waiver', 'credit')) or 0
-        return self.opening_balance + total_outward - total_inward - payments_received + payments_paid + debit_adjs - credit_adjs
+        return self.opening_balance + total_outward - total_inward - payments_received + payments_paid
 
     def __repr__(self):
         return f'<Party {self.name}>'
@@ -314,20 +310,3 @@ class Expense(db.Model):
 
     def __repr__(self):
         return f'<Expense {self.date} {self.category} ₹{self.amount}>'
-
-
-class PartyAdjustment(db.Model):
-    """Record of previous unpaid pending dues, old balance adjustments from before software, or discount/waivers."""
-    __tablename__ = 'party_adjustment'
-    id = db.Column(db.Integer, primary_key=True)
-    party_id = db.Column(db.Integer, db.ForeignKey('party.id'), nullable=False)
-    date = db.Column(db.Date, nullable=False, default=date.today)
-    adjustment_type = db.Column(db.String(30), nullable=False, default='past_unpaid_due')
-    # Types: 'past_unpaid_due' (Debit: party owes money from before), 'past_advance' (Credit: party gave advance before), 'discount_waiver' (Credit: discount given)
-    amount = db.Column(db.Float, nullable=False, default=0.0)
-    reason = db.Column(db.String(255), nullable=False)
-    reference_no = db.Column(db.String(50))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    def __repr__(self):
-        return f'<PartyAdjustment {self.party_id} {self.adjustment_type} ₹{self.amount}>'
