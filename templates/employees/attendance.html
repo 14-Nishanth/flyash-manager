@@ -72,7 +72,7 @@
     </div>
 
     <!-- Live Counter Cards & Date Selector -->
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-3">
         <!-- Date Selector Card -->
         <div class="col-12 col-lg-4">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
@@ -133,8 +133,6 @@
         </div>
     </div>
 
-    <!-- Attendance Form & Table -->
-    
     <!-- Group / Gang Full Attendance Selector Strip -->
     {% if groups %}
     <div class="card border-0 shadow-sm rounded-3 bg-white mb-3 p-3 border-start border-4 border-primary">
@@ -145,7 +143,7 @@
                     <span>Select Worker Group / Gang &rarr; Mark Full Attendance (100% Full Day)</span>
                 </div>
                 <div class="small text-muted">
-                    When you select a group, all workers in that group are automatically considered as <b>Full Day Present</b> (no half-day, no absent).
+                    When you select a group, all workers in that group are automatically marked as <b>Full Day Present</b> (no half-day, no absent).
                 </div>
             </div>
             <div class="d-flex flex-wrap align-items-center gap-2">
@@ -171,9 +169,13 @@
             </button>
             {% endfor %}
         </div>
+
+        <!-- Feedback message area -->
+        <div id="groupFeedbackMsg"></div>
     </div>
     {% endif %}
 
+    <!-- Attendance Form & Table -->
     <form method="POST" action="{{ url_for('employees.attendance', date=selected_date.strftime('%Y-%m-%d')) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         
@@ -184,10 +186,10 @@
                     <span>Attendance Register for {{ selected_date.strftime('%d %b %Y') }}</span>
                 </h5>
                 <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-outline-success btn-sm" onclick="markAllPresent()">
+                    <button type="button" class="btn btn-outline-success btn-sm fw-bold" onclick="markAllPresent()">
                         <i class="bi bi-check-all me-1"></i> All Present
                     </button>
-                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="markAllAbsent()">
+                    <button type="button" class="btn btn-outline-danger btn-sm fw-bold" onclick="markAllAbsent()">
                         <i class="bi bi-x-lg me-1"></i> All Absent
                     </button>
                 </div>
@@ -415,11 +417,59 @@
 </form>
 
 <script>
+var groupsData = {{ groups_data | tojson | safe if groups_data is defined else '{}' }};
+
 function markAllPresent() {
-    document.querySelectorAll('.status-radio-present').forEach(radio => radio.checked = true);
+    document.querySelectorAll('.status-radio-present').forEach(function(radio) {
+        radio.checked = true;
+    });
 }
+
 function markAllAbsent() {
-    document.querySelectorAll('.status-radio-absent').forEach(radio => radio.checked = true);
+    document.querySelectorAll('.status-radio-absent').forEach(function(radio) {
+        radio.checked = true;
+    });
+}
+
+function markGroupFullPresent(groupId) {
+    if (!groupId) return;
+    var grp = groupsData[groupId] || groupsData[String(groupId)];
+    if (!grp) {
+        console.warn('Group not found in data:', groupId);
+        return;
+    }
+    var memberIds = grp.member_ids || [];
+    var count = 0;
+    memberIds.forEach(function(empId) {
+        var presentRadio = document.querySelector('input[name="status_' + empId + '"][value="present"]');
+        if (presentRadio) {
+            presentRadio.checked = true;
+            count++;
+        }
+    });
+    
+    var feedbackEl = document.getElementById('groupFeedbackMsg');
+    if (feedbackEl) {
+        feedbackEl.innerHTML = '<div class="alert alert-success alert-dismissible fade show py-2 px-3 small mt-2 mb-0" role="alert">' +
+            '<i class="bi bi-check-circle-fill me-1"></i> Checked <b>Full Day Present</b> for all <b>' + count + ' workers</b> in <b>' + grp.name + '</b>! Click <b>Save Attendance</b> below to save.' +
+            '<button type="button" class="btn-close btn-close-sm py-2" data-bs-dismiss="alert" aria-label="Close"></button>' +
+        '</div>';
+    }
+}
+
+function handleGroupDropdownSelect(groupId) {
+    if (groupId) {
+        markGroupFullPresent(groupId);
+    }
+}
+
+function applyGroupFullAttendance() {
+    var select = document.getElementById('groupSelectDropdown');
+    if (select && select.value) {
+        markGroupFullPresent(select.value);
+    } else {
+        alert('Please choose a group from the dropdown first.');
+    }
 }
 </script>
 {% endblock %}
