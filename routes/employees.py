@@ -223,8 +223,13 @@ def attendance():
     
     alert_settings = AlertSettings.query.first()
 
+    groups = EmployeeGroup.query.filter_by(is_active=True).all()
+    groups_data = {g.id: {'name': g.name, 'member_ids': [m.id for m in g.members]} for g in groups}
+
     return render_template('employees/attendance.html', 
                            employees=employees, 
+                           groups=groups,
+                           groups_data=groups_data,
                            selected_date=selected_date, 
                            attendance_map=attendance_map,
                            present_cnt=present_cnt,
@@ -856,7 +861,7 @@ def job_wages_add():
             db.session.add(entry)
             db.session.flush()
 
-            # Allocate equal share to each worker who worked that day
+            # Allocate equal share and automatically grant FULL ATTENDANCE (Present) for all working workers
             for emp_id in selected_emp_ids:
                 alloc = EmployeeJobAllocation(
                     job_entry_id=entry.id,
@@ -864,6 +869,21 @@ def job_wages_add():
                     allocated_wage=wage_per_worker
                 )
                 db.session.add(alloc)
+
+                # Auto-mark Full Day Attendance (Present) for working workers on this day
+                att = Attendance.query.filter_by(employee_id=int(emp_id), date=entry_date).first()
+                if att:
+                    att.status = 'present'
+                    if not att.notes:
+                        att.notes = f'Full day attendance auto-marked via {job_type}'
+                else:
+                    att = Attendance(
+                        employee_id=int(emp_id),
+                        date=entry_date,
+                        status='present',
+                        notes=f'Full day attendance auto-marked via {job_type}'
+                    )
+                    db.session.add(att)
 
             db.session.commit()
             if tray_count > 0:
@@ -1336,3 +1356,43 @@ def telegram_webhook():
         return jsonify({'ok': True})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 200
+
+
+@bp.route('/groups/<int:id>/mark-attendance', methods=['POST'])
+@login_required
+def mark_group_attendance(id):
+    """1-Click mark all active members of a labor group/gang as FULL PRESENT for the date."""
+    group = EmployeeGroup.query.get_or_404(id)
+    date_str = request.form.get('date', '')
+    target_date = date.today()
+    if date_str:
+        try:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+
+    count = 0
+    for emp in group.members:
+        if emp.is_active:
+            att = Attendance.query.filter_by(employee_id=emp.id, date=target_date).first()
+            if att:
+                att.status = 'present'
+            else:
+                att = Attendance(
+                    employee_id=emp.id,
+                    date=target_date,
+                    status='present',
+                    notes=f'Full day attendance auto-marked for group: {group.name}'
+                )
+                db.session.add(att)
+            count += 1
+
+    try:
+        db.session.commit()
+        flash(f"✅ Marked FULL ATTENDANCE (Present) for all {count} workers in '{group.name}' on {target_date.strftime('%d %b %Y')}! (No half/absent).", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error marking group attendance: {str(e)}", "error")
+
+    redirect_url = request.form.get('redirect_to') or request.referrer or url_for('employees.attendance', date=target_date.strftime('%Y-%m-%d'))
+    return redirect(redirect_url)
