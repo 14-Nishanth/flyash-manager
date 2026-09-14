@@ -6,7 +6,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'flyash-mgr-secret-key-change-in-production'
-    
+
     # Check for external cloud DATABASE_URL (e.g. Supabase, Neon, PostgreSQL, MySQL)
     raw_db_url = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_URL') or ''
 
@@ -27,9 +27,20 @@ class Config:
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # Engine options for reliable cloud database connections (auto-reconnect & pre-ping)
+    # Keep the serverless DB pool deliberately small. A Vercel function instance
+    # normally handles a small amount of concurrent work, and a large pool can
+    # create unnecessary database connections across many serverless instances.
     if not SQLALCHEMY_DATABASE_URI.startswith('sqlite:///'):
         SQLALCHEMY_ENGINE_OPTIONS = {
-            'pool_pre_ping': True,
-            'pool_recycle': 300,
+            'pool_size': 1,
+            'max_overflow': 0,
+            'pool_timeout': 10,
+            # Avoid a network round-trip on every checkout. Connections are
+            # short-lived in serverless and can be recreated if the provider closes one.
+            'pool_pre_ping': False,
+            'pool_recycle': 900,
+        }
+    else:
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            'pool_pre_ping': False,
         }
