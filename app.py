@@ -451,6 +451,20 @@ def create_app():
     def favicon():
         return '', 204
 
+    @app.errorhandler(404)
+    def handle_404(e):
+        return render_template('errors/404.html'), 404
+
+    @app.errorhandler(500)
+    @app.errorhandler(505)
+    @app.errorhandler(Exception)
+    def handle_500(e):
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return render_template('errors/500.html', error_msg=str(e)), 500
+
     # Create database tables and default admin user
     with app.app_context():
         db.create_all()
