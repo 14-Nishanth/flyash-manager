@@ -715,8 +715,14 @@ def job_wages_list():
         query = query.filter(JobWageEntry.product_name.ilike(f'%{product_name}%'))
     if employee_id:
         query = query.join(JobWageEntry.allocations).filter(EmployeeJobAllocation.employee_id == employee_id)
-    if party_id:
-        query = query.filter(JobWageEntry.party_id == party_id)
+    party_id_param = request.args.get('party_id')
+    if party_id_param == 'unassigned':
+        query = query.filter(JobWageEntry.party_id.is_(None))
+    elif party_id_param:
+        try:
+            query = query.filter(JobWageEntry.party_id == int(party_id_param))
+        except ValueError:
+            pass
     if payment_status:
         query = query.filter(JobWageEntry.payment_status == payment_status)
 
@@ -755,7 +761,9 @@ def job_wages_list():
     groups = EmployeeGroup.query.filter_by(is_active=True).all()
     parties = Party.query.order_by(Party.name).all()
 
+    unassigned_loading_count = JobWageEntry.query.filter(JobWageEntry.party_id.is_(None)).count()
     return render_template('employees/job_wages_list.html',
+                           unassigned_loading_count=unassigned_loading_count,
                            entries=entries,
                            all_entries=all_entries,
                            production_entries=production_entries,
@@ -1790,3 +1798,68 @@ def mark_group_attendance(id):
 
     redirect_url = request.form.get('redirect_to') or request.referrer or url_for('employees.attendance', date=target_date.strftime('%Y-%m-%d'))
     return redirect(redirect_url)
+
+
+@bp.route('/job-wages/<int:id>/assign-party', methods=['POST'])
+@login_required
+@role_required('owner', 'admin', 'accountant', 'manager')
+def job_wages_assign_party(id):
+    """1-click party assignment for piece-rate loading/unloading entry."""
+    entry = JobWageEntry.query.get_or_404(id)
+    party_id_raw = request.form.get('party_id', '').strip()
+    party_id = int(party_id_raw) if party_id_raw else None
+    
+    try:
+        entry.party_id = party_id
+        if entry.payment_status == 'received' and entry.payment_id:
+            p = Payment.query.get(entry.payment_id)
+            if p and party_id:
+                p.party_id = party_id
+        db.session.commit()
+        p_name = entry.party.name if entry.party else 'Unassigned'
+        flash(f'Loading entry #{entry.id} linked to {p_name} successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error linking party: {str(e)}', 'error')
+        
+    next_url = request.form.get('next_url') or request.referrer or url_for('employees.job_wages_list')
+    return redirect(next_url)
+
+
+@bp.route('/job-wages/bulk-assign-party', methods=['POST'])
+@login_required
+@role_required('owner', 'admin', 'accountant', 'manager')
+def job_wages_bulk_assign_party():
+    """Bulk links multiple loading/unloading piece-rate entries to a party."""
+    party_id_raw = request.form.get('party_id', '').strip()
+    party_id = int(party_id_raw) if party_id_raw else None
+    entry_ids = request.form.getlist('entry_ids')
+    
+    if not entry_ids:
+        flash('No loading entries selected for bulk party assignment.', 'warning')
+        return redirect(url_for('employees.job_wages_list'))
+        
+    try:
+        party_obj = Party.query.get(party_id) if party_id else None
+        target_name = party_obj.name if party_obj else 'Unassigned'
+        count = 0
+        for eid in entry_ids:
+            try:
+                rec = JobWageEntry.query.get(int(eid))
+                if rec:
+                    rec.party_id = party_id
+                    if rec.payment_status == 'received' and rec.payment_id:
+                        p = Payment.query.get(rec.payment_id)
+                        if p and party_id:
+                            p.party_id = party_id
+                    count += 1
+            except Exception:
+                pass
+        db.session.commit()
+        flash(f'Successfully linked {count} loading records to {target_name}!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error executing bulk assignment: {str(e)}', 'error')
+        
+    next_url = request.form.get('next_url') or request.referrer or url_for('employees.job_wages_list')
+    return redirect(next_url)

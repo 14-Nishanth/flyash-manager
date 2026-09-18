@@ -137,6 +137,7 @@ MATERIAL_TYPES = [
 ]
 
 QUANTITY_UNITS = [
+    'Units / Nos',
     'Pieces / Pcs',
     'Ton',
     'Load / Trip',
@@ -327,8 +328,13 @@ def outward_list():
     except ValueError:
         pass
         
-    if party_id:
-        query = query.filter(MaterialOutward.party_id == party_id)
+    if party_id == 'unassigned':
+        query = query.filter(MaterialOutward.party_id.is_(None))
+    elif party_id:
+        try:
+            query = query.filter(MaterialOutward.party_id == int(party_id))
+        except ValueError:
+            pass
         
     if material_type:
         query = query.filter(MaterialOutward.material_type == material_type)
@@ -338,25 +344,29 @@ def outward_list():
     total_qty = sum(entry.quantity_mt for entry in entries if entry.quantity_mt)
     total_amount = sum(entry.amount for entry in entries if entry.amount)
     
-    total_pieces = sum(e.quantity_mt for e in entries if e.quantity_mt and ('piece' in (e.quantity_unit or '').lower() or 'pcs' in (e.quantity_unit or '').lower() or 'nos' in (e.quantity_unit or '').lower()))
+    total_units = sum(e.quantity_mt for e in entries if e.quantity_mt and ('unit' in (e.quantity_unit or '').lower() or 'nos' in (e.quantity_unit or '').lower()))
+    total_pieces = sum(e.quantity_mt for e in entries if e.quantity_mt and ('piece' in (e.quantity_unit or '').lower() or 'pcs' in (e.quantity_unit or '').lower()))
     total_tons = sum(e.quantity_mt for e in entries if e.quantity_mt and ('ton' in (e.quantity_unit or '').lower() or 'mt' in (e.quantity_unit or '').lower()))
     total_loads = sum(e.quantity_mt for e in entries if e.quantity_mt and ('load' in (e.quantity_unit or '').lower() or 'trip' in (e.quantity_unit or '').lower()))
     
     parties = Party.query.order_by(Party.name).all()
+    unassigned_count = MaterialOutward.query.filter(MaterialOutward.party_id.is_(None)).count()
     
     return render_template('materials/outward_list.html',
                            entries=entries,
                            from_date=from_date_str,
                            to_date=to_date_str,
                            period=period_param,
-                           party_id=int(party_id) if party_id else None,
+                           party_id=party_id,
                            material_type=material_type,
                            parties=parties,
                            total_qty=total_qty,
+                           total_units=total_units,
                            total_pieces=total_pieces,
                            total_tons=total_tons,
                            total_loads=total_loads,
                            total_amount=total_amount,
+                           unassigned_count=unassigned_count,
                            material_types=get_available_materials())
 
 
@@ -365,7 +375,8 @@ def outward_list():
 def outward_add():
     if request.method == 'POST':
         try:
-            party_id = int(request.form['party_id'])
+            p_id_raw = request.form.get('party_id', '').strip()
+            party_id = int(p_id_raw) if p_id_raw else None
             mat_type = request.form.get('material_type', '').strip()
             rate_val = float(request.form['rate']) if request.form.get('rate') else 0.0
             qty_unit = request.form.get('quantity_unit', 'Pieces / Pcs')
@@ -421,7 +432,8 @@ def outward_edit(id):
     
     if request.method == 'POST':
         try:
-            party_id = int(request.form['party_id'])
+            p_id_raw = request.form.get('party_id', '').strip()
+            party_id = int(p_id_raw) if p_id_raw else None
             mat_type = request.form.get('material_type', '').strip()
             rate_val = float(request.form['rate']) if request.form.get('rate') else 0.0
             qty_unit = request.form.get('quantity_unit', 'Pieces / Pcs')
@@ -475,3 +487,58 @@ def outward_delete(id):
         db.session.rollback()
         flash(f'Error deleting entry: {str(e)}', 'error')
     return redirect(url_for('materials.outward_list'))
+
+
+@bp.route('/outward/<int:id>/assign-party', methods=['POST'])
+@login_required
+def assign_outward_party(id):
+    """Quick 1-click party assignment for past or unassigned outward dispatches."""
+    entry = MaterialOutward.query.get_or_404(id)
+    party_id_raw = request.form.get('party_id', '').strip()
+    party_id = int(party_id_raw) if party_id_raw else None
+    
+    try:
+        entry.party_id = party_id
+        db.session.commit()
+        p_name = entry.party.name if entry.party else 'Walk-in / Unassigned Customer'
+        flash(f'Outward dispatch entry #{entry.id} linked to {p_name} successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error assigning party: {str(e)}', 'error')
+        
+    next_url = request.form.get('next_url') or request.args.get('next_url') or url_for('materials.outward_list')
+    return redirect(next_url)
+
+
+@bp.route('/outward/bulk-assign-party', methods=['POST'])
+@login_required
+def bulk_assign_outward_party():
+    """Bulk links multiple past outward dispatch records to a selected customer party."""
+    party_id_raw = request.form.get('party_id', '').strip()
+    party_id = int(party_id_raw) if party_id_raw else None
+    entry_ids = request.form.getlist('entry_ids')
+    
+    if not entry_ids:
+        flash('No outward entries selected for bulk party assignment.', 'warning')
+        return redirect(url_for('materials.outward_list'))
+        
+    try:
+        party_obj = Party.query.get(party_id) if party_id else None
+        target_name = party_obj.name if party_obj else 'Walk-in / Unassigned'
+        count = 0
+        for eid in entry_ids:
+            try:
+                rec = MaterialOutward.query.get(int(eid))
+                if rec:
+                    rec.party_id = party_id
+                    count += 1
+            except Exception:
+                pass
+        db.session.commit()
+        flash(f'Successfully assigned {count} outward dispatch records to {target_name}!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error executing bulk assignment: {str(e)}', 'error')
+        
+    next_url = request.form.get('next_url') or request.args.get('next_url') or url_for('materials.outward_list')
+    return redirect(next_url)

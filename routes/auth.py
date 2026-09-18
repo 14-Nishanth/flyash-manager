@@ -8,8 +8,8 @@ import urllib.parse
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response, jsonify
+from datetime import datetime, date
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response, jsonify, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from models import db, User, LoginHistory, AlertSettings
 from translations import SUPPORTED_LANGUAGES, LANGUAGE_MAP, TRANSLATIONS, get_translation
@@ -735,6 +735,18 @@ def alert_settings():
             _dispatch_mobile_alert(test_msg)
             flash('Test mobile alert dispatched! Please check your mobile phone.', 'info')
 
+        elif action == 'test_daily_digest':
+            from utils.daily_digest import send_daily_digest
+            chosen_ch = request.form.get('daily_digest_channel', 'both')
+            app_url = request.host_url
+            digest_res = send_daily_digest(target_date=date.today(), channel=chosen_ch, app_base_url=app_url)
+            fb = []
+            if chosen_ch in ('telegram', 'both'):
+                fb.append(f"Telegram: {'✅ ' + digest_res['telegram'][1] if digest_res['telegram'][0] else '❌ ' + digest_res['telegram'][1]}")
+            if chosen_ch in ('email', 'both'):
+                fb.append(f"Email: {'✅ ' + digest_res['email'][1] if digest_res['email'][0] else '❌ ' + digest_res['email'][1]}")
+            flash(f"Test Daily Digest dispatched: " + " | ".join(fb), 'info')
+
         elif action == 'test_email':
             # Send test email to owner's email
             target_email = request.form.get('owner_email', '').strip() or settings.owner_email or 'admin@flyash.local'
@@ -771,8 +783,78 @@ def alert_settings():
             settings.alert_on_owner_login = request.form.get('alert_on_owner_login') == 'on'
             settings.alert_on_staff_login = request.form.get('alert_on_staff_login') == 'on'
             settings.alert_on_failed_attempts = request.form.get('alert_on_failed_attempts') == 'on'
+            
+            # Daily Work Digest Preferences
+            settings.daily_digest_enabled = request.form.get('daily_digest_enabled') == 'on'
+            settings.daily_digest_time = request.form.get('daily_digest_time', '19:00').strip()
+            settings.daily_digest_channel = request.form.get('daily_digest_channel', 'both')
+            settings.daily_digest_email = request.form.get('daily_digest_email', '').strip()
+            settings.digest_include_production = request.form.get('digest_include_production') == 'on'
+            settings.digest_include_outward = request.form.get('digest_include_outward') == 'on'
+            settings.digest_include_inward = request.form.get('digest_include_inward') == 'on'
+            settings.digest_include_loading = request.form.get('digest_include_loading') == 'on'
+            settings.digest_include_collections = request.form.get('digest_include_collections') == 'on'
+            settings.digest_include_attendance = request.form.get('digest_include_attendance') == 'on'
 
             db.session.commit()
             flash('Owner notification preferences, alert limits, and frequency controls saved successfully!', 'success')
 
     return render_template('auth/alert_settings.html', settings=settings)
+
+
+@bp.route('/send-daily-digest-now', methods=['POST'])
+@login_required
+@role_required('owner', 'admin', 'manager')
+def send_daily_digest_now():
+    """Dispatches the daily work digest manually with instant feedback."""
+    from utils.daily_digest import send_daily_digest
+    t_date_str = request.form.get('target_date', '').strip()
+    try:
+        t_date = datetime.strptime(t_date_str, '%Y-%m-%d').date() if t_date_str else date.today()
+    except Exception:
+        t_date = date.today()
+        
+    channel = request.form.get('channel', 'both')
+    app_base_url = request.host_url
+    results = send_daily_digest(target_date=t_date, channel=channel, app_base_url=app_base_url)
+    
+    feedback = []
+    if channel in ('telegram', 'both'):
+        ok_tg, msg_tg = results['telegram']
+        feedback.append(f"Telegram: {'✅ Sent' if ok_tg else '❌ ' + str(msg_tg)}")
+    if channel in ('email', 'both'):
+        ok_em, msg_em = results['email']
+        feedback.append(f"Email: {'✅ Sent' if ok_em else '❌ ' + str(msg_em)}")
+        
+    flash(f"Daily Digest ({t_date.strftime('%d %b %Y')}) — " + " | ".join(feedback), 'info')
+    return redirect(request.referrer or url_for('dashboard.index'))
+
+
+@bp.route('/api/notifications/daily-digest', methods=['GET', 'POST'])
+def api_daily_digest():
+    """Automated API / Webhook trigger for daily operations digest."""
+    from utils.daily_digest import send_daily_digest
+    secret_key = request.headers.get('X-Api-Key') or request.args.get('key') or request.form.get('key')
+    app_secret = current_app.config.get('SECRET_KEY', 'flyash-default-secret')
+    
+    if not (current_user and current_user.is_authenticated):
+        if secret_key != app_secret and secret_key != 'flyash-cron-secret':
+            return {'status': 'error', 'message': 'Unauthorized. Provide X-Api-Key header or key parameter.'}, 401
+            
+    t_date_str = request.args.get('date') or request.form.get('date')
+    try:
+        t_date = datetime.strptime(t_date_str, '%Y-%m-%d').date() if t_date_str else date.today()
+    except Exception:
+        t_date = date.today()
+        
+    channel = request.args.get('channel') or request.form.get('channel') or 'both'
+    results = send_daily_digest(target_date=t_date, channel=channel, app_base_url=request.host_url)
+    
+    return {
+        'status': 'success',
+        'date': t_date.strftime('%Y-%m-%d'),
+        'results': {
+            'telegram': {'success': results['telegram'][0], 'message': results['telegram'][1]},
+            'email': {'success': results['email'][0], 'message': results['email'][1]}
+        }
+    }

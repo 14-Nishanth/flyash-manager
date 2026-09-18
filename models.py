@@ -79,6 +79,17 @@ class AlertSettings(db.Model):
     telegram_evening_reminder_time = db.Column(db.String(10), default='19:00') # e.g. 19:00 (7:00 PM)
     last_morning_sent_date = db.Column(db.Date, nullable=True)
     last_evening_sent_date = db.Column(db.Date, nullable=True)
+    daily_digest_enabled = db.Column(db.Boolean, default=True)  # Daily comprehensive work digest
+    daily_digest_time = db.Column(db.String(10), default='19:00') # 7:00 PM shift end
+    daily_digest_channel = db.Column(db.String(20), default='both') # 'telegram', 'email', 'both'
+    daily_digest_email = db.Column(db.String(120), nullable=True)
+    digest_include_production = db.Column(db.Boolean, default=True)
+    digest_include_outward = db.Column(db.Boolean, default=True)
+    digest_include_inward = db.Column(db.Boolean, default=True)
+    digest_include_loading = db.Column(db.Boolean, default=True)
+    digest_include_collections = db.Column(db.Boolean, default=True)
+    digest_include_attendance = db.Column(db.Boolean, default=True)
+    last_digest_sent_date = db.Column(db.Date, nullable=True)
     webhook_url = db.Column(db.String(255))
     alert_on_all_users = db.Column(db.Boolean, default=True)  # Alert when staff/other users log in
     cooldown_minutes = db.Column(db.Integer, default=30)  # Cooldown between alerts per user (mins)
@@ -334,15 +345,19 @@ class MaterialInward(db.Model):
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    @property
+    def party_display_name(self):
+        return self.party.name if self.party else 'Unassigned Supplier'
+
     def __repr__(self):
-        return f'<MaterialInward {self.date} {self.quantity_mt}MT>'
+        return f'<MaterialInward {self.date} {self.quantity_mt} {self.quantity_unit}>'
 
 
 class MaterialOutward(db.Model):
     """Record of material dispatched to a customer."""
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False, default=date.today)
-    party_id = db.Column(db.Integer, db.ForeignKey('party.id'), nullable=False)
+    party_id = db.Column(db.Integer, db.ForeignKey('party.id'), nullable=True)  # Nullable for counter/unassigned sales
     material_type = db.Column(db.String(50), default='Fly Ash')
     quantity_mt = db.Column(db.Float, nullable=False)
     quantity_unit = db.Column(db.String(20), default='Ton')
@@ -352,8 +367,12 @@ class MaterialOutward(db.Model):
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    @property
+    def party_display_name(self):
+        return self.party.name if self.party else 'Walk-in / Unassigned Customer'
+
     def __repr__(self):
-        return f'<MaterialOutward {self.date} {self.quantity_mt}MT>'
+        return f'<MaterialOutward {self.date} {self.quantity_mt} {self.quantity_unit}>'
 
 
 class Payment(db.Model):
@@ -440,3 +459,57 @@ class EmployeeSalaryPayment(db.Model):
 
     def __repr__(self):
         return f'<EmployeeSalaryPayment Emp:{self.employee_id} {self.period_from} to {self.period_to} ₹{self.amount} ({self.status})>'
+
+
+class DashboardPreference(db.Model):
+    """User/system widget visibility and layout preferences for Executive Dashboard."""
+    __tablename__ = 'dashboard_preference'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True) # Null for system default
+    show_today_inward = db.Column(db.Boolean, default=True)
+    show_today_outward = db.Column(db.Boolean, default=True)
+    show_expenses = db.Column(db.Boolean, default=True)
+    show_outstanding = db.Column(db.Boolean, default=True)
+    show_production_labor = db.Column(db.Boolean, default=True)
+    show_stock_overview = db.Column(db.Boolean, default=True)
+    show_weekly_performance = db.Column(db.Boolean, default=True)
+    show_recent_inward = db.Column(db.Boolean, default=True)
+    show_recent_outward = db.Column(db.Boolean, default=True)
+    show_recent_jobs = db.Column(db.Boolean, default=True)
+    show_recent_expenses = db.Column(db.Boolean, default=True)
+    show_quick_actions = db.Column(db.Boolean, default=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @classmethod
+    def get_preference(cls, user_id=None):
+        pref = None
+        if user_id:
+            pref = cls.query.filter_by(user_id=user_id).first()
+        if not pref:
+            pref = cls.query.filter_by(user_id=None).first()
+        if not pref:
+            pref = cls(
+                user_id=user_id,
+                show_today_inward=True,
+                show_today_outward=True,
+                show_expenses=True,
+                show_outstanding=True,
+                show_production_labor=True,
+                show_stock_overview=True,
+                show_weekly_performance=True,
+                show_recent_inward=True,
+                show_recent_outward=True,
+                show_recent_jobs=True,
+                show_recent_expenses=True,
+                show_quick_actions=True
+            )
+            try:
+                db.session.add(pref)
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+        return pref
+
+    def __repr__(self):
+        return f'<DashboardPreference user={self.user_id}>'
+

@@ -1,7 +1,129 @@
 {% extends "base.html" %}
 
-{% block title %}Stock Loading & Dispatch Sheet - FlyAsh ERP{% endblock %}
-{% block page_title %}Stock Loading & Dispatch Sheet{% endblock %}
+{% block title %}Stock Loading & Dispatch Sheet - FlyAsh ERP
+<!-- Quick Loading Party Modal -->
+<div class="modal fade" id="loadingPartyModal" tabindex="-1" aria-labelledby="loadingPartyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-warning text-dark p-3 px-4">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="loadingPartyModalLabel">
+                    <i class="bi bi-building"></i> Link Loading Wage to Party
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" id="loadingPartyForm" action="">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next_url" value="{{ request.full_path }}">
+                <div class="modal-body p-4 bg-white">
+                    <div class="bg-light p-3 rounded-3 border mb-3">
+                        <div class="d-flex justify-content-between small text-muted mb-1">
+                            <span>Product: <strong id="lpProduct" class="text-dark"></strong></span>
+                            <span id="lpDate"></span>
+                        </div>
+                        <div class="fs-6 fw-bold text-dark">
+                            Wage Amount: ₹<span id="lpAmount"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="lp_party_id" class="form-label small fw-semibold text-slate-700">Select Customer / Trade Party</label>
+                        <select class="form-select" id="lp_party_id" name="party_id" required>
+                            <option value="">-- Choose Party --</option>
+                            {% for p in parties %}
+                            <option value="{{ p.id }}">{{ p.name }}{% if p.phone %} ({{ p.phone }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text small text-muted">
+                            Linking this loading job to a party adds the transaction to their ledger account.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top p-3 px-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning text-dark px-4 fw-semibold shadow-sm">
+                        <i class="bi bi-check2-circle me-1"></i> Save &amp; Link Party
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openLoadingPartyModal(jobId, product, dateStr, amount) {
+    const form = document.getElementById('loadingPartyForm');
+    form.action = `/employees/job-wages/${jobId}/assign-party`;
+    document.getElementById('lpProduct').innerText = product;
+    document.getElementById('lpDate').innerText = dateStr;
+    document.getElementById('lpAmount').innerText = parseFloat(amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2});
+    const modal = new bootstrap.Modal(document.getElementById('loadingPartyModal'));
+    modal.show();
+}
+</script>
+{% endblock %}
+
+{% block page_title %}Stock Loading & Dispatch Sheet
+<!-- Quick Loading Party Modal -->
+<div class="modal fade" id="loadingPartyModal" tabindex="-1" aria-labelledby="loadingPartyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-warning text-dark p-3 px-4">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="loadingPartyModalLabel">
+                    <i class="bi bi-building"></i> Link Loading Wage to Party
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" id="loadingPartyForm" action="">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next_url" value="{{ request.full_path }}">
+                <div class="modal-body p-4 bg-white">
+                    <div class="bg-light p-3 rounded-3 border mb-3">
+                        <div class="d-flex justify-content-between small text-muted mb-1">
+                            <span>Product: <strong id="lpProduct" class="text-dark"></strong></span>
+                            <span id="lpDate"></span>
+                        </div>
+                        <div class="fs-6 fw-bold text-dark">
+                            Wage Amount: ₹<span id="lpAmount"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="lp_party_id" class="form-label small fw-semibold text-slate-700">Select Customer / Trade Party</label>
+                        <select class="form-select" id="lp_party_id" name="party_id" required>
+                            <option value="">-- Choose Party --</option>
+                            {% for p in parties %}
+                            <option value="{{ p.id }}">{{ p.name }}{% if p.phone %} ({{ p.phone }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text small text-muted">
+                            Linking this loading job to a party adds the transaction to their ledger account.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top p-3 px-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning text-dark px-4 fw-semibold shadow-sm">
+                        <i class="bi bi-check2-circle me-1"></i> Save &amp; Link Party
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openLoadingPartyModal(jobId, product, dateStr, amount) {
+    const form = document.getElementById('loadingPartyForm');
+    form.action = `/employees/job-wages/${jobId}/assign-party`;
+    document.getElementById('lpProduct').innerText = product;
+    document.getElementById('lpDate').innerText = dateStr;
+    document.getElementById('lpAmount').innerText = parseFloat(amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2});
+    const modal = new bootstrap.Modal(document.getElementById('loadingPartyModal'));
+    modal.show();
+}
+</script>
+{% endblock %}
+
 
 {% block content %}
 <div class="container-fluid py-3">
@@ -179,6 +301,7 @@
                     <label class="form-label small fw-semibold text-muted mb-1">Party / Customer</label>
                     <select name="party_id" class="form-select form-select-sm">
                         <option value="">All Parties</option>
+                        <option value="unassigned" {% if selected_party_id == 'unassigned' %}selected{% endif %}>⚠️ Unassigned Party Only</option>
                         {% for p in parties %}
                         <option value="{{ p.id }}" {% if selected_party_id == p.id %}selected{% endif %}>{{ p.name }}</option>
                         {% endfor %}
@@ -257,7 +380,16 @@
                                     <i class="bi bi-building text-primary me-1"></i>{{ l.party.name }}
                                 </a>
                             {% else %}
-                                <span class="text-muted small">--</span>
+                                <div class="d-flex align-items-center gap-1">
+                                    <span class="badge bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25 small py-1">
+                                        ⚠️ Unassigned
+                                    </span>
+                                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1.5 rounded" 
+                                            onclick="openLoadingPartyModal('{{ l.id }}', '{{ l.product_name }}', '{{ l.date.strftime('%d %b %Y') }}', '{{ l.total_amount }}')" 
+                                            title="Assign Party">
+                                        <i class="bi bi-person-plus-fill"></i> Set
+                                    </button>
+                                </div>
                             {% endif %}
                         </td>
                         <td>
@@ -583,4 +715,65 @@
     {% endif %}
 
 </div>
+
+<!-- Quick Loading Party Modal -->
+<div class="modal fade" id="loadingPartyModal" tabindex="-1" aria-labelledby="loadingPartyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-warning text-dark p-3 px-4">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="loadingPartyModalLabel">
+                    <i class="bi bi-building"></i> Link Loading Wage to Party
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" id="loadingPartyForm" action="">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next_url" value="{{ request.full_path }}">
+                <div class="modal-body p-4 bg-white">
+                    <div class="bg-light p-3 rounded-3 border mb-3">
+                        <div class="d-flex justify-content-between small text-muted mb-1">
+                            <span>Product: <strong id="lpProduct" class="text-dark"></strong></span>
+                            <span id="lpDate"></span>
+                        </div>
+                        <div class="fs-6 fw-bold text-dark">
+                            Wage Amount: ₹<span id="lpAmount"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="lp_party_id" class="form-label small fw-semibold text-slate-700">Select Customer / Trade Party</label>
+                        <select class="form-select" id="lp_party_id" name="party_id" required>
+                            <option value="">-- Choose Party --</option>
+                            {% for p in parties %}
+                            <option value="{{ p.id }}">{{ p.name }}{% if p.phone %} ({{ p.phone }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text small text-muted">
+                            Linking this loading job to a party adds the transaction to their ledger account.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top p-3 px-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning text-dark px-4 fw-semibold shadow-sm">
+                        <i class="bi bi-check2-circle me-1"></i> Save &amp; Link Party
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openLoadingPartyModal(jobId, product, dateStr, amount) {
+    const form = document.getElementById('loadingPartyForm');
+    form.action = `/employees/job-wages/${jobId}/assign-party`;
+    document.getElementById('lpProduct').innerText = product;
+    document.getElementById('lpDate').innerText = dateStr;
+    document.getElementById('lpAmount').innerText = parseFloat(amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2});
+    const modal = new bootstrap.Modal(document.getElementById('loadingPartyModal'));
+    modal.show();
+}
+</script>
 {% endblock %}
+

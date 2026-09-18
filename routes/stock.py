@@ -660,9 +660,17 @@ def loading_sheet():
     if product_name:
         loading_wage_query = loading_wage_query.filter(JobWageEntry.product_name == product_name)
         outward_query = outward_query.filter(MaterialOutward.material_type == product_name)
-    if party_id:
-        loading_wage_query = loading_wage_query.filter(JobWageEntry.party_id == party_id)
-        outward_query = outward_query.filter(MaterialOutward.party_id == party_id)
+    party_param = request.args.get('party_id', '').strip()
+    if party_param == 'unassigned':
+        loading_wage_query = loading_wage_query.filter(JobWageEntry.party_id.is_(None))
+        outward_query = outward_query.filter(MaterialOutward.party_id.is_(None))
+    elif party_param:
+        try:
+            pid = int(party_param)
+            loading_wage_query = loading_wage_query.filter(JobWageEntry.party_id == pid)
+            outward_query = outward_query.filter(MaterialOutward.party_id == pid)
+        except ValueError:
+            pass
     if payment_status:
         loading_wage_query = loading_wage_query.filter(JobWageEntry.payment_status == payment_status)
     if search:
@@ -837,8 +845,10 @@ def loading_sheet():
     all_products = get_all_finished_products()
     parties = Party.query.order_by(Party.name).all()
 
+    unassigned_loading_count = JobWageEntry.query.filter(JobWageEntry.party_id.is_(None), ~JobWageEntry.job_type.like('%Production%')).count()
     return render_template(
         'stock/loading_sheet.html',
+        unassigned_loading_count=unassigned_loading_count,
         loading_entries=loading_entries,
         outward_entries=outward_entries,
         total_loading_wages=total_loading_wages,

@@ -14,11 +14,17 @@
             </h3>
             <p class="text-muted small mb-0">Live operations, daily inward/outward registers, plant costs, and stock status.</p>
         </div>
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center flex-wrap gap-2">
             <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2 rounded-pill d-flex align-items-center gap-2">
                 <span class="spinner-grow spinner-grow-sm text-success" role="status"></span>
                 <span class="fw-semibold">Plant Live • Shift Active</span>
             </span>
+            <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3 shadow-xs d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#sendDigestModal">
+                <i class="bi bi-send-fill text-info"></i> <span>Daily Digest</span>
+            </button>
+            <button type="button" class="btn btn-outline-dark btn-sm rounded-pill px-3 shadow-xs d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#customizeDashboardModal">
+                <i class="bi bi-sliders text-warning"></i> <span>Customize View</span>
+            </button>
             <button class="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-xs" onclick="window.location.reload();">
                 <i class="bi bi-arrow-clockwise me-1"></i> Refresh
             </button>
@@ -28,6 +34,7 @@
     <!-- Primary Metric Pillar Cards -->
     <div class="row g-3 mb-4">
         <!-- 1. Today's Inward -->
+        {% if dashboard_pref.show_today_inward %}
         <div class="col-12 col-sm-6 col-xl-3">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-success">
                 <div class="d-flex justify-content-between align-items-start">
@@ -50,8 +57,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- 2. Today's Outward -->
+        {% if dashboard_pref.show_today_outward %}
         <div class="col-12 col-sm-6 col-xl-3">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-info">
                 <div class="d-flex justify-content-between align-items-start">
@@ -74,8 +83,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- 3. Operational Expenses -->
+        {% if dashboard_pref.show_expenses %}
         <div class="col-12 col-sm-6 col-xl-3">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-danger">
                 <div class="d-flex justify-content-between align-items-start">
@@ -98,8 +109,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- 4. Party Outstanding Balance -->
+        {% if dashboard_pref.show_outstanding %}
         <div class="col-12 col-sm-6 col-xl-3">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-warning">
                 <div class="d-flex justify-content-between align-items-start">
@@ -122,9 +135,11 @@
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
 
     <!-- Secondary Operations Summary Strip -->
+    {% if dashboard_pref.show_production_labor %}
     <div class="row g-3 mb-4">
         <!-- Piece Rate Production & Loading Output -->
         <div class="col-12 col-md-6 col-xl-4">
@@ -161,93 +176,76 @@
                             <i class="bi bi-people-fill fs-4"></i>
                         </div>
                         <div>
-                            <div class="text-muted small fw-bold text-uppercase">Active Plant Workforce</div>
-                            <div class="fw-bold text-dark fs-5 mt-0.5">{{ total_employees }} <span class="fs-7 text-muted fw-normal">Active Staff</span></div>
-                            <small class="text-muted">Drivers, Operators & Gang Workers</small>
+                            <div class="text-muted small fw-bold text-uppercase">Active Workforce</div>
+                            <div class="h4 fw-bold mb-0 mt-1 text-slate-800">{{ total_employees }} Employees</div>
+                            <small class="text-muted">Weekly wage sheet & shift tracking</small>
                         </div>
                     </div>
-                    <a href="{{ url_for('employees.attendance') }}" class="btn btn-outline-success btn-sm rounded-pill px-2.5">
-                        Attendance
+                    <a href="{{ url_for('employees.salary_sheet') }}" class="btn btn-outline-success btn-sm rounded-pill px-2.5">
+                        Salary Sheet
                     </a>
                 </div>
             </div>
         </div>
 
-        <!-- Quick Stock Register Access -->
+        <!-- Plant Weekly Production Total -->
         <div class="col-12 col-xl-4">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
                 <div class="d-flex align-items-center justify-content-between">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="bg-secondary bg-opacity-10 text-secondary p-2.5 rounded-circle">
-                            <i class="bi bi-stack fs-4"></i>
+                        <div class="bg-info bg-opacity-10 text-info p-2.5 rounded-circle">
+                            <i class="bi bi-calendar-check fs-4"></i>
                         </div>
                         <div>
-                            <div class="text-muted small fw-bold text-uppercase">Finished Product Stock</div>
-                            <div class="fw-bold text-dark fs-5 mt-0.5">Production & Loading</div>
-                            <small class="text-muted">Weekly & Monthly Separated Sheets</small>
+                            <div class="text-muted small fw-bold text-uppercase">This Week's Production</div>
+                            <div class="h4 fw-bold mb-0 mt-1 text-slate-800">{{ "{:,.0f}".format(week_prod_pieces) }} Pcs</div>
+                            <small class="text-muted">Loading: {{ "{:,.0f}".format(week_load_pieces) }} pcs &bull; Wages: ₹{{ "{:,.2f}".format(week_wages_amount) }}</small>
                         </div>
                     </div>
-                    <a href="{{ url_for('stock.production_sheet') }}" class="btn btn-outline-dark btn-sm rounded-pill px-2.5">
-                        Open Stock
+                    <a href="{{ url_for('stock.production_sheet') }}" class="btn btn-outline-info btn-sm rounded-pill px-2.5">
+                        Production Log
                     </a>
                 </div>
             </div>
         </div>
     </div>
+    {% endif %}
 
-    <!-- Quick Operations Action Grid -->
-    <div class="card border-0 shadow-sm rounded-3 bg-white mb-4">
-        <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-            <h6 class="fw-bold text-slate-800 mb-0 d-flex align-items-center gap-2">
-                <i class="bi bi-lightning-charge-fill text-warning"></i> Quick Operations & Rapid Data Entry
-            </h6>
-            <span class="small text-muted">1-Click Fast Recording</span>
-        </div>
-        <div class="card-body pt-0 pb-3">
-            <div class="row g-2">
-                <div class="col-6 col-md-4 col-lg-2">
-                    <a href="{{ url_for('materials.inward_add') }}" class="btn btn-outline-primary w-100 p-2.5 d-flex flex-column align-items-center justify-content-center rounded-3 shadow-xs">
-                        <i class="bi bi-box-arrow-in-down fs-4 mb-1"></i>
-                        <span class="small fw-semibold">Add Inward</span>
-                    </a>
-                </div>
-                <div class="col-6 col-md-4 col-lg-2">
-                    <a href="{{ url_for('materials.outward_add') }}" class="btn btn-outline-info w-100 p-2.5 d-flex flex-column align-items-center justify-content-center rounded-3 shadow-xs">
-                        <i class="bi bi-box-arrow-up fs-4 mb-1"></i>
-                        <span class="small fw-semibold">Add Outward</span>
-                    </a>
-                </div>
-                <div class="col-6 col-md-4 col-lg-2">
-                    <a href="{{ url_for('employees.job_wages_add') }}" class="btn btn-outline-warning w-100 p-2.5 d-flex flex-column align-items-center justify-content-center rounded-3 shadow-xs text-dark">
-                        <i class="bi bi-hammer fs-4 mb-1 text-warning"></i>
-                        <span class="small fw-semibold">Record Piece Wage</span>
-                    </a>
-                </div>
-                <div class="col-6 col-md-4 col-lg-2">
-                    <a href="{{ url_for('expenses.add_expense') }}" class="btn btn-outline-danger w-100 p-2.5 d-flex flex-column align-items-center justify-content-center rounded-3 shadow-xs">
-                        <i class="bi bi-plus-circle-fill fs-4 mb-1"></i>
-                        <span class="small fw-semibold">Record Expense</span>
-                    </a>
-                </div>
-                <div class="col-6 col-md-4 col-lg-2">
-                    <a href="{{ url_for('parties.party_outstanding') }}" class="btn btn-outline-success w-100 p-2.5 d-flex flex-column align-items-center justify-content-center rounded-3 shadow-xs">
-                        <i class="bi bi-whatsapp fs-4 mb-1"></i>
-                        <span class="small fw-semibold">Outstanding Dues</span>
-                    </a>
-                </div>
-                <div class="col-6 col-md-4 col-lg-2">
-                    <a href="{{ url_for('parties.payment_add') }}" class="btn btn-outline-dark w-100 p-2.5 d-flex flex-column align-items-center justify-content-center rounded-3 shadow-xs">
-                        <i class="bi bi-cash-coin fs-4 mb-1"></i>
-                        <span class="small fw-semibold">Record Payment</span>
-                    </a>
-                </div>
+    <!-- Quick Actions Strip -->
+    {% if dashboard_pref.show_quick_actions %}
+    <div class="card border-0 shadow-sm rounded-3 bg-white p-3 mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-lightning-charge-fill text-warning fs-5"></i>
+                <span class="fw-bold text-slate-800">Quick Plant Operations:</span>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="{{ url_for('materials.outward_add') }}" class="btn btn-info btn-sm text-white rounded-pill px-3 fw-semibold">
+                    <i class="bi bi-plus-circle me-1"></i> Add Outward Dispatch
+                </a>
+                <a href="{{ url_for('materials.inward_add') }}" class="btn btn-success btn-sm rounded-pill px-3 fw-semibold">
+                    <i class="bi bi-plus-circle me-1"></i> Add Inward Purchase
+                </a>
+                <a href="{{ url_for('stock.production_sheet') }}" class="btn btn-primary btn-sm rounded-pill px-3 fw-semibold">
+                    <i class="bi bi-gear-fill me-1"></i> Log Production
+                </a>
+                <a href="{{ url_for('stock.loading_sheet') }}" class="btn btn-secondary btn-sm rounded-pill px-3 fw-semibold">
+                    <i class="bi bi-truck me-1"></i> Log Loading
+                </a>
+                <a href="{{ url_for('parties.payment_add') }}" class="btn btn-warning btn-sm rounded-pill px-3 fw-semibold text-dark">
+                    <i class="bi bi-cash me-1"></i> Record Payment
+                </a>
+                <a href="{{ url_for('expenses.add_expense') }}" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-semibold">
+                    <i class="bi bi-wallet2 me-1"></i> Add Expense
+                </a>
             </div>
         </div>
     </div>
+    {% endif %}
 
-        <!-- Weekly Performance & Stock Inventory View -->
     <div class="row g-3 mb-4">
         <!-- 6-Week Operations & Financial Performance Table -->
+        {% if dashboard_pref.show_weekly_performance %}
         <div class="col-12 col-lg-8">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -321,9 +319,11 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Raw Material Stock Inventory -->
-        <div class="col-12 col-lg-4">
+        {% if dashboard_pref.show_stock_overview %}
+        <div class="col-12 {% if dashboard_pref.show_weekly_performance %}col-lg-4{% else %}col-12{% endif %}">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h6 class="fw-bold text-slate-800 mb-0 d-flex align-items-center gap-2">
@@ -339,23 +339,25 @@
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <span class="fw-bold text-slate-800 fs-6">{{ mat.name }}</span>
                             <span class="badge {% if mat.balance >= 0 %}bg-success bg-opacity-10 text-success border border-success border-opacity-25{% else %}bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25{% endif %} fs-6 fw-bold px-2.5 py-1">
-                                {{ "{:,.1f}".format(mat.balance) }} MT
+                                {{ "{:,.1f}".format(mat.balance) }} {{ mat.unit }}
                             </span>
                         </div>
                         <div class="d-flex justify-content-between text-muted small">
-                            <span><i class="bi bi-arrow-down text-success"></i> In: {{ "{:,.1f}".format(mat.inward) }} MT</span>
-                            <span><i class="bi bi-arrow-up text-info"></i> Out: {{ "{:,.1f}".format(mat.outward) }} MT</span>
+                            <span><i class="bi bi-arrow-down text-success"></i> In: {{ "{:,.1f}".format(mat.inward) }} {{ mat.unit }}</span>
+                            <span><i class="bi bi-arrow-up text-info"></i> Out: {{ "{:,.1f}".format(mat.outward) }} {{ mat.unit }}</span>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
 
     <!-- Recent Operations Activity Tables -->
     <div class="row g-3 mb-4">
         <!-- Recent Plant Operational Expenses -->
+        {% if dashboard_pref.show_recent_expenses %}
         <div class="col-12 col-lg-6">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -393,8 +395,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Recent Outward Dispatches -->
+        {% if dashboard_pref.show_recent_outward %}
         <div class="col-12 col-lg-6">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -417,10 +421,10 @@
                             {% for out in recent_outward %}
                             <tr>
                                 <td class="text-nowrap text-secondary">{{ out.date.strftime('%d %b') }}</td>
-                                <td class="fw-semibold text-dark">{{ out.party.name if out.party else '-' }}</td>
+                                <td class="fw-semibold text-dark">{{ out.party.name if out.party else 'Walk-in / Unassigned' }}</td>
                                 <td>
                                     {{ out.material_type }} 
-                                    <span class="text-muted small">({{ "{:,.0f}".format(out.quantity_mt) if 'piece' in (out.quantity_unit or '').lower() or 'pcs' in (out.quantity_unit or '').lower() or 'bag' in (out.quantity_unit or '').lower() else "{:,.1f}".format(out.quantity_mt) }} {{ out.quantity_unit or 'Ton' }})</span>
+                                    <span class="text-muted small">({{ "{:,.0f}".format(out.quantity_mt) if 'piece' in (out.quantity_unit or '').lower() or 'pcs' in (out.quantity_unit or '').lower() or 'unit' in (out.quantity_unit or '').lower() or 'bag' in (out.quantity_unit or '').lower() else "{:,.1f}".format(out.quantity_mt) }} {{ out.quantity_unit or 'Ton' }})</span>
                                 </td>
                                 <td class="text-end fw-bold text-info">₹{{ "{:,.2f}".format(out.amount) }}</td>
                             </tr>
@@ -432,7 +436,193 @@
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
 
+</div>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<!-- CUSTOMIZE DASHBOARD MODAL                                    -->
+<!-- ───────────────────────────────────────────────────────────── -->
+<div class="modal fade" id="customizeDashboardModal" tabindex="-1" aria-labelledby="customizeDashboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-dark text-white p-3 px-4">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="customizeDashboardModalLabel">
+                    <i class="bi bi-sliders text-warning"></i> Customize Dashboard Widgets & Layout
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('dashboard.customize') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body p-4 bg-light">
+                    <p class="text-muted small mb-3">
+                        Choose which operational sections, financial indicators, and summary registers appear on your Executive Dashboard.
+                    </p>
+
+                    <div class="row g-3">
+                        <!-- Metric Cards Category -->
+                        <div class="col-12">
+                            <h6 class="fw-bold text-slate-800 border-bottom pb-1 small text-uppercase">
+                                <i class="bi bi-speedometer2 text-primary me-1"></i> Top Metric Pillar Cards
+                            </h6>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <div class="form-check form-switch bg-white p-3 rounded-3 border shadow-xs d-flex align-items-center justify-content-between ps-3 pe-3">
+                                <label class="form-check-label fw-semibold text-slate-800" for="show_today_inward">
+                                    <i class="bi bi-box-arrow-in-down text-success me-2"></i> Today's Inward Card
+                                </label>
+                                <input class="form-check-input ms-0" type="checkbox" role="switch" id="show_today_inward" name="show_today_inward" {% if dashboard_pref.show_today_inward %}checked{% endif %}>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <div class="form-check form-switch bg-white p-3 rounded-3 border shadow-xs d-flex align-items-center justify-content-between ps-3 pe-3">
+                                <label class="form-check-label fw-semibold text-slate-800" for="show_today_outward">
+                                    <i class="bi bi-box-arrow-up text-info me-2"></i> Today's Outward Card
+                                </label>
+                                <input class="form-check-input ms-0" type="checkbox" role="switch" id="show_today_outward" name="show_today_outward" {% if dashboard_pref.show_today_outward %}checked{% endif %}>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <div class="form-check form-switch bg-white p-3 rounded-3 border shadow-xs d-flex align-items-center justify-content-between ps-3 pe-3">
+                                <label class="form-check-label fw-semibold text-slate-800" for="show_expenses">
+                                    <i class="bi bi-wallet2 text-danger me-2"></i> Operational Expenses Card
+                                </label>
+                                <input class="form-check-input ms-0" type="checkbox" role="switch" id="show_expenses" name="show_expenses" {% if dashboard_pref.show_expenses %}checked{% endif %}>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <div class="form-check form-switch bg-white p-3 rounded-3 border shadow-xs d-flex align-items-center justify-content-between ps-3 pe-3">
+                                <label class="form-check-label fw-semibold text-slate-800" for="show_outstanding">
+                                    <i class="bi bi-cash-stack text-warning me-2"></i> Outstanding Dues Card
+                                </label>
+                                <input class="form-check-input ms-0" type="checkbox" role="switch" id="show_outstanding" name="show_outstanding" {% if dashboard_pref.show_outstanding %}checked{% endif %}>
+                            </div>
+                        </div>
+
+                        <!-- Operations & Sections Category -->
+                        <div class="col-12 mt-4">
+                            <h6 class="fw-bold text-slate-800 border-bottom pb-1 small text-uppercase">
+                                <i class="bi bi-grid-1x2 text-primary me-1"></i> Operations Sections & Registers
+                            </h6>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <div class="form-check form-switch bg-white p-3 rounded-3 border shadow-xs d-flex align-items-center justify-content-between ps-3 pe-3">
+                                <label class="form-check-label fw-semibold text-slate-800" for="show_production_labor">
+                                    <i class="bi bi-hammer text-primary me-2"></i> Production & Labor Strip
+                                </label>
+                                <input class="form-check-input ms-0" type="checkbox" role="switch" id="show_production_labor" name="show_production_labor" {% if dashboard_pref.show_production_labor %}checked{% endif %}>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <div class="form-check form-switch bg-white p-3 rounded-3 border shadow-xs d-flex align-items-center justify-content-between ps-3 pe-3">
+                                <label class="form-check-label fw-semibold text-slate-800" for="show_quick_actions">
+                                    <i class="bi bi-lightning-charge text-warning me-2"></i> Quick Action Buttons Bar
+                                </label>
+                                <input class="form-check-input ms-0" type="checkbox" role="switch" id="show_quick_actions" name="show_quick_actions" {% if dashboard_pref.show_quick_actions %}checked{% endif %}>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <div class="form-check form-switch bg-white p-3 rounded-3 border shadow-xs d-flex align-items-center justify-content-between ps-3 pe-3">
+                                <label class="form-check-label fw-semibold text-slate-800" for="show_weekly_performance">
+                                    <i class="bi bi-calendar-week text-primary me-2"></i> 6-Week Wage & Operations Table
+                                </label>
+                                <input class="form-check-input ms-0" type="checkbox" role="switch" id="show_weekly_performance" name="show_weekly_performance" {% if dashboard_pref.show_weekly_performance %}checked{% endif %}>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <div class="form-check form-switch bg-white p-3 rounded-3 border shadow-xs d-flex align-items-center justify-content-between ps-3 pe-3">
+                                <label class="form-check-label fw-semibold text-slate-800" for="show_stock_overview">
+                                    <i class="bi bi-boxes text-info me-2"></i> Raw Material Stock Health Silos
+                                </label>
+                                <input class="form-check-input ms-0" type="checkbox" role="switch" id="show_stock_overview" name="show_stock_overview" {% if dashboard_pref.show_stock_overview %}checked{% endif %}>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <div class="form-check form-switch bg-white p-3 rounded-3 border shadow-xs d-flex align-items-center justify-content-between ps-3 pe-3">
+                                <label class="form-check-label fw-semibold text-slate-800" for="show_recent_outward">
+                                    <i class="bi bi-box-arrow-up text-info me-2"></i> Recent Material Outward Table
+                                </label>
+                                <input class="form-check-input ms-0" type="checkbox" role="switch" id="show_recent_outward" name="show_recent_outward" {% if dashboard_pref.show_recent_outward %}checked{% endif %}>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <div class="form-check form-switch bg-white p-3 rounded-3 border shadow-xs d-flex align-items-center justify-content-between ps-3 pe-3">
+                                <label class="form-check-label fw-semibold text-slate-800" for="show_recent_expenses">
+                                    <i class="bi bi-wallet2 text-danger me-2"></i> Recent Expenses Table
+                                </label>
+                                <input class="form-check-input ms-0" type="checkbox" role="switch" id="show_recent_expenses" name="show_recent_expenses" {% if dashboard_pref.show_recent_expenses %}checked{% endif %}>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-white border-top p-3 px-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-semibold shadow-sm">
+                        <i class="bi bi-check-circle-fill me-1"></i> Save Preferences
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<!-- SEND DAILY WORK DIGEST MODAL                                 -->
+<!-- ───────────────────────────────────────────────────────────── -->
+<div class="modal fade" id="sendDigestModal" tabindex="-1" aria-labelledby="sendDigestModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-primary text-white p-3 px-4">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="sendDigestModalLabel">
+                    <i class="bi bi-send-fill text-warning"></i> Send Daily Operations Digest
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('auth.send_daily_digest_now') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body p-4 bg-white">
+                    <p class="text-muted small mb-3">
+                        Dispatches a complete executive daily work summary (Production, Outward Dispatches by Party, Inward Receipts, Loading wages, Collections & Attendance) to your Telegram Bot and Email.
+                    </p>
+
+                    <div class="mb-3">
+                        <label for="digest_date" class="form-label small fw-semibold text-slate-700">Digest Target Date</label>
+                        <input type="date" class="form-control" id="digest_date" name="target_date" value="{{ today_str if today_str else current_week_to }}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-slate-700">Delivery Channel</label>
+                        <select class="form-select" name="channel">
+                            <option value="both" selected>📱 Telegram Bot & 📧 Email (Both)</option>
+                            <option value="telegram">📱 Telegram Bot Only</option>
+                            <option value="email">📧 SMTP Email Only</option>
+                        </select>
+                    </div>
+
+                    <div class="alert alert-info py-2 px-3 small d-flex align-items-center gap-2 mb-0">
+                        <i class="bi bi-info-circle-fill fs-5"></i>
+                        <span>You can configure your Telegram Bot token and SMTP Gmail credentials in <a href="{{ url_for('auth.alert_settings') }}" class="fw-bold alert-link">Alert Settings</a>.</span>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top p-3 px-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-semibold shadow-sm">
+                        <i class="bi bi-send-check-fill me-1"></i> Send Digest Now
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 {% endblock %}

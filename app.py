@@ -60,7 +60,19 @@ def _migrate_db():
             'CREATE TABLE IF NOT EXISTS "party_adjustment" (id SERIAL PRIMARY KEY, party_id INTEGER NOT NULL REFERENCES "party"(id) ON DELETE CASCADE, date DATE NOT NULL DEFAULT CURRENT_DATE, adjustment_type VARCHAR(30) NOT NULL DEFAULT \'past_unpaid_due\', amount DOUBLE PRECISION NOT NULL DEFAULT 0.0, reason VARCHAR(255) NOT NULL, reference_no VARCHAR(50), created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP);',
             'CREATE TABLE IF NOT EXISTS "party_product_rate" (id SERIAL PRIMARY KEY, party_id INTEGER NOT NULL REFERENCES "party"(id) ON DELETE CASCADE, product_name VARCHAR(120) NOT NULL, rate DOUBLE PRECISION NOT NULL DEFAULT 0.0, unit VARCHAR(30) DEFAULT \'Pieces / Pcs\', notes VARCHAR(255), created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP, CONSTRAINT uq_party_product_rate UNIQUE (party_id, product_name));',
                         'CREATE TABLE IF NOT EXISTS "employee_salary_payment" (id SERIAL PRIMARY KEY, employee_id INTEGER NOT NULL REFERENCES "employee"(id) ON DELETE CASCADE, period_from DATE NOT NULL, period_to DATE NOT NULL, payment_date DATE NOT NULL DEFAULT CURRENT_DATE, amount DOUBLE PRECISION NOT NULL DEFAULT 0.0, payment_mode VARCHAR(30) DEFAULT \'cash\', status VARCHAR(20) DEFAULT \'paid\', reference_no VARCHAR(50), notes TEXT, created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP);',
-            'CREATE TABLE IF NOT EXISTS "stock_adjustment" (id SERIAL PRIMARY KEY, date DATE NOT NULL DEFAULT CURRENT_DATE, item_type VARCHAR(30) NOT NULL DEFAULT \'product\', item_name VARCHAR(120) NOT NULL, quantity DOUBLE PRECISION NOT NULL DEFAULT 0.0, unit VARCHAR(30) DEFAULT \'Pieces\', adjustment_type VARCHAR(40) NOT NULL DEFAULT \'past_month_stock\', notes VARCHAR(255), created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP);'
+            'CREATE TABLE IF NOT EXISTS "stock_adjustment" (id SERIAL PRIMARY KEY, date DATE NOT NULL DEFAULT CURRENT_DATE, item_type VARCHAR(30) NOT NULL DEFAULT \'product\', item_name VARCHAR(120) NOT NULL, quantity DOUBLE PRECISION NOT NULL DEFAULT 0.0, unit VARCHAR(30) DEFAULT \'Pieces\', adjustment_type VARCHAR(40) NOT NULL DEFAULT \'past_month_stock\', notes VARCHAR(255), created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP);',
+            'CREATE TABLE IF NOT EXISTS "dashboard_preference" (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES "user"(id) ON DELETE CASCADE, show_today_inward BOOLEAN DEFAULT TRUE, show_today_outward BOOLEAN DEFAULT TRUE, show_expenses BOOLEAN DEFAULT TRUE, show_outstanding BOOLEAN DEFAULT TRUE, show_production_labor BOOLEAN DEFAULT TRUE, show_stock_overview BOOLEAN DEFAULT TRUE, show_weekly_performance BOOLEAN DEFAULT TRUE, show_recent_inward BOOLEAN DEFAULT TRUE, show_recent_outward BOOLEAN DEFAULT TRUE, show_recent_jobs BOOLEAN DEFAULT TRUE, show_recent_expenses BOOLEAN DEFAULT TRUE, show_quick_actions BOOLEAN DEFAULT TRUE, updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP);',
+            'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS daily_digest_enabled BOOLEAN DEFAULT TRUE;',
+            'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS daily_digest_time VARCHAR(10) DEFAULT \'19:00\';',
+            'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS daily_digest_channel VARCHAR(20) DEFAULT \'both\';',
+            'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS daily_digest_email VARCHAR(120);',
+            'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS digest_include_production BOOLEAN DEFAULT TRUE;',
+            'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS digest_include_outward BOOLEAN DEFAULT TRUE;',
+            'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS digest_include_inward BOOLEAN DEFAULT TRUE;',
+            'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS digest_include_loading BOOLEAN DEFAULT TRUE;',
+            'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS digest_include_collections BOOLEAN DEFAULT TRUE;',
+            'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS digest_include_attendance BOOLEAN DEFAULT TRUE;',
+            'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS last_digest_sent_date DATE;'
         ]
 
         try:
@@ -158,6 +170,26 @@ def _migrate_db():
                     FOREIGN KEY (employee_id) REFERENCES employee(id) ON DELETE CASCADE
                 )
             ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS "dashboard_preference" (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    show_today_inward BOOLEAN DEFAULT 1,
+                    show_today_outward BOOLEAN DEFAULT 1,
+                    show_expenses BOOLEAN DEFAULT 1,
+                    show_outstanding BOOLEAN DEFAULT 1,
+                    show_production_labor BOOLEAN DEFAULT 1,
+                    show_stock_overview BOOLEAN DEFAULT 1,
+                    show_weekly_performance BOOLEAN DEFAULT 1,
+                    show_recent_inward BOOLEAN DEFAULT 1,
+                    show_recent_outward BOOLEAN DEFAULT 1,
+                    show_recent_jobs BOOLEAN DEFAULT 1,
+                    show_recent_expenses BOOLEAN DEFAULT 1,
+                    show_quick_actions BOOLEAN DEFAULT 1,
+                    updated_at DATETIME,
+                    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+                )
+            ''')
             conn.commit()
             
             # Migrations definition
@@ -214,6 +246,17 @@ def _migrate_db():
                     ('telegram_evening_reminder_time', "VARCHAR(10) DEFAULT '19:00'"),
                     ('last_morning_sent_date', "DATE"),
                     ('last_evening_sent_date', "DATE"),
+                    ('daily_digest_enabled', "BOOLEAN DEFAULT 1"),
+                    ('daily_digest_time', "VARCHAR(10) DEFAULT '19:00'"),
+                    ('daily_digest_channel', "VARCHAR(20) DEFAULT 'both'"),
+                    ('daily_digest_email', "VARCHAR(120)"),
+                    ('digest_include_production', "BOOLEAN DEFAULT 1"),
+                    ('digest_include_outward', "BOOLEAN DEFAULT 1"),
+                    ('digest_include_inward', "BOOLEAN DEFAULT 1"),
+                    ('digest_include_loading', "BOOLEAN DEFAULT 1"),
+                    ('digest_include_collections', "BOOLEAN DEFAULT 1"),
+                    ('digest_include_attendance', "BOOLEAN DEFAULT 1"),
+                    ('last_digest_sent_date', "DATE"),
                     ('alert_on_all_users', "BOOLEAN DEFAULT 1"),
                     ('cooldown_minutes', "INTEGER DEFAULT 30"),
                     ('max_alerts_per_day', "INTEGER DEFAULT 3"),

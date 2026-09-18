@@ -1,6 +1,128 @@
 {% extends "base.html" %}
-{% block title %}Piece-Rate Jobs & Daily Work{% endblock %}
-{% block page_title %}Piece-Rate Jobs & Wage Division Register{% endblock %}
+{% block title %}Piece-Rate Jobs & Daily Work
+<!-- Quick Job Party Modal -->
+<div class="modal fade" id="jobPartyModal" tabindex="-1" aria-labelledby="jobPartyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-primary text-white p-3 px-4">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="jobPartyModalLabel">
+                    <i class="bi bi-building"></i> Link Piece-Rate Job to Party
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" id="jobPartyForm" action="">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next_url" value="{{ request.full_path }}">
+                <div class="modal-body p-4 bg-white">
+                    <div class="bg-light p-3 rounded-3 border mb-3">
+                        <div class="d-flex justify-content-between small text-muted mb-1">
+                            <span>Product: <strong id="jpProduct" class="text-dark"></strong></span>
+                            <span id="jpDate"></span>
+                        </div>
+                        <div class="fs-6 fw-bold text-dark">
+                            Wage Amount: ₹<span id="jpAmount"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="jp_party_id" class="form-label small fw-semibold text-slate-700">Select Customer / Trade Party</label>
+                        <select class="form-select" id="jp_party_id" name="party_id" required>
+                            <option value="">-- Choose Party --</option>
+                            {% for p in parties %}
+                            <option value="{{ p.id }}">{{ p.name }}{% if p.phone %} ({{ p.phone }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text small text-muted">
+                            Linking this loading job to a party adds the transaction to their ledger account.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top p-3 px-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-semibold shadow-sm">
+                        <i class="bi bi-check2-circle me-1"></i> Save &amp; Link Party
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openJobPartyModal(jobId, product, dateStr, amount) {
+    const form = document.getElementById('jobPartyForm');
+    form.action = `/employees/job-wages/${jobId}/assign-party`;
+    document.getElementById('jpProduct').innerText = product;
+    document.getElementById('jpDate').innerText = dateStr;
+    document.getElementById('jpAmount').innerText = parseFloat(amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2});
+    const modal = new bootstrap.Modal(document.getElementById('jobPartyModal'));
+    modal.show();
+}
+</script>
+{% endblock %}
+
+{% block page_title %}Piece-Rate Jobs & Wage Division Register
+<!-- Quick Job Party Modal -->
+<div class="modal fade" id="jobPartyModal" tabindex="-1" aria-labelledby="jobPartyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-primary text-white p-3 px-4">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="jobPartyModalLabel">
+                    <i class="bi bi-building"></i> Link Piece-Rate Job to Party
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" id="jobPartyForm" action="">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next_url" value="{{ request.full_path }}">
+                <div class="modal-body p-4 bg-white">
+                    <div class="bg-light p-3 rounded-3 border mb-3">
+                        <div class="d-flex justify-content-between small text-muted mb-1">
+                            <span>Product: <strong id="jpProduct" class="text-dark"></strong></span>
+                            <span id="jpDate"></span>
+                        </div>
+                        <div class="fs-6 fw-bold text-dark">
+                            Wage Amount: ₹<span id="jpAmount"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="jp_party_id" class="form-label small fw-semibold text-slate-700">Select Customer / Trade Party</label>
+                        <select class="form-select" id="jp_party_id" name="party_id" required>
+                            <option value="">-- Choose Party --</option>
+                            {% for p in parties %}
+                            <option value="{{ p.id }}">{{ p.name }}{% if p.phone %} ({{ p.phone }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text small text-muted">
+                            Linking this loading job to a party adds the transaction to their ledger account.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top p-3 px-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-semibold shadow-sm">
+                        <i class="bi bi-check2-circle me-1"></i> Save &amp; Link Party
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openJobPartyModal(jobId, product, dateStr, amount) {
+    const form = document.getElementById('jobPartyForm');
+    form.action = `/employees/job-wages/${jobId}/assign-party`;
+    document.getElementById('jpProduct').innerText = product;
+    document.getElementById('jpDate').innerText = dateStr;
+    document.getElementById('jpAmount').innerText = parseFloat(amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2});
+    const modal = new bootstrap.Modal(document.getElementById('jobPartyModal'));
+    modal.show();
+}
+</script>
+{% endblock %}
+
 
 {% block content %}
 <div class="page-header d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
@@ -583,4 +705,65 @@
         {% endif %}
     </table>
 </div>
+
+<!-- Quick Job Party Modal -->
+<div class="modal fade" id="jobPartyModal" tabindex="-1" aria-labelledby="jobPartyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-primary text-white p-3 px-4">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="jobPartyModalLabel">
+                    <i class="bi bi-building"></i> Link Piece-Rate Job to Party
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" id="jobPartyForm" action="">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next_url" value="{{ request.full_path }}">
+                <div class="modal-body p-4 bg-white">
+                    <div class="bg-light p-3 rounded-3 border mb-3">
+                        <div class="d-flex justify-content-between small text-muted mb-1">
+                            <span>Product: <strong id="jpProduct" class="text-dark"></strong></span>
+                            <span id="jpDate"></span>
+                        </div>
+                        <div class="fs-6 fw-bold text-dark">
+                            Wage Amount: ₹<span id="jpAmount"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="jp_party_id" class="form-label small fw-semibold text-slate-700">Select Customer / Trade Party</label>
+                        <select class="form-select" id="jp_party_id" name="party_id" required>
+                            <option value="">-- Choose Party --</option>
+                            {% for p in parties %}
+                            <option value="{{ p.id }}">{{ p.name }}{% if p.phone %} ({{ p.phone }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text small text-muted">
+                            Linking this loading job to a party adds the transaction to their ledger account.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top p-3 px-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-semibold shadow-sm">
+                        <i class="bi bi-check2-circle me-1"></i> Save &amp; Link Party
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openJobPartyModal(jobId, product, dateStr, amount) {
+    const form = document.getElementById('jobPartyForm');
+    form.action = `/employees/job-wages/${jobId}/assign-party`;
+    document.getElementById('jpProduct').innerText = product;
+    document.getElementById('jpDate').innerText = dateStr;
+    document.getElementById('jpAmount').innerText = parseFloat(amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2});
+    const modal = new bootstrap.Modal(document.getElementById('jobPartyModal'));
+    modal.show();
+}
+</script>
 {% endblock %}
+

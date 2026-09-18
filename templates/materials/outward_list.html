@@ -11,9 +11,14 @@
                 <i class="bi bi-box-arrow-up text-info"></i>
                 <span data-i18n="material_outward">Material Outward Register</span>
             </h3>
-            <p class="text-muted small mb-0">Track finished brick/block dispatches in Pieces, or bulk flyash/sand sales in Tons or Loads</p>
+            <p class="text-muted small mb-0">Track finished brick/block dispatches, dust in units, or bulk raw flyash/sand sales</p>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex align-items-center gap-2">
+            {% if unassigned_count > 0 %}
+            <button type="button" class="btn btn-warning btn-sm d-flex align-items-center gap-1 shadow-xs fw-semibold" data-bs-toggle="modal" data-bs-target="#bulkAssignModal">
+                <i class="bi bi-link-45deg fs-5"></i> <span>Bulk Assign Party ({{ unassigned_count }})</span>
+            </button>
+            {% endif %}
             <button class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 shadow-sm" onclick="window.print()">
                 <i class="bi bi-printer"></i> <span data-i18n="print">Print</span>
             </button>
@@ -25,11 +30,28 @@
 
     <!-- Summary KPI Cards -->
     <div class="row g-3 mb-4">
+        {% if total_units > 0 %}
         <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-primary">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Total Units (Dust / Nos)</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-primary">{{ "{:,.0f}".format(total_units) }} <span class="fs-6 fw-normal">Units</span></div>
+                        <div class="small text-muted mt-1">Dust / Quarry dispatches</div>
+                    </div>
+                    <div class="bg-primary bg-opacity-10 text-primary rounded-circle p-3">
+                        <i class="bi bi-boxes fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="col-12 col-sm-6 {% if total_units > 0 %}col-lg-3{% else %}col-lg-3{% endif %}">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-info">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="text-muted small fw-semibold text-uppercase">Total Dispatched (Pieces)</div>
+                        <div class="text-muted small fw-semibold text-uppercase">Finished Bricks & Blocks</div>
                         <div class="h3 fw-bold mb-0 mt-1 text-info">{{ "{:,.0f}".format(total_pieces) }} <span class="fs-6 fw-normal">Pcs</span></div>
                         <div class="small text-muted mt-1">Bricks & Blocks sold</div>
                     </div>
@@ -40,13 +62,13 @@
             </div>
         </div>
 
-        <div class="col-12 col-sm-6 col-lg-3">
+        <div class="col-12 col-sm-6 {% if total_units > 0 %}col-lg-3{% else %}col-lg-3{% endif %}">
             <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-success">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="text-muted small fw-semibold text-uppercase">Total Weight (Tons)</div>
-                        <div class="h3 fw-bold mb-0 mt-1 text-success">{{ "{:,.2f}".format(total_tons) }} <span class="fs-6 fw-normal">MT</span></div>
-                        <div class="small text-muted mt-1">Bulk materials / ash weight</div>
+                        <div class="text-muted small fw-semibold text-uppercase">Bulk Material (Tons)</div>
+                        <div class="h3 fw-bold mb-0 mt-1 text-success">{{ "{:,.2f}".format(total_tons) }} <span class="fs-6 fw-normal">Ton</span></div>
+                        <div class="small text-muted mt-1">Fly ash & bulk weight</div>
                     </div>
                     <div class="bg-success bg-opacity-10 text-success rounded-circle p-3">
                         <i class="bi bi-truck fs-3"></i>
@@ -55,28 +77,13 @@
             </div>
         </div>
 
-        <div class="col-12 col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 border-start border-4 border-warning">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="text-muted small fw-semibold text-uppercase">Loads / Trips</div>
-                        <div class="h3 fw-bold mb-0 mt-1 text-warning">{{ "{:,.0f}".format(total_loads) }} <span class="fs-6 fw-normal">Loads</span></div>
-                        <div class="small text-muted mt-1">{{ entries|length }} total dispatches</div>
-                    </div>
-                    <div class="bg-warning bg-opacity-10 text-warning rounded-circle p-3">
-                        <i class="bi bi-speedometer fs-3"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12 col-sm-6 col-lg-3">
+        <div class="col-12 col-sm-6 {% if total_units > 0 %}col-lg-3{% else %}col-lg-3{% endif %}">
             <div class="card border-0 shadow-sm rounded-3 bg-gradient bg-primary text-white p-3 h-100">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="text-white-50 small fw-semibold text-uppercase">Total Revenue Amount</div>
+                        <div class="text-white-50 small fw-semibold text-uppercase">Total Sales Revenue</div>
                         <div class="h3 fw-bold mb-0 mt-1">₹{{ "{:,.2f}".format(total_amount) }}</div>
-                        <div class="small text-white-50 mt-1">Filtered dispatches</div>
+                        <div class="small text-white-50 mt-1">{{ entries|length }} total dispatches</div>
                     </div>
                     <div class="bg-white bg-opacity-25 rounded-circle p-3">
                         <i class="bi bi-cash-stack fs-3"></i>
@@ -91,22 +98,29 @@
         <div class="d-flex align-items-center gap-2">
             <span class="small fw-bold text-uppercase text-muted"><i class="bi bi-clock-history me-1"></i> Outward Period:</span>
             <div class="d-flex align-items-center flex-wrap gap-1">
-                <a href="{{ url_for('materials.outward_list', period='today', party_id=selected_party, material_type=selected_material) }}" 
+                <a href="{{ url_for('materials.outward_list', period='today', party_id=party_id, material_type=material_type) }}" 
                    class="badge text-decoration-none {% if period == 'today' %}bg-info text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">Today</a>
-                <a href="{{ url_for('materials.outward_list', period='this_week', party_id=selected_party, material_type=selected_material) }}" 
-                   class="badge text-decoration-none {% if period == 'this_week' %}bg-info text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Week</a>
-                <a href="{{ url_for('materials.outward_list', period='last_week', party_id=selected_party, material_type=selected_material) }}" 
+                <a href="{{ url_for('materials.outward_list', period='this_week', party_id=party_id, material_type=material_type) }}" 
+                   class="badge text-decoration-none {% if period == 'this_week' or (not period and not from_date) %}bg-info text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Week</a>
+                <a href="{{ url_for('materials.outward_list', period='last_week', party_id=party_id, material_type=material_type) }}" 
                    class="badge text-decoration-none {% if period == 'last_week' %}bg-info text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">Last Week</a>
-                <a href="{{ url_for('materials.outward_list', period='this_month', party_id=selected_party, material_type=selected_material) }}" 
-                   class="badge text-decoration-none {% if period == 'this_month' or (not period and not from_date) %}bg-info text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Month</a>
-                <a href="{{ url_for('materials.outward_list', period='last_month', party_id=selected_party, material_type=selected_material) }}" 
+                <a href="{{ url_for('materials.outward_list', period='this_month', party_id=party_id, material_type=material_type) }}" 
+                   class="badge text-decoration-none {% if period == 'this_month' %}bg-info text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Month</a>
+                <a href="{{ url_for('materials.outward_list', period='last_month', party_id=party_id, material_type=material_type) }}" 
                    class="badge text-decoration-none {% if period == 'last_month' %}bg-info text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">Last Month</a>
-                <a href="{{ url_for('materials.outward_list', period='this_year', party_id=selected_party, material_type=selected_material) }}" 
+                <a href="{{ url_for('materials.outward_list', period='this_year', party_id=party_id, material_type=material_type) }}" 
                    class="badge text-decoration-none {% if period == 'this_year' %}bg-info text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">This Year</a>
-                <a href="{{ url_for('materials.outward_list', period='all', party_id=selected_party, material_type=selected_material) }}" 
+                <a href="{{ url_for('materials.outward_list', period='all', party_id=party_id, material_type=material_type) }}" 
                    class="badge text-decoration-none {% if period == 'all' %}bg-info text-white{% else %}bg-white text-dark border{% endif %} p-1.5 px-2">All Time</a>
             </div>
         </div>
+        {% if unassigned_count > 0 %}
+        <div>
+            <a href="{{ url_for('materials.outward_list', party_id='unassigned') }}" class="badge bg-warning text-dark text-decoration-none p-1.5 px-2.5">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i> {{ unassigned_count }} Unassigned Outwards &rarr;
+            </a>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Filter Bar -->
@@ -125,8 +139,9 @@
                     <label for="party_id" class="form-label small fw-semibold text-muted mb-1">Party / Customer</label>
                     <select class="form-select form-select-sm" id="party_id" name="party_id">
                         <option value="">All Parties</option>
+                        <option value="unassigned" {% if party_id == 'unassigned' %}selected{% endif %}>⚠️ Unassigned / Walk-in Only</option>
                         {% for party in parties %}
-                        <option value="{{ party.id }}" {% if party_id == party.id %}selected{% endif %}>{{ party.name }}</option>
+                        <option value="{{ party.id }}" {% if party_id|string == party.id|string %}selected{% endif %}>{{ party.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -151,85 +166,250 @@
         </div>
     </div>
 
-    <!-- Outward Table -->
-    <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr class="small text-muted text-uppercase">
-                        <th style="width: 50px;">#</th>
-                        <th style="width: 110px;">Date</th>
-                        <th>Party / Customer</th>
-                        <th>Material Type</th>
-                        <th style="width: 130px;">Vehicle No</th>
-                        <th class="text-end" style="width: 170px;">Quantity & Unit</th>
-                        <th class="text-end" style="width: 130px;">Rate (₹)</th>
-                        <th class="text-end" style="width: 150px;">Amount (₹)</th>
-                        <th class="text-center" style="width: 110px;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for entry in entries %}
-                    <tr>
-                        <td class="text-muted small">{{ loop.index }}</td>
-                        <td class="text-nowrap text-secondary small fw-semibold">{{ entry.date.strftime('%d %b %Y') }}</td>
-                        <td>
-                            <a href="{{ url_for('parties.party_ledger', id=entry.party.id) }}" class="fw-bold text-dark text-decoration-none">
-                                {{ entry.party.name }}
-                            </a>
-                        </td>
-                        <td>
-                            <div class="fw-semibold text-slate-800">{{ entry.material_type }}</div>
-                            {% if entry.notes %}
-                            <small class="text-muted d-block">{{ entry.notes }}</small>
-                            {% endif %}
-                        </td>
-                        <td class="small font-monospace">{{ entry.vehicle_no or '-' }}</td>
-                        <td class="text-end">
-                            <span class="fs-6 fw-bold text-slate-800">{{ "{:,.2f}".format(entry.quantity_mt) }}</span>
-                            <span class="badge {% if 'piece' in (entry.quantity_unit or '').lower() or 'pcs' in (entry.quantity_unit or '').lower() %}bg-primary bg-opacity-10 text-primary{% elif 'ton' in (entry.quantity_unit or '').lower() or 'mt' in (entry.quantity_unit or '').lower() %}bg-success bg-opacity-10 text-success{% else %}bg-warning bg-opacity-10 text-dark{% endif %} small fw-semibold ms-1">
-                                {{ entry.quantity_unit or 'Ton' }}
-                            </span>
-                        </td>
-                        <td class="text-end small">₹{{ "{:,.2f}".format(entry.rate) }}</td>
-                        <td class="text-end fw-bold text-info fs-6">₹{{ "{:,.2f}".format(entry.amount) }}</td>
-                        <td class="text-center">
-                            <div class="btn-group btn-group-sm">
-                                <a href="{{ url_for('materials.outward_edit', id=entry.id) }}" class="btn btn-outline-primary btn-sm" title="Edit">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                                <form action="{{ url_for('materials.outward_delete', id=entry.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete outward dispatch entry ₹{{ entry.amount }}?');">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="9" class="text-center py-5 text-muted">
-                            <i class="bi bi-box-arrow-up fs-1 d-block mb-2 text-muted text-opacity-50"></i>
-                            <p class="mb-2">No material outward records found for this filter.</p>
-                            <a href="{{ url_for('materials.outward_add') }}" class="btn btn-info btn-sm text-white">
-                                <i class="bi bi-plus-circle"></i> Add First Outward Entry
-                            </a>
-                        </td>
-                    </tr>
+    <!-- Outward Table Form for Bulk Selection -->
+    <form method="POST" action="{{ url_for('materials.bulk_assign_outward_party') }}" id="bulkAssignForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next_url" value="{{ request.full_path }}">
+
+        <!-- Floating Bulk Action Bar (Visible when rows are selected) -->
+        <div id="bulkActionBar" class="d-none bg-dark text-white p-3 rounded-3 shadow mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-warning text-dark fs-6" id="selectedCountBadge">0 selected</span>
+                <span class="small">Assign selected past dispatches to customer:</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm" name="party_id" style="min-width: 200px;" required>
+                    <option value="">-- Choose Target Customer --</option>
+                    {% for p in parties %}
+                    <option value="{{ p.id }}">{{ p.name }}</option>
                     {% endfor %}
-                </tbody>
-                {% if entries %}
-                <tfoot class="table-light fw-bold border-top">
-                    <tr>
-                        <td colspan="7" class="text-end text-uppercase">Total Dispatch Revenue:</td>
-                        <td class="text-end text-primary fs-5">₹{{ "{:,.2f}".format(total_amount) }}</td>
-                        <td></td>
-                    </tr>
-                </tfoot>
-                {% endif %}
-            </table>
+                </select>
+                <button type="submit" class="btn btn-primary btn-sm px-3 fw-semibold">
+                    <i class="bi bi-check2-circle me-1"></i> Apply Party
+                </button>
+                <button type="button" class="btn btn-outline-light btn-sm" id="cancelBulkBtn">
+                    Cancel
+                </button>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr class="small text-muted text-uppercase">
+                            <th style="width: 40px;" class="text-center">
+                                <input type="checkbox" class="form-check-input" id="selectAllCheckbox" title="Select all rows">
+                            </th>
+                            <th style="width: 45px;">#</th>
+                            <th style="width: 110px;">Date</th>
+                            <th>Party / Customer</th>
+                            <th>Material Type</th>
+                            <th style="width: 130px;">Vehicle No</th>
+                            <th class="text-end" style="width: 170px;">Quantity & Unit</th>
+                            <th class="text-end" style="width: 130px;">Rate (₹)</th>
+                            <th class="text-end" style="width: 150px;">Amount (₹)</th>
+                            <th class="text-center" style="width: 130px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in entries %}
+                        <tr>
+                            <td class="text-center">
+                                <input type="checkbox" class="form-check-input row-select-checkbox" name="entry_ids" value="{{ entry.id }}">
+                            </td>
+                            <td class="text-muted small">{{ loop.index }}</td>
+                            <td class="text-nowrap text-secondary small fw-semibold">{{ entry.date.strftime('%d %b %Y') }}</td>
+                            <td>
+                                {% if entry.party %}
+                                <a href="{{ url_for('parties.party_ledger', id=entry.party.id) }}" class="fw-bold text-dark text-decoration-none">
+                                    {{ entry.party.name }}
+                                </a>
+                                {% else %}
+                                <div class="d-flex align-items-center gap-1.5">
+                                    <span class="badge bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25 small py-1">
+                                        ⚠️ Walk-in / Unassigned
+                                    </span>
+                                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1.5 rounded" 
+                                            onclick="openQuickAssignModal('{{ entry.id }}', '{{ entry.material_type }}', '{{ entry.date.strftime('%d %b %Y') }}', '{{ entry.amount }}')" 
+                                            title="Assign Customer Party">
+                                        <i class="bi bi-person-plus-fill"></i> Set
+                                    </button>
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="fw-semibold text-slate-800">{{ entry.material_type }}</div>
+                                {% if entry.notes %}
+                                <small class="text-muted d-block">{{ entry.notes }}</small>
+                                {% endif %}
+                            </td>
+                            <td class="small font-monospace">{{ entry.vehicle_no or '-' }}</td>
+                            <td class="text-end">
+                                <span class="fs-6 fw-bold text-slate-800">
+                                    {% if 'piece' in (entry.quantity_unit or '').lower() or 'pcs' in (entry.quantity_unit or '').lower() or 'unit' in (entry.quantity_unit or '').lower() or 'bag' in (entry.quantity_unit or '').lower() %}
+                                        {{ "{:,.0f}".format(entry.quantity_mt) }}
+                                    {% else %}
+                                        {{ "{:,.2f}".format(entry.quantity_mt) }}
+                                    {% endif %}
+                                </span>
+                                <span class="badge {% if 'unit' in (entry.quantity_unit or '').lower() or 'nos' in (entry.quantity_unit or '').lower() %}bg-primary bg-opacity-10 text-primary{% elif 'piece' in (entry.quantity_unit or '').lower() or 'pcs' in (entry.quantity_unit or '').lower() %}bg-info bg-opacity-10 text-info{% elif 'ton' in (entry.quantity_unit or '').lower() or 'mt' in (entry.quantity_unit or '').lower() %}bg-success bg-opacity-10 text-success{% else %}bg-secondary bg-opacity-10 text-dark{% endif %} small fw-semibold ms-1">
+                                    {{ entry.quantity_unit or 'Units' }}
+                                </span>
+                            </td>
+                            <td class="text-end small">₹{{ "{:,.2f}".format(entry.rate) }}</td>
+                            <td class="text-end fw-bold text-info fs-6">₹{{ "{:,.2f}".format(entry.amount) }}</td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" 
+                                            onclick="openQuickAssignModal('{{ entry.id }}', '{{ entry.material_type }}', '{{ entry.date.strftime('%d %b %Y') }}', '{{ entry.amount }}', '{{ entry.party_id or '' }}')" 
+                                            title="Quick Link Party">
+                                        <i class="bi bi-person-gear"></i>
+                                    </button>
+                                    <a href="{{ url_for('materials.outward_edit', id=entry.id) }}" class="btn btn-outline-primary btn-sm" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <form action="{{ url_for('materials.outward_delete', id=entry.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete outward dispatch entry ₹{{ entry.amount }}?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="10" class="text-center py-5 text-muted">
+                                <i class="bi bi-box-arrow-up fs-1 d-block mb-2 text-muted text-opacity-50"></i>
+                                <p class="mb-2">No material outward records found for this filter.</p>
+                                <a href="{{ url_for('materials.outward_add') }}" class="btn btn-info btn-sm text-white">
+                                    <i class="bi bi-plus-circle"></i> Add First Outward Entry
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if entries %}
+                    <tfoot class="table-light fw-bold border-top">
+                        <tr>
+                            <td colspan="8" class="text-end text-uppercase">Total Dispatch Revenue:</td>
+                            <td class="text-end text-primary fs-5">₹{{ "{:,.2f}".format(total_amount) }}</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<!-- QUICK 1-CLICK ASSIGN PARTY MODAL                             -->
+<!-- ───────────────────────────────────────────────────────────── -->
+<div class="modal fade" id="quickAssignModal" tabindex="-1" aria-labelledby="quickAssignModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-info text-white p-3 px-4">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="quickAssignModalLabel">
+                    <i class="bi bi-person-plus-fill"></i> Link Outward Dispatch to Party
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" id="quickAssignForm" action="">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next_url" value="{{ request.full_path }}">
+                <div class="modal-body p-4 bg-white">
+                    <div class="bg-light p-3 rounded-3 border mb-3">
+                        <div class="d-flex justify-content-between small text-muted mb-1">
+                            <span>Dispatch: <strong id="qaMaterial" class="text-dark"></strong></span>
+                            <span id="qaDate"></span>
+                        </div>
+                        <div class="fs-6 fw-bold text-info">
+                            Amount: ₹<span id="qaAmount"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="qa_party_id" class="form-label small fw-semibold text-slate-700">Select Customer / Trade Party</label>
+                        <select class="form-select" id="qa_party_id" name="party_id" required>
+                            <option value="">-- Choose Party --</option>
+                            {% for p in parties %}
+                            <option value="{{ p.id }}">{{ p.name }}{% if p.phone %} ({{ p.phone }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text small text-muted">
+                            Linking this entry will update the customer's ledger account and outstanding dues.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top p-3 px-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info text-white px-4 fw-semibold shadow-sm">
+                        <i class="bi bi-check2-circle me-1"></i> Save &amp; Link Party
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('selectAllCheckbox');
+    const rowCheckboxes = document.querySelectorAll('.row-select-checkbox');
+    const bulkBar = document.getElementById('bulkActionBar');
+    const selectedBadge = document.getElementById('selectedCountBadge');
+    const cancelBulkBtn = document.getElementById('cancelBulkBtn');
+
+    function updateBulkBar() {
+        const checked = Array.from(rowCheckboxes).filter(cb => cb.checked);
+        if (checked.length > 0) {
+            bulkBar.classList.remove('d-none');
+            selectedBadge.innerText = `${checked.length} selected`;
+        } else {
+            bulkBar.classList.add('d-none');
+        }
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            rowCheckboxes.forEach(cb => cb.checked = selectAll.checked);
+            updateBulkBar();
+        });
+    }
+
+    rowCheckboxes.forEach(cb => {
+        cb.addEventListener('change', function() {
+            if (!this.checked && selectAll) selectAll.checked = false;
+            updateBulkBar();
+        });
+    });
+
+    if (cancelBulkBtn) {
+        cancelBulkBtn.addEventListener('click', function() {
+            if (selectAll) selectAll.checked = false;
+            rowCheckboxes.forEach(cb => cb.checked = false);
+            updateBulkBar();
+        });
+    }
+});
+
+function openQuickAssignModal(entryId, material, dateStr, amount, currentPartyId) {
+    const form = document.getElementById('quickAssignForm');
+    form.action = `/materials/outward/${entryId}/assign-party`;
+    document.getElementById('qaMaterial').innerText = material;
+    document.getElementById('qaDate').innerText = dateStr;
+    document.getElementById('qaAmount').innerText = parseFloat(amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2});
+    const partySelect = document.getElementById('qa_party_id');
+    if (currentPartyId) {
+        partySelect.value = currentPartyId;
+    } else {
+        partySelect.value = '';
+    }
+    const modal = new bootstrap.Modal(document.getElementById('quickAssignModal'));
+    modal.show();
+}
+</script>
 {% endblock %}

@@ -267,17 +267,115 @@
                                value="{{ settings.webhook_url if settings else '' }}">
                     </div>
 
+
+                    <!-- SECTION 3: Daily Operations Work Digest (Email & Telegram) -->
+                    <h5 class="fw-bold text-dark border-bottom pb-2 mb-3 mt-4">
+                        <i class="bi bi-journal-check text-primary me-2"></i>3. Daily Work Operations Digest (Evening Shift Summary)
+                    </h5>
+
+                    <div class="card bg-light border-0 p-3 rounded-3 mb-3">
+                        <div class="form-check form-switch mb-3 d-flex align-items-center">
+                            <input class="form-check-input me-3" type="checkbox" role="switch" id="daily_digest_enabled" name="daily_digest_enabled" 
+                                   style="width: 2.8em; height: 1.4em;" {% if not settings or settings.daily_digest_enabled %}checked{% endif %}>
+                            <div>
+                                <label class="form-check-label fw-bold text-dark" for="daily_digest_enabled">
+                                    Enable Automated Daily Work Digest Notification
+                                </label>
+                                <div class="text-muted small">
+                                    Sends a complete executive digest (Production volumes, Party Outward Dispatches with exact units, Inward receipts, Loading wages, Collections & Attendance) every day at shift end.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="daily_digest_time" class="form-label small fw-semibold text-slate-700">Daily Digest Time</label>
+                                <input type="time" class="form-control" id="daily_digest_time" name="daily_digest_time" 
+                                       value="{{ settings.daily_digest_time if settings and settings.daily_digest_time else '19:00' }}">
+                                <div class="form-text small">Shift end dispatch time (e.g. 7:00 PM).</div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="daily_digest_channel" class="form-label small fw-semibold text-slate-700">Delivery Channel</label>
+                                <select class="form-select fw-semibold" id="daily_digest_channel" name="daily_digest_channel">
+                                    <option value="both" {% if not settings or settings.daily_digest_channel == 'both' %}selected{% endif %}>
+                                        📱 Telegram Bot & 📧 Email (Both)
+                                    </option>
+                                    <option value="telegram" {% if settings and settings.daily_digest_channel == 'telegram' %}selected{% endif %}>
+                                        📱 Telegram Bot Only
+                                    </option>
+                                    <option value="email" {% if settings and settings.daily_digest_channel == 'email' %}selected{% endif %}>
+                                        📧 SMTP Email Only
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="daily_digest_email" class="form-label small fw-semibold text-slate-700">Digest Recipient Email (Optional)</label>
+                                <input type="email" class="form-control" id="daily_digest_email" name="daily_digest_email" 
+                                       placeholder="Leave blank to use Owner Email"
+                                       value="{{ settings.daily_digest_email if settings and settings.daily_digest_email else '' }}">
+                            </div>
+
+                            <!-- Content Inclusions -->
+                            <div class="col-12 mt-2">
+                                <label class="form-label small fw-bold text-uppercase text-muted mb-2">Digest Report Content Inclusions:</label>
+                                <div class="row g-2">
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="digest_include_production" name="digest_include_production" {% if not settings or settings.digest_include_production %}checked{% endif %}>
+                                            <label class="form-check-label small fw-semibold" for="digest_include_production">🧱 Production Output</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="digest_include_outward" name="digest_include_outward" {% if not settings or settings.digest_include_outward %}checked{% endif %}>
+                                            <label class="form-check-label small fw-semibold" for="digest_include_outward">🚛 Outward Sales by Party</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="digest_include_inward" name="digest_include_inward" {% if not settings or settings.digest_include_inward %}checked{% endif %}>
+                                            <label class="form-check-label small fw-semibold" for="digest_include_inward">📥 Inward Purchases by Supplier</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="digest_include_loading" name="digest_include_loading" {% if not settings or settings.digest_include_loading %}checked{% endif %}>
+                                            <label class="form-check-label small fw-semibold" for="digest_include_loading">👷 Loading / Unloading Wages</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="digest_include_collections" name="digest_include_collections" {% if not settings or settings.digest_include_collections %}checked{% endif %}>
+                                            <label class="form-check-label small fw-semibold" for="digest_include_collections">💰 Collections &amp; Expenses</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="digest_include_attendance" name="digest_include_attendance" {% if not settings or settings.digest_include_attendance %}checked{% endif %}>
+                                            <label class="form-check-label small fw-semibold" for="digest_include_attendance">👥 Staff Attendance Count</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Action Buttons -->
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-3 border-top">
-                        <div class="d-flex gap-2">
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="submit" name="action" value="test_daily_digest" class="btn btn-outline-primary">
+                                <i class="bi bi-journal-text me-1"></i> Test Daily Work Digest
+                            </button>
                             <button type="submit" name="action" value="test_email" class="btn btn-outline-danger">
-                                <i class="bi bi-envelope-arrow-up me-1"></i> Send Test Email
+                                <i class="bi bi-envelope-arrow-up me-1"></i> Test Email
                             </button>
                             <button type="submit" name="action" value="test_mobile" class="btn btn-outline-success">
-                                <i class="bi bi-send-check me-1"></i> Send Test Mobile Message
+                                <i class="bi bi-send-check me-1"></i> Test Mobile/Bot
                             </button>
                         </div>
-                        <button type="submit" name="action" value="save" class="btn btn-primary px-4 fw-bold">
+                        <button type="submit" name="action" value="save" class="btn btn-primary px-4 fw-bold shadow-sm">
                             <i class="bi bi-check-circle me-1"></i> Save All Alert Settings
                         </button>
                     </div>

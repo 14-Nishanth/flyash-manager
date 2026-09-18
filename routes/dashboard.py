@@ -1,6 +1,9 @@
-from flask import Blueprint, render_template
-from flask_login import login_required
-from models import db, Employee, Party, MaterialInward, MaterialOutward, JobWageEntry, JobRateSetting, Expense, Payment, PartyAdjustment
+from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask_login import login_required, current_user
+from models import (
+    db, Employee, Party, MaterialInward, MaterialOutward,
+    JobWageEntry, JobRateSetting, Expense, Payment, PartyAdjustment, DashboardPreference
+)
 from datetime import date, timedelta
 from sqlalchemy import func
 import calendar
@@ -9,18 +12,20 @@ bp = Blueprint('dashboard', __name__, url_prefix='/')
 
 
 def format_quantity_summary(entries):
-    """Summarizes quantities grouped by unit, e.g., '5,000 Pieces • 45.0 MT • 2 Loads'."""
+    """Summarizes quantities grouped by unit, e.g., '150 Units • 5,000 Pieces • 45.0 Ton • 2 Loads'."""
     if not entries:
         return '0 Units'
     unit_totals = {}
     for e in entries:
         qty = e.quantity_mt or 0.0
-        u = (e.quantity_unit or 'Pieces / Pcs').strip()
+        u = (e.quantity_unit or 'Units').strip()
         u_lower = u.lower()
-        if 'piece' in u_lower or 'pcs' in u_lower or 'nos' in u_lower:
+        if 'unit' in u_lower or 'nos' in u_lower:
+            key = 'Units'
+        elif 'piece' in u_lower or 'pcs' in u_lower:
             key = 'Pieces'
         elif 'ton' in u_lower or 'mt' in u_lower:
-            key = 'MT'
+            key = 'Ton'
         elif 'load' in u_lower or 'trip' in u_lower:
             key = 'Loads'
         elif 'bag' in u_lower:
@@ -34,9 +39,10 @@ def format_quantity_summary(entries):
         unit_totals[key] = unit_totals.get(key, 0.0) + qty
     
     parts = []
-    for k in ['Pieces', 'MT', 'Loads', 'Bags', 'CFT', 'Kg']:
+    # Display in logical order
+    for k in ['Units', 'Pieces', 'Ton', 'Loads', 'Bags', 'CFT', 'Kg']:
         if k in unit_totals and unit_totals[k] > 0:
-            if k in ('Pieces', 'Bags'):
+            if k in ('Pieces', 'Units', 'Bags'):
                 parts.append(f"{unit_totals[k]:,.0f} {k}")
             else:
                 parts.append(f"{unit_totals[k]:,.1f} {k}")
@@ -46,6 +52,7 @@ def format_quantity_summary(entries):
             parts.append(f"{v:,.1f} {k}")
     
     return " • ".join(parts) if parts else "0 Units"
+
 
 
 @bp.route('/')
@@ -136,20 +143,44 @@ def index():
     recent_jobs = JobWageEntry.query.order_by(JobWageEntry.date.desc(), JobWageEntry.id.desc()).limit(5).all()
     recent_expenses = Expense.query.order_by(Expense.date.desc(), Expense.id.desc()).limit(5).all()
 
-    # 8. Material Stock Overview
+    # 8. Material Stock Overview (Dynamic Units for Dust, Fly Ash, Cement, Sand, etc.)
+    all_inward = MaterialInward.query.all()
+    all_outward = MaterialOutward.query.all()
+    
+    mat_units = {}
+    for e in all_inward:
+        if e.material_type and e.material_type not in mat_units:
+            mat_units[e.material_type] = e.quantity_unit or 'Ton'
+    for e in all_outward:
+        if e.material_type and e.material_type not in mat_units:
+            mat_units[e.material_type] = e.quantity_unit or 'Ton'
+
     in_grouped = dict(db.session.query(MaterialInward.material_type, func.sum(MaterialInward.quantity_mt)).group_by(MaterialInward.material_type).all())
     out_grouped = dict(db.session.query(MaterialOutward.material_type, func.sum(MaterialOutward.quantity_mt)).group_by(MaterialOutward.material_type).all())
 
+    featured_materials = ['Fly Ash', 'Cement', 'Dust', 'Sand', 'Jelly (Blue Metal)']
+    seen_names = set()
     stock_overview = []
-    for mat in ['Cement', 'Jelly', 'Fly Ash', 'Sand']:
-        in_qty = sum(qty for k, qty in in_grouped.items() if mat.lower() in (k or '').lower())
-        out_qty = sum(qty for k, qty in out_grouped.items() if mat.lower() in (k or '').lower())
-        stock_overview.append({
-            'name': mat,
-            'inward': in_qty,
-            'outward': out_qty,
-            'balance': round(in_qty - out_qty, 2)
-        })
+    for mat in featured_materials:
+        matching_in = sum(qty for k, qty in in_grouped.items() if mat.lower() in (k or '').lower())
+        matching_out = sum(qty for k, qty in out_grouped.items() if mat.lower() in (k or '').lower())
+        
+        unit = 'Ton'
+        for k, u in mat_units.items():
+            if mat.lower() in (k or '').lower():
+                unit = u
+                break
+        
+        display_name = 'Stone Dust' if mat == 'Dust' else mat
+        if display_name not in seen_names:
+            seen_names.add(display_name)
+            stock_overview.append({
+                'name': display_name,
+                'unit': unit,
+                'inward': matching_in,
+                'outward': matching_out,
+                'balance': round(matching_in - matching_out, 2)
+            })
 
     # 9. Weekly Performance Representation (Last 6 Weeks Breakdown)
     weekly_performance = []
@@ -187,7 +218,10 @@ def index():
             'is_current': (i == 0)
         })
 
+    dashboard_pref = DashboardPreference.get_preference(current_user.id if (current_user and current_user.is_authenticated) else None)
+
     return render_template('dashboard.html',
+                           dashboard_pref=dashboard_pref,
                            total_employees=total_employees,
                            total_parties=total_parties,
                            today_inward_summary=today_inward_summary,
@@ -223,3 +257,32 @@ def index():
                            weekly_performance=weekly_performance,
                            current_week_from=mon.strftime('%Y-%m-%d'),
                            current_week_to=sun.strftime('%Y-%m-%d'))
+
+
+@bp.route('/customize', methods=['POST'])
+@login_required
+def customize():
+    """Saves user/plant executive dashboard widget visibility preferences."""
+    pref = DashboardPreference.get_preference(current_user.id if (current_user and current_user.is_authenticated) else None)
+    pref.show_today_inward = request.form.get('show_today_inward') == 'on'
+    pref.show_today_outward = request.form.get('show_today_outward') == 'on'
+    pref.show_expenses = request.form.get('show_expenses') == 'on'
+    pref.show_outstanding = request.form.get('show_outstanding') == 'on'
+    pref.show_production_labor = request.form.get('show_production_labor') == 'on'
+    pref.show_stock_overview = request.form.get('show_stock_overview') == 'on'
+    pref.show_weekly_performance = request.form.get('show_weekly_performance') == 'on'
+    pref.show_recent_inward = request.form.get('show_recent_inward') == 'on'
+    pref.show_recent_outward = request.form.get('show_recent_outward') == 'on'
+    pref.show_recent_jobs = request.form.get('show_recent_jobs') == 'on'
+    pref.show_recent_expenses = request.form.get('show_recent_expenses') == 'on'
+    pref.show_quick_actions = request.form.get('show_quick_actions') == 'on'
+    
+    try:
+        db.session.commit()
+        flash('Dashboard layout and widget preferences updated successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error saving preferences: {str(e)}', 'error')
+    
+    return redirect(url_for('dashboard.index'))
+
