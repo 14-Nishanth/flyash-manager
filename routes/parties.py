@@ -56,6 +56,40 @@ def get_all_parties_outstanding_map():
     return outstanding_map
 
 
+def resolve_party_payment_period(period_param, from_date_str, to_date_str):
+    import calendar
+    from datetime import timedelta
+    today = date.today()
+    if period_param == 'today':
+        return today.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d')
+    elif period_param == 'this_week' or (not period_param and not from_date_str and not to_date_str):
+        mon = today - timedelta(days=today.weekday())
+        sun = mon + timedelta(days=6)
+        return mon.strftime('%Y-%m-%d'), sun.strftime('%Y-%m-%d')
+    elif period_param == 'last_week':
+        last_mon = today - timedelta(days=today.weekday() + 7)
+        last_sun = last_mon + timedelta(days=6)
+        return last_mon.strftime('%Y-%m-%d'), last_sun.strftime('%Y-%m-%d')
+    elif period_param == 'this_month':
+        first_day = today.replace(day=1)
+        last_day = today.replace(day=calendar.monthrange(today.year, today.month)[1])
+        return first_day.strftime('%Y-%m-%d'), last_day.strftime('%Y-%m-%d')
+    elif period_param == 'last_month':
+        first_this = today.replace(day=1)
+        prev_month_last = first_this - timedelta(days=1)
+        prev_month_first = prev_month_last.replace(day=1)
+        return prev_month_first.strftime('%Y-%m-%d'), prev_month_last.strftime('%Y-%m-%d')
+    elif period_param == 'this_year':
+        return f"{today.year}-01-01", f"{today.year}-12-31"
+    elif period_param == 'all':
+        return '', ''
+    if not from_date_str and not to_date_str:
+        mon = today - timedelta(days=today.weekday())
+        sun = mon + timedelta(days=6)
+        return mon.strftime('%Y-%m-%d'), sun.strftime('%Y-%m-%d')
+    return from_date_str, to_date_str
+
+
 @bp.route('/')
 @login_required
 def list_parties():
@@ -563,70 +597,174 @@ def api_party_balance(id):
 @bp.route('/payments')
 @login_required
 def payments_list():
-    from_date_str = request.args.get('from_date', '')
-    to_date_str = request.args.get('to_date', '')
+    from datetime import timedelta
+    period_param = request.args.get('period', '')
+    from_date_raw = request.args.get('from_date', '')
+    to_date_raw = request.args.get('to_date', '')
+    from_date_str, to_date_str = resolve_party_payment_period(period_param, from_date_raw, to_date_raw)
+
     party_id = request.args.get('party_id', type=int)
-    payment_type = request.args.get('payment_type', '')
-    mode = request.args.get('mode', '')
-    
+    payment_type = request.args.get('payment_type', '').strip()
+    mode = request.args.get('mode', '').strip()
+
     query = Payment.query
-    
+
+    from_d = None
+    to_d = None
+    if from_date_str:
+        try:
+            from_d = datetime.strptime(from_date_str, '%Y-%m-%d').date()
+            query = query.filter(Payment.date >= from_d)
+        except ValueError:
+            pass
+
+    if to_date_str:
+        try:
+            to_d = datetime.strptime(to_date_str, '%Y-%m-%d').date()
+            query = query.filter(Payment.date <= to_d)
+        except ValueError:
+            pass
+
+    if party_id:
+        query = query.filter(Payment.party_id == party_id)
+
+    if payment_type and payment_type != 'all':
+        query = query.filter(Payment.payment_type == payment_type)
+
+    if mode and mode != 'all':
+        query = query.filter(Payment.mode == mode)
+
+    payments = query.order_by(Payment.date.desc(), Payment.id.desc()).all()
+    parties = Party.query.order_by(Party.name).all()
+
+    total_paid_suppliers = sum(p.amount for p in payments if p.payment_type == 'paid')
+    total_received_customers = sum(p.amount for p in payments if p.payment_type == 'received')
+    total_amount = sum(p.amount for p in payments)
+
+    # Calculate previous & next week date strings for week switcher navigation
+    if from_d and to_d:
+        prev_week_from = (from_d - timedelta(days=7)).strftime('%Y-%m-%d')
+        prev_week_to = (to_d - timedelta(days=7)).strftime('%Y-%m-%d')
+        next_week_from = (from_d + timedelta(days=7)).strftime('%Y-%m-%d')
+        next_week_to = (to_d + timedelta(days=7)).strftime('%Y-%m-%d')
+    else:
+        today = date.today()
+        cur_mon = today - timedelta(days=today.weekday())
+        cur_sun = cur_mon + timedelta(days=6)
+        prev_week_from = (cur_mon - timedelta(days=7)).strftime('%Y-%m-%d')
+        prev_week_to = (cur_sun - timedelta(days=7)).strftime('%Y-%m-%d')
+        next_week_from = (cur_mon + timedelta(days=7)).strftime('%Y-%m-%d')
+        next_week_to = (cur_sun + timedelta(days=7)).strftime('%Y-%m-%d')
+
+    return render_template('parties/payments_list.html',
+                           payments=payments,
+                           parties=parties,
+                           from_date=from_date_str,
+                           to_date=to_date_str,
+                           period=period_param,
+                           prev_week_from=prev_week_from,
+                           prev_week_to=prev_week_to,
+                           next_week_from=next_week_from,
+                           next_week_to=next_week_to,
+                           selected_party=party_id,
+                           selected_type=payment_type,
+                           selected_mode=mode,
+                           total_amount=total_amount,
+                           total_paid_suppliers=total_paid_suppliers,
+                           total_received_customers=total_received_customers,
+                           today=date.today().strftime('%Y-%m-%d'))
+
+
+@bp.route('/payments/export')
+@login_required
+def export_payments_csv():
+    period_param = request.args.get('period', '')
+    from_date_raw = request.args.get('from_date', '')
+    to_date_raw = request.args.get('to_date', '')
+    from_date_str, to_date_str = resolve_party_payment_period(period_param, from_date_raw, to_date_raw)
+
+    party_id = request.args.get('party_id', type=int)
+    payment_type = request.args.get('payment_type', '').strip()
+    mode = request.args.get('mode', '').strip()
+
+    query = Payment.query
+
     if from_date_str:
         try:
             f_d = datetime.strptime(from_date_str, '%Y-%m-%d').date()
             query = query.filter(Payment.date >= f_d)
         except ValueError:
             pass
-            
+
     if to_date_str:
         try:
             t_d = datetime.strptime(to_date_str, '%Y-%m-%d').date()
             query = query.filter(Payment.date <= t_d)
         except ValueError:
             pass
-            
+
     if party_id:
-        query = query.filter_by(party_id=party_id)
-        
-    if payment_type:
-        query = query.filter_by(payment_type=payment_type)
-        
-    if mode:
-        query = query.filter_by(mode=mode)
-        
+        query = query.filter(Payment.party_id == party_id)
+
+    if payment_type and payment_type != 'all':
+        query = query.filter(Payment.payment_type == payment_type)
+
+    if mode and mode != 'all':
+        query = query.filter(Payment.mode == mode)
+
     payments = query.order_by(Payment.date.desc(), Payment.id.desc()).all()
-    parties = Party.query.order_by(Party.name).all()
-    total_amount = sum(p.amount for p in payments)
-    
-    return render_template('parties/payments_list.html',
-                           payments=payments,
-                           parties=parties,
-                           from_date=from_date_str,
-                           to_date=to_date_str,
-                           selected_party=party_id,
-                           selected_type=payment_type,
-                           selected_mode=mode,
-                           total_amount=total_amount)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        '#', 'Payment Date', 'Party / Beneficiary', 'Party Type', 'Payment Type',
+        'Amount (₹)', 'Payment Mode', 'Reference / UTR / Cheque No', 'Notes / Remarks', 'Created At'
+    ])
+
+    for idx, p in enumerate(payments, start=1):
+        p_name = p.party.name if p.party else 'N/A'
+        p_type = p.party.party_type.capitalize() if p.party and p.party.party_type else 'N/A'
+        p_type_label = 'Paid (To Supplier)' if p.payment_type == 'paid' else 'Received (From Customer)'
+        writer.writerow([
+            idx,
+            p.date.strftime('%Y-%m-%d') if p.date else '',
+            p_name,
+            p_type,
+            p_type_label,
+            f"{p.amount:.2f}",
+            p.mode.capitalize() if p.mode else '',
+            p.reference_no or '',
+            p.notes or '',
+            p.created_at.strftime('%Y-%m-%d %H:%M:%S') if p.created_at else ''
+        ])
+
+    output.seek(0)
+    filename = f"payment_statement_{from_date_str or 'all'}_to_{to_date_str or 'all'}.csv"
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={"Content-Disposition": f"attachment;filename={filename}"}
+    )
 
 
 @bp.route('/payments/add', methods=['GET', 'POST'])
 @login_required
 def payment_add():
     parties = Party.query.order_by(Party.name).all()
-    
+
     if request.method == 'POST':
         date_str = request.form.get('date')
         party_id = request.form.get('party_id')
         payment_type = request.form.get('payment_type')
         amount = request.form.get('amount')
         mode = request.form.get('mode')
-        reference_no = request.form.get('reference_no')
-        notes = request.form.get('notes')
-        
+        reference_no = request.form.get('reference_no', '').strip()
+        notes = request.form.get('notes', '').strip()
+
         if not date_str or not party_id or not payment_type or not amount or not mode:
-            flash('All mandatory fields are required.', 'error')
-            return render_template('parties/payment_form.html', parties=parties, today=date.today())
-            
+            flash('All mandatory fields (Date, Party, Payment Type, Amount, Mode) are required.', 'error')
+            return render_template('parties/payment_form.html', parties=parties, today=date.today().strftime('%Y-%m-%d'))
+
         try:
             payment = Payment(
                 date=datetime.strptime(date_str, '%Y-%m-%d').date(),
@@ -634,18 +772,22 @@ def payment_add():
                 payment_type=payment_type,
                 amount=float(amount),
                 mode=mode,
-                reference_no=reference_no,
-                notes=notes
+                reference_no=reference_no or None,
+                notes=notes or None
             )
             db.session.add(payment)
             db.session.commit()
-            flash('Payment recorded successfully.', 'success')
+            
+            p_obj = Party.query.get(int(party_id))
+            p_name = p_obj.name if p_obj else 'Party'
+            type_label = 'paid to supplier' if payment_type == 'paid' else 'received from customer'
+            flash(f'Payment of ₹{float(amount):,.2f} {type_label} ({p_name}) recorded successfully.', 'success')
             return redirect(url_for('parties.payments_list'))
         except Exception as e:
             db.session.rollback()
             flash(f'Error recording payment: {str(e)}', 'error')
-            
-    return render_template('parties/payment_form.html', parties=parties, today=date.today())
+
+    return render_template('parties/payment_form.html', parties=parties, today=date.today().strftime('%Y-%m-%d'))
 
 
 @bp.route('/payments/<int:id>/delete', methods=['POST'])
@@ -653,9 +795,11 @@ def payment_add():
 def payment_delete(id):
     payment = Payment.query.get_or_404(id)
     try:
+        amt = payment.amount
+        p_name = payment.party.name if payment.party else 'Party'
         db.session.delete(payment)
         db.session.commit()
-        flash('Payment deleted successfully.', 'success')
+        flash(f'Payment of ₹{amt:,.2f} for {p_name} deleted successfully.', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Error deleting payment: {str(e)}', 'error')
