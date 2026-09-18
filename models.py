@@ -19,7 +19,10 @@ class User(UserMixin, db.Model):
     phone = db.Column(db.String(20))
     preferred_language = db.Column(db.String(10), default='en')  # en, hi, bho, ta, ml, te, kn, bn, mr, gu, pa, or
     is_active = db.Column(db.Boolean, default=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id', ondelete='SET NULL'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    employee = db.relationship('Employee', backref=db.backref('user_account', uselist=False), foreign_keys=[employee_id])
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -241,6 +244,20 @@ class Employee(db.Model):
                                       cascade='all, delete-orphan')
     salary_payments = db.relationship('EmployeeSalaryPayment', backref='employee', lazy=True,
                                       cascade='all, delete-orphan')
+
+    @property
+    def has_login_access(self):
+        return self.user_account is not None and self.user_account.is_active
+
+    @property
+    def linked_user(self):
+        if self.user_account:
+            return self.user_account
+        if self.phone:
+            u = User.query.filter_by(phone=self.phone).first()
+            if u:
+                return u
+        return None
 
     def __repr__(self):
         return f'<Employee {self.name}>'

@@ -11,7 +11,7 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime, date
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response, jsonify, current_app
 from flask_login import login_user, logout_user, login_required, current_user
-from models import db, User, LoginHistory, AlertSettings
+from models import db, User, LoginHistory, AlertSettings, DashboardPreference, Employee
 from translations import SUPPORTED_LANGUAGES, LANGUAGE_MAP, TRANSLATIONS, get_translation
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -552,11 +552,33 @@ def user_edit(id):
     return render_template('auth/user_form.html', roles=USER_ROLES, supported_languages=SUPPORTED_LANGUAGES, user=user)
 
 
+@bp.route('/users/<int:id>/toggle-status', methods=['POST'])
+@login_required
+@role_required('owner', 'admin')
+def user_toggle_status(id):
+    """1-click toggle to activate or deactivate/revoke login access for a user."""
+    if id == current_user.id:
+        flash('You cannot deactivate your own account while signed in.', 'warning')
+        return redirect(url_for('auth.users_list'))
+        
+    user = User.query.get_or_404(id)
+    try:
+        user.is_active = not user.is_active
+        db.session.commit()
+        status_txt = "ACTIVATED (Access Granted)" if user.is_active else "DEACTIVATED (Access Revoked)"
+        flash(f'Staff account "{user.name or user.username}" is now {status_txt}.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating user status: {str(e)}', 'error')
+        
+    return redirect(request.referrer or url_for('auth.users_list'))
+
+
 @bp.route('/users/<int:id>/delete', methods=['POST'])
 @login_required
 @role_required('owner', 'admin')
 def user_delete(id):
-    """Delete a user account."""
+    """Safely delete a user account with cascading cleanup."""
     if id == current_user.id:
         flash('You cannot delete your own account while signed in.', 'error')
         return redirect(url_for('auth.users_list'))
@@ -564,13 +586,26 @@ def user_delete(id):
     user = User.query.get_or_404(id)
     try:
         name = user.name or user.username
+        u_name = user.username
+        
+        # Safely clean up user preferences and detach login history
+        try:
+            DashboardPreference.query.filter_by(user_id=user.id).delete()
+        except Exception:
+            pass
+            
+        try:
+            LoginHistory.query.filter_by(user_id=user.id).update({'user_id': None})
+        except Exception:
+            pass
+            
         db.session.delete(user)
         db.session.commit()
-        flash(f'User "{name}" deleted successfully.', 'success')
+        flash(f'Staff account "{name}" (@{u_name}) deleted successfully. Login access removed.', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Error deleting user: {str(e)}', 'error')
-    return redirect(url_for('auth.users_list'))
+    return redirect(request.referrer or url_for('auth.users_list'))
 
 
 @bp.route('/profile', methods=['GET', 'POST'])

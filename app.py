@@ -208,6 +208,7 @@ def _migrate_db():
                     ('phone', "VARCHAR(20)"),
                     ('preferred_language', "VARCHAR(10) DEFAULT 'en'"),
                     ('is_active', "BOOLEAN DEFAULT 1"),
+                    ('employee_id', "INTEGER"),
                     ('created_at', "DATETIME")
                 ],
                 'login_history': [

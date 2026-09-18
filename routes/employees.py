@@ -37,8 +37,8 @@ import io
 import csv
 import json
 from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify
-from flask_login import login_required
-from models import db, Employee, Attendance, JobWageEntry, EmployeeJobAllocation, JobRateSetting, EmployeeGroup, AlertSettings, EmployeeSalaryPayment, Party, Payment
+from flask_login import login_required, current_user
+from models import db, Employee, Attendance, JobWageEntry, EmployeeJobAllocation, JobRateSetting, EmployeeGroup, AlertSettings, EmployeeSalaryPayment, Party, Payment, User, DashboardPreference, LoginHistory
 from datetime import datetime, date
 from sqlalchemy import func
 
@@ -160,15 +160,152 @@ def edit_employee(id):
     return render_template('employees/form.html', employee=emp)
 
 
+@bp.route('/<int:id>/grant-access', methods=['POST'])
+@login_required
+@role_required('owner', 'admin')
+def grant_employee_access(id):
+    """Creates or updates a login account for this employee in 1 click."""
+    emp = Employee.query.get_or_404(id)
+    username = request.form.get('username', '').strip().lower()
+    password = request.form.get('password', '').strip()
+    role = request.form.get('role', 'operator')
+    email = request.form.get('email', '').strip().lower()
+    
+    if not username:
+        # Default username from employee name or phone
+        username = emp.name.lower().replace(' ', '')
+        if emp.phone:
+            username = f"{username}_{emp.phone[-4:]}"
+            
+    if not password:
+        password = 'Password@123'
+        
+    if not email:
+        email = f"{username}@flyash.local"
+        
+    # Check if user already exists
+    existing = User.query.filter((User.employee_id == emp.id) | (User.phone == emp.phone) if emp.phone else (User.employee_id == emp.id)).first()
+    if existing:
+        existing.employee_id = emp.id
+        existing.role = role
+        existing.is_active = True
+        if password:
+            existing.set_password(password)
+        db.session.commit()
+        flash(f'✅ Login access enabled/updated for {emp.name}! (Username: {existing.username}, Role: {role})', 'success')
+    else:
+        # Check conflict on username
+        conflict = User.query.filter((db.func.lower(User.username) == username) | (db.func.lower(User.email) == email)).first()
+        if conflict:
+            flash(f'Username "{username}" or Email "{email}" is already used by another account. Please specify a different username.', 'error')
+            return redirect(request.referrer or url_for('employees.list_employees'))
+            
+        u = User(
+            name=emp.name,
+            username=username,
+            email=email,
+            phone=emp.phone,
+            role=role,
+            is_active=True,
+            employee_id=emp.id
+        )
+        u.set_password(password)
+        db.session.add(u)
+        db.session.commit()
+        flash(f'✅ Login access granted to {emp.name}! (Username: {username}, Role: {role}, Temp Password: {password})', 'success')
+        
+    return redirect(request.referrer or url_for('employees.list_employees'))
+
+
+@bp.route('/<int:id>/revoke-access', methods=['POST'])
+@login_required
+@role_required('owner', 'admin')
+def revoke_employee_access(id):
+    """Revokes / deactivates or deletes login access for this employee."""
+    emp = Employee.query.get_or_404(id)
+    action_type = request.form.get('action', 'deactivate')  # 'deactivate' or 'delete_login'
+    
+    linked_user = getattr(emp, 'linked_user', None)
+    if not linked_user:
+        linked_user = User.query.filter_by(employee_id=emp.id).first()
+    if not linked_user and emp.phone:
+        linked_user = User.query.filter_by(phone=emp.phone).first()
+        
+    if not linked_user:
+        flash(f'No login account found for employee "{emp.name}".', 'warning')
+        return redirect(request.referrer or url_for('employees.list_employees'))
+        
+    if linked_user.id == current_user.id:
+        flash('You cannot revoke access to your own active account.', 'error')
+        return redirect(request.referrer or url_for('employees.list_employees'))
+        
+    try:
+        if action_type == 'delete_login':
+            u_name = linked_user.username
+            try:
+                DashboardPreference.query.filter_by(user_id=linked_user.id).delete()
+            except Exception:
+                pass
+            try:
+                LoginHistory.query.filter_by(user_id=linked_user.id).update({'user_id': None})
+            except Exception:
+                pass
+            db.session.delete(linked_user)
+            db.session.commit()
+            flash(f'Login account for "{emp.name}" (@{u_name}) deleted successfully. Employee record remains active.', 'success')
+        else:
+            linked_user.is_active = False
+            db.session.commit()
+            flash(f'Login access for "{emp.name}" (@{linked_user.username}) has been DEACTIVATED (Revoked).', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error revoking access: {str(e)}', 'error')
+        
+    return redirect(request.referrer or url_for('employees.list_employees'))
+
+
 @bp.route('/<int:id>/delete', methods=['POST'])
 @login_required
 @role_required('owner', 'admin')
 def delete_employee(id):
+    """Safely delete employee and cleanly remove or detach any login accounts."""
     emp = Employee.query.get_or_404(id)
+    delete_login = request.form.get('delete_login', 'yes') == 'yes'
     try:
+        emp_name = emp.name
+        
+        # Check linked login accounts
+        linked_users = User.query.filter_by(employee_id=emp.id).all()
+        if not linked_users and emp.phone:
+            linked_users = User.query.filter_by(phone=emp.phone).all()
+            
+        deleted_login_names = []
+        for u in linked_users:
+            if u.id != current_user.id:
+                if delete_login:
+                    deleted_login_names.append(u.username)
+                    try:
+                        DashboardPreference.query.filter_by(user_id=u.id).delete()
+                    except Exception:
+                        pass
+                    try:
+                        LoginHistory.query.filter_by(user_id=u.id).update({'user_id': None})
+                    except Exception:
+                        pass
+                    db.session.delete(u)
+                else:
+                    u.employee_id = None
+                    
+        # Detach from groups
+        emp.groups = []
+        
         db.session.delete(emp)
         db.session.commit()
-        flash('Employee deleted successfully.', 'success')
+        
+        msg = f'Employee "{emp_name}" deleted successfully.'
+        if deleted_login_names:
+            msg += f' Also deleted linked staff login account(s): @{", @".join(deleted_login_names)}.'
+        flash(msg, 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Error deleting employee: {str(e)}', 'error')
