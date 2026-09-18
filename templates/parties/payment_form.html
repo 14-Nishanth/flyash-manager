@@ -15,6 +15,24 @@
                 </a>
             </div>
             <div class="card-body p-4">
+                <!-- Server-side Duplicate Alert -->
+                {% if duplicate_alert %}
+                <div class="alert alert-warning border-warning shadow-xs p-3 mb-4 rounded-3">
+                    <div class="d-flex align-items-start gap-2">
+                        <i class="bi bi-exclamation-triangle-fill fs-4 text-warning mt-0.5"></i>
+                        <div>
+                            <div class="fw-bold fs-6">⚠️ Potential Duplicate Payment Warning</div>
+                            <div class="small mt-1">
+                                A payment of <strong>₹{{ "{:,.2f}".format(duplicate_alert.amount) }}</strong> ({{ duplicate_alert.existing_type }}) for <strong>{{ duplicate_alert.party_name }}</strong> on <strong>{{ duplicate_alert.date }}</strong> was already recorded in the system! (Ref: {{ duplicate_alert.existing_ref }}, Mode: {{ duplicate_alert.existing_mode }})
+                            </div>
+                            <div class="small fw-semibold text-danger mt-1">
+                                If this is a separate, intentional transaction, check the confirmation box below to save.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
                 <!-- Dynamic Party Balance Info Banner -->
                 <div id="partyBalanceBanner" class="alert alert-light border shadow-xs p-3 mb-4 rounded-3 d-none">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -29,20 +47,31 @@
                     </div>
                 </div>
 
-                <form method="POST">
+                <!-- Live Frontend Duplicate Warning Alert -->
+                <div id="pageDuplicateAlert" class="alert alert-warning border-warning shadow-xs p-3 mb-4 rounded-3 d-none">
+                    <div class="d-flex align-items-start gap-2">
+                        <i class="bi bi-exclamation-triangle-fill fs-5 text-warning mt-0.5"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold text-dark">⚠️ Duplicate Payment Alert!</div>
+                            <div class="small text-dark mt-1" id="pageDupMessage">A payment for this person on this date with the exact same amount already exists in the system.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <form method="POST" onsubmit="return validatePageDuplicate(event)">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="date" class="form-label small fw-semibold text-muted">Payment Date *</label>
-                            <input type="date" class="form-control" id="date" name="date" required value="{{ today }}">
+                            <input type="date" class="form-control" id="date" name="date" required value="{{ form_data.get('date') if form_data else today }}" onchange="checkPageDuplicate()">
                         </div>
                         <div class="col-md-6">
                             <label for="party_id" class="form-label small fw-semibold text-muted">Party Name *</label>
-                            <select class="form-select" id="party_id" name="party_id" required onchange="fetchPartyBalance(this.value)">
+                            <select class="form-select" id="party_id" name="party_id" required onchange="onPagePartyChange(this.value)">
                                 <option value="">-- Select Party --</option>
                                 {% for party in parties %}
-                                <option value="{{ party.id }}" {% if request.args.get('party_id')|int == party.id %}selected{% endif %}>
+                                <option value="{{ party.id }}" {% if (form_data and form_data.get('party_id')|int == party.id) or (request.args.get('party_id')|int == party.id) %}selected{% endif %}>
                                     {{ party.name }} ({{ party.party_type|capitalize }})
                                 </option>
                                 {% endfor %}
@@ -53,16 +82,16 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="payment_type" class="form-label small fw-semibold text-muted">Payment Type *</label>
-                            <select class="form-select" id="payment_type" name="payment_type" required>
-                                <option value="received" {% if request.args.get('type') == 'received' %}selected{% endif %}>Received (From Customer / Client)</option>
-                                <option value="paid" {% if request.args.get('type') == 'paid' %}selected{% endif %}>Paid (To Supplier / Transporter)</option>
+                            <select class="form-select" id="payment_type" name="payment_type" required onchange="checkPageDuplicate()">
+                                <option value="received" {% if (form_data and form_data.get('payment_type') == 'received') or request.args.get('type') == 'received' %}selected{% endif %}>Received (From Customer / Client)</option>
+                                <option value="paid" {% if (form_data and form_data.get('payment_type') == 'paid') or request.args.get('type') == 'paid' %}selected{% endif %}>Paid (To Supplier / Transporter)</option>
                             </select>
                         </div>
                         <div class="col-md-6">
                             <label for="amount" class="form-label small fw-semibold text-muted">Amount (₹) *</label>
                             <div class="input-group">
-                                <span class="input-group-text bg-light">₹</span>
-                                <input type="number" step="0.01" min="0.01" class="form-control" id="amount" name="amount" required placeholder="Enter amount">
+                                <span class="input-group-text bg-light fw-bold">₹</span>
+                                <input type="number" step="0.01" min="0.01" class="form-control" id="amount" name="amount" required placeholder="Enter amount" value="{{ form_data.get('amount') if form_data else '' }}" oninput="checkPageDuplicate()">
                             </div>
                         </div>
                     </div>
@@ -71,21 +100,30 @@
                         <div class="col-md-6">
                             <label for="mode" class="form-label small fw-semibold text-muted">Payment Mode *</label>
                             <select class="form-select" id="mode" name="mode" required>
-                                <option value="bank">Bank Transfer / NEFT / RTGS</option>
-                                <option value="upi">UPI / GPay / PhonePe</option>
-                                <option value="cash">Cash</option>
-                                <option value="cheque">Cheque</option>
+                                <option value="bank" {% if form_data and form_data.get('mode') == 'bank' %}selected{% endif %}>Bank Transfer / NEFT / RTGS</option>
+                                <option value="upi" {% if form_data and form_data.get('mode') == 'upi' %}selected{% endif %}>UPI / GPay / PhonePe</option>
+                                <option value="cash" {% if form_data and form_data.get('mode') == 'cash' %}selected{% endif %}>Cash</option>
+                                <option value="cheque" {% if form_data and form_data.get('mode') == 'cheque' %}selected{% endif %}>Cheque</option>
                             </select>
                         </div>
                         <div class="col-md-6">
                             <label for="reference_no" class="form-label small fw-semibold text-muted">Reference / UTR / Cheque No</label>
-                            <input type="text" class="form-control" id="reference_no" name="reference_no" placeholder="e.g. UTR123456 / Cheque #">
+                            <input type="text" class="form-control" id="reference_no" name="reference_no" placeholder="e.g. UTR123456 / Cheque #" value="{{ form_data.get('reference_no', '') if form_data else '' }}">
                         </div>
                     </div>
                     
-                    <div class="mb-4">
+                    <div class="mb-3">
                         <label for="notes" class="form-label small fw-semibold text-muted">Notes / Remarks</label>
-                        <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="e.g. Partial payment against bill #102 or Full settlement"></textarea>
+                        <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="e.g. Partial payment against bill #102 or Full settlement">{{ form_data.get('notes', '') if form_data else '' }}</textarea>
+                    </div>
+
+                    <div class="mb-4 pt-2 border-top">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="confirm_duplicate" value="1" id="confirm_duplicate" {% if duplicate_alert %}checked{% endif %}>
+                            <label class="form-check-label small fw-semibold text-dark" for="confirm_duplicate">
+                                Confirm Duplicate: Check this box if this is an intentional separate payment with the same person, date, and amount.
+                            </label>
+                        </div>
                     </div>
                     
                     <div class="d-flex justify-content-end gap-2 pt-2 border-top">
@@ -102,6 +140,12 @@
 
 <script>
 let currentPartyData = null;
+let isPageDuplicate = false;
+
+function onPagePartyChange(partyId) {
+    fetchPartyBalance(partyId);
+    checkPageDuplicate();
+}
 
 function fetchPartyBalance(partyId) {
     if (!partyId) {
@@ -162,6 +206,65 @@ function autofillFullBalance() {
         document.getElementById('payment_type').value = 'paid';
         document.getElementById('notes').value = 'Full payment settlement paid to supplier';
     }
+    checkPageDuplicate();
+}
+
+let pageDupTimeout = null;
+function checkPageDuplicate() {
+    clearTimeout(pageDupTimeout);
+    pageDupTimeout = setTimeout(() => {
+        const partyId = document.getElementById('party_id').value;
+        const dateVal = document.getElementById('date').value;
+        const amountVal = document.getElementById('amount').value;
+        const typeVal = document.getElementById('payment_type').value;
+
+        const dupAlert = document.getElementById('pageDuplicateAlert');
+        const dupMsg = document.getElementById('pageDupMessage');
+
+        if (!partyId || !dateVal || !amountVal || parseFloat(amountVal) <= 0) {
+            dupAlert.classList.add('d-none');
+            isPageDuplicate = false;
+            return;
+        }
+
+        const url = `/parties/api/check-duplicate-payment?party_id=${encodeURIComponent(partyId)}&date=${encodeURIComponent(dateVal)}&amount=${encodeURIComponent(amountVal)}&payment_type=${encodeURIComponent(typeVal)}`;
+
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                if (data.is_duplicate) {
+                    isPageDuplicate = true;
+                    dupAlert.classList.remove('d-none');
+                    const match = data.matches && data.matches.length ? data.matches[0] : null;
+                    let extra = '';
+                    if (match) {
+                        extra = `<strong>Existing:</strong> Mode: <code>${match.mode}</code> | Ref: <code>${match.reference_no}</code> ${match.notes !== 'None' ? '| Note: ' + match.notes : ''}`;
+                    }
+                    dupMsg.innerHTML = `<div>A payment of <strong>₹${parseFloat(amountVal).toLocaleString('en-IN', {minimumFractionDigits: 2})}</strong> for <strong>${data.party_name}</strong> on <strong>${dateVal}</strong> is ALREADY recorded in the system!</div><div class="mt-1 small text-muted">${extra}</div>`;
+                } else {
+                    isPageDuplicate = false;
+                    dupAlert.classList.add('d-none');
+                }
+            })
+            .catch(err => console.error('Error checking duplicate:', err));
+    }, 300);
+}
+
+function validatePageDuplicate(event) {
+    if (isPageDuplicate) {
+        const confirmCheck = document.getElementById('confirm_duplicate');
+        if (!confirmCheck.checked) {
+            const answer = confirm("⚠️ ATTENTION / DUPLICATE ALERT:\n\nA payment of the EXACT SAME AMOUNT on this DATE for this PERSON already exists in the system!\n\nClick OK if you confirm this is an intentional separate payment, or Cancel to review.");
+            if (answer) {
+                confirmCheck.checked = true;
+                return true;
+            } else {
+                event.preventDefault();
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 // Auto-fetch if party_id preselected
@@ -169,6 +272,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const preselectedParty = document.getElementById('party_id').value;
     if (preselectedParty) {
         fetchPartyBalance(preselectedParty);
+        checkPageDuplicate();
     }
 });
 </script>

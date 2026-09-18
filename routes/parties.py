@@ -366,25 +366,31 @@ def party_ledger(id):
             # Payment Received from Customer (Credit: reduces customer debt)
             transactions.append({
                 'id': f'pay_{p.id}',
+                'payment_id': p.id,
                 'date': p.date,
                 'type': 'Payment Received',
                 'description': f'{p.mode.upper()} - {p.reference_no or "Receipt"} {f"({p.notes})" if p.notes else ""}',
                 'debit': 0.0,
                 'credit': p.amount,
                 'vehicle': '',
-                'is_adj': False
+                'is_adj': False,
+                'is_payment': True,
+                'amount': p.amount
             })
         else:
             # Payment Paid to Supplier (Debit: settles supplier debt)
             transactions.append({
                 'id': f'pay_{p.id}',
+                'payment_id': p.id,
                 'date': p.date,
                 'type': 'Payment Paid (Supplier Settlement)',
                 'description': f'{p.mode.upper()} - {p.reference_no or "Paid"} {f"({p.notes})" if p.notes else ""}',
                 'debit': p.amount,
                 'credit': 0.0,
                 'vehicle': '',
-                'is_adj': False
+                'is_adj': False,
+                'is_payment': True,
+                'amount': p.amount
             })
 
     # 4. Past Unpaid Dues / Adjustments from Before Software
@@ -594,6 +600,71 @@ def api_party_balance(id):
     })
 
 
+@bp.route('/api/check-duplicate-payment')
+@login_required
+def check_duplicate_payment():
+    party_id = request.args.get('party_id', type=int)
+    date_str = request.args.get('date', '').strip()
+    amount_str = request.args.get('amount', '').strip()
+    payment_type = request.args.get('payment_type', '').strip()
+    exclude_id = request.args.get('exclude_id', type=int)
+
+    if not party_id or not date_str or not amount_str:
+        return jsonify({'is_duplicate': False, 'count': 0})
+
+    try:
+        p_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        amt = float(amount_str)
+    except (ValueError, TypeError):
+        return jsonify({'is_duplicate': False, 'count': 0})
+
+    query = Payment.query.filter(
+        Payment.party_id == party_id,
+        Payment.date == p_date,
+        func.abs(Payment.amount - amt) < 0.01
+    )
+    if payment_type:
+        query = query.filter(Payment.payment_type == payment_type)
+    if exclude_id:
+        query = query.filter(Payment.id != exclude_id)
+
+    matches = query.all()
+    if not matches:
+        return jsonify({'is_duplicate': False, 'count': 0})
+
+    party = Party.query.get(party_id)
+    party_name = party.name if party else f"Party #{party_id}"
+    
+    match_details = []
+    for m in matches:
+        match_details.append({
+            'id': m.id,
+            'date': m.date.strftime('%Y-%m-%d'),
+            'amount': m.amount,
+            'payment_type': m.payment_type,
+            'type_label': 'Paid to Supplier' if m.payment_type == 'paid' else 'Received from Customer',
+            'mode': m.mode.upper() if m.mode else 'N/A',
+            'reference_no': m.reference_no or 'None',
+            'notes': m.notes or 'None',
+            'created_at': m.created_at.strftime('%d-%b-%Y %H:%M') if m.created_at else ''
+        })
+
+    first_m = match_details[0]
+    msg = (f"⚠️ Duplicate Alert: A {first_m['type_label']} payment of ₹{amt:,.2f} "
+           f"for {party_name} on {date_str} already exists in the records! "
+           f"(Mode: {first_m['mode']}, Ref: {first_m['reference_no']}).")
+
+    return jsonify({
+        'is_duplicate': True,
+        'count': len(matches),
+        'party_name': party_name,
+        'date': date_str,
+        'amount': amt,
+        'message': msg,
+        'matches': match_details
+    })
+
+
 @bp.route('/payments')
 @login_required
 def payments_list():
@@ -760,17 +831,54 @@ def payment_add():
         mode = request.form.get('mode')
         reference_no = request.form.get('reference_no', '').strip()
         notes = request.form.get('notes', '').strip()
+        confirm_duplicate = request.form.get('confirm_duplicate') in ('1', 'true', 'yes', 'on')
 
         if not date_str or not party_id or not payment_type or not amount or not mode:
             flash('All mandatory fields (Date, Party, Payment Type, Amount, Mode) are required.', 'error')
             return render_template('parties/payment_form.html', parties=parties, today=date.today().strftime('%Y-%m-%d'))
 
         try:
+            p_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            amt_val = float(amount)
+            p_id_int = int(party_id)
+            p_obj = Party.query.get(p_id_int)
+            p_name = p_obj.name if p_obj else 'Party'
+
+            # Duplicate detection: same person, same amount, same date
+            existing_dup = Payment.query.filter(
+                Payment.party_id == p_id_int,
+                Payment.date == p_date,
+                func.abs(Payment.amount - amt_val) < 0.01
+            ).first()
+
+            if existing_dup and not confirm_duplicate:
+                dup_type = 'Paid to Supplier' if existing_dup.payment_type == 'paid' else 'Received from Customer'
+                flash(
+                    f'⚠️ DUPLICATE PAYMENT NOTICE: A payment of ₹{amt_val:,.2f} ({dup_type}) for {p_name} '
+                    f'on {date_str} was already recorded (Ref: {existing_dup.reference_no or "None"}, Mode: {existing_dup.mode.upper()}). '
+                    f'If this is an intentional repeat transaction, please check "Confirm Duplicate" to record.',
+                    'warning'
+                )
+                return render_template(
+                    'parties/payment_form.html',
+                    parties=parties,
+                    today=date.today().strftime('%Y-%m-%d'),
+                    duplicate_alert={
+                        'party_name': p_name,
+                        'date': date_str,
+                        'amount': amt_val,
+                        'existing_ref': existing_dup.reference_no or 'None',
+                        'existing_mode': existing_dup.mode.upper(),
+                        'existing_type': dup_type
+                    },
+                    form_data=request.form
+                )
+
             payment = Payment(
-                date=datetime.strptime(date_str, '%Y-%m-%d').date(),
-                party_id=int(party_id),
+                date=p_date,
+                party_id=p_id_int,
                 payment_type=payment_type,
-                amount=float(amount),
+                amount=amt_val,
                 mode=mode,
                 reference_no=reference_no or None,
                 notes=notes or None
@@ -778,10 +886,9 @@ def payment_add():
             db.session.add(payment)
             db.session.commit()
             
-            p_obj = Party.query.get(int(party_id))
-            p_name = p_obj.name if p_obj else 'Party'
             type_label = 'paid to supplier' if payment_type == 'paid' else 'received from customer'
-            flash(f'Payment of ₹{float(amount):,.2f} {type_label} ({p_name}) recorded successfully.', 'success')
+            dup_suffix = ' (Duplicate Confirmed)' if existing_dup else ''
+            flash(f'Payment of ₹{amt_val:,.2f} {type_label} ({p_name}) recorded successfully{dup_suffix}.', 'success')
             return redirect(url_for('parties.payments_list'))
         except Exception as e:
             db.session.rollback()
@@ -797,12 +904,18 @@ def payment_delete(id):
     try:
         amt = payment.amount
         p_name = payment.party.name if payment.party else 'Party'
+        p_type = 'Payment Received' if payment.payment_type == 'received' else 'Payment Paid (Supplier)'
+        party_id = payment.party_id
         db.session.delete(payment)
         db.session.commit()
-        flash(f'Payment of ₹{amt:,.2f} for {p_name} deleted successfully.', 'success')
+        flash(f'🗑️ {p_type} of ₹{amt:,.2f} for {p_name} deleted successfully.', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Error deleting payment: {str(e)}', 'error')
+
+    next_url = request.form.get('next') or request.args.get('next')
+    if next_url and next_url.startswith('/'):
+        return redirect(next_url)
     return redirect(url_for('parties.payments_list'))
 
 
