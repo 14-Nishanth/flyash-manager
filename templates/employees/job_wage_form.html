@@ -250,7 +250,82 @@
                         </div>
                     </div>
 
-                    <!-- Step 6: Vehicle No & Notes -->
+                    <!-- Step 6: Party Linkage & Money Received / Pending (For Loading, Unloading & Dispatches) -->
+                    <div class="card border border-info border-opacity-25 rounded-3 mb-4 shadow-xs overflow-hidden" id="partySettlementCard">
+                        <div class="card-header bg-info bg-opacity-10 py-2.5 d-flex justify-content-between align-items-center">
+                            <div class="fw-bold text-dark small text-uppercase d-flex align-items-center gap-2">
+                                <i class="bi bi-building-check text-info fs-6"></i> Party Linkage & Money Received / Pending
+                            </div>
+                            <span class="badge bg-white text-secondary border">Customer / Supplier Billing</span>
+                        </div>
+                        <div class="card-body p-3 bg-white">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="party_id" class="form-label fw-semibold text-dark">
+                                        <i class="bi bi-person-badge me-1 text-primary"></i>Linked Party (Customer / Supplier / Transporter)
+                                    </label>
+                                    <select class="form-select" id="party_id" name="party_id">
+                                        <option value="">-- No Party (Internal / Plant Work) --</option>
+                                        {% for p in parties %}
+                                            <option value="{{ p.id }}" {% if entry and entry.party_id == p.id %}selected{% endif %}>
+                                                🏢 {{ p.name }} ({{ p.party_type|title }})
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text small">Select party to bill or record loading/unloading into their account ledger.</div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold text-dark">
+                                        <i class="bi bi-cash-stack me-1 text-success"></i>Payment / Money Status
+                                    </label>
+                                    <div class="d-flex gap-2">
+                                        <div class="form-check form-check-inline p-2 border rounded flex-fill text-center cursor-pointer {% if entry and entry.payment_status == 'received' %}bg-success bg-opacity-10 border-success{% endif %}" id="statusReceivedBox">
+                                            <input class="form-check-input" type="radio" name="payment_status" id="pay_status_received" value="received"
+                                                   {% if entry and entry.payment_status == 'received' %}checked{% endif %}>
+                                            <label class="form-check-label fw-bold text-success cursor-pointer" for="pay_status_received">
+                                                🟢 Money Received
+                                            </label>
+                                        </div>
+                                        <div class="form-check form-check-inline p-2 border rounded flex-fill text-center cursor-pointer {% if not entry or entry.payment_status == 'pending' or not entry.payment_status %}bg-warning bg-opacity-10 border-warning{% endif %}" id="statusPendingBox">
+                                            <input class="form-check-input" type="radio" name="payment_status" id="pay_status_pending" value="pending"
+                                                   {% if not entry or entry.payment_status == 'pending' or not entry.payment_status %}checked{% endif %}>
+                                            <label class="form-check-label fw-bold text-dark cursor-pointer" for="pay_status_pending">
+                                                🟡 Payment Pending / Due
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="form-text small">Set whether money has been collected from party or remains due.</div>
+                                </div>
+                            </div>
+
+                            <!-- Payment Details (shown when Received) -->
+                            <div id="receivedDetailsRow" class="row g-3 mt-2 pt-2 border-top {% if not entry or entry.payment_status != 'received' %}d-none{% endif %}">
+                                <div class="col-md-4">
+                                    <label for="payment_mode" class="form-label fw-semibold text-dark mb-1">Payment Mode</label>
+                                    <select class="form-select form-select-sm" id="payment_mode" name="payment_mode">
+                                        <option value="cash" {% if entry and entry.payment_mode == 'cash' %}selected{% endif %}>💵 Cash</option>
+                                        <option value="upi" {% if entry and entry.payment_mode == 'upi' %}selected{% endif %}>📱 UPI (GPay / PhonePe / Paytm)</option>
+                                        <option value="bank" {% if entry and entry.payment_mode == 'bank' %}selected{% endif %}>🏦 Bank Transfer (NEFT/RTGS/IMPS)</option>
+                                        <option value="cheque" {% if entry and entry.payment_mode == 'cheque' %}selected{% endif %}>📝 Cheque</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <label for="payment_reference" class="form-label fw-semibold text-dark mb-1">Payment Reference / Txn No</label>
+                                    <input type="text" class="form-control form-control-sm" id="payment_reference" name="payment_reference"
+                                           placeholder="e.g. UPI Ref, Cheque No, Receipt No..."
+                                           value="{{ entry.payment_reference if entry else '' }}">
+                                </div>
+                                <div class="col-md-3 d-flex align-items-end">
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success p-2 w-100 text-center">
+                                        <i class="bi bi-check2-circle me-1"></i> Auto-Credits Ledger
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 7: Vehicle No & Notes -->
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
                             <label for="vehicle_no" class="form-label fw-semibold">Vehicle No (For Loading/Unloading)</label>
@@ -490,7 +565,38 @@ document.addEventListener('DOMContentLoaded', function() {
         recalculate();
     });
 
+    // Payment Status UI toggle
+    const payReceivedRadio = document.getElementById('pay_status_received');
+    const payPendingRadio = document.getElementById('pay_status_pending');
+    const receivedDetailsRow = document.getElementById('receivedDetailsRow');
+    const statusReceivedBox = document.getElementById('statusReceivedBox');
+    const statusPendingBox = document.getElementById('statusPendingBox');
+
+    function togglePaymentStatusUI() {
+        if (payReceivedRadio && payReceivedRadio.checked) {
+            if (receivedDetailsRow) receivedDetailsRow.classList.remove('d-none');
+            if (statusReceivedBox) {
+                statusReceivedBox.classList.add('bg-success', 'bg-opacity-10', 'border-success');
+            }
+            if (statusPendingBox) {
+                statusPendingBox.classList.remove('bg-warning', 'bg-opacity-10', 'border-warning');
+            }
+        } else {
+            if (receivedDetailsRow) receivedDetailsRow.classList.add('d-none');
+            if (statusPendingBox) {
+                statusPendingBox.classList.add('bg-warning', 'bg-opacity-10', 'border-warning');
+            }
+            if (statusReceivedBox) {
+                statusReceivedBox.classList.remove('bg-success', 'bg-opacity-10', 'border-success');
+            }
+        }
+    }
+
+    if (payReceivedRadio) payReceivedRadio.addEventListener('change', togglePaymentStatusUI);
+    if (payPendingRadio) payPendingRadio.addEventListener('change', togglePaymentStatusUI);
+
     // Initial check & run
+    togglePaymentStatusUI();
     if (isTrayMode() && trayCountInput.value) {
         recalcTrays();
     } else {

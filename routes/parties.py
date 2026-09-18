@@ -5,7 +5,7 @@ import urllib.parse
 from datetime import datetime, date
 from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify
 from flask_login import login_required
-from models import db, Party, MaterialInward, MaterialOutward, Payment, PartyAdjustment, PartyProductRate
+from models import db, Party, MaterialInward, MaterialOutward, Payment, PartyAdjustment, PartyProductRate, JobWageEntry
 from sqlalchemy import func
 
 bp = Blueprint('parties', __name__, url_prefix='/parties')
@@ -308,6 +308,7 @@ def party_ledger(id):
     outwards_query = MaterialOutward.query.filter_by(party_id=party.id)
     payments_query = Payment.query.filter_by(party_id=party.id)
     adjs_query = PartyAdjustment.query.filter_by(party_id=party.id)
+    jobs_query = JobWageEntry.query.filter_by(party_id=party.id)
     
     if from_date_str:
         try:
@@ -316,6 +317,7 @@ def party_ledger(id):
             outwards_query = outwards_query.filter(MaterialOutward.date >= f_d)
             payments_query = payments_query.filter(Payment.date >= f_d)
             adjs_query = adjs_query.filter(PartyAdjustment.date >= f_d)
+            jobs_query = jobs_query.filter(JobWageEntry.date >= f_d)
         except ValueError:
             pass
             
@@ -326,6 +328,7 @@ def party_ledger(id):
             outwards_query = outwards_query.filter(MaterialOutward.date <= t_d)
             payments_query = payments_query.filter(Payment.date <= t_d)
             adjs_query = adjs_query.filter(PartyAdjustment.date <= t_d)
+            jobs_query = jobs_query.filter(JobWageEntry.date <= t_d)
         except ValueError:
             pass
             
@@ -333,6 +336,7 @@ def party_ledger(id):
     outwards = outwards_query.all()
     payments = payments_query.all()
     adjustments = adjs_query.all()
+    jobs = jobs_query.all()
     
     transactions = []
     
@@ -435,6 +439,24 @@ def party_ledger(id):
                 'vehicle': '',
                 'is_adj': True
             })
+
+    # 5. Piece-rate Loading & Handling Services linked to Party
+    for j in jobs:
+        amt = j.gross_amount if (j.gross_amount and j.gross_amount > 0) else j.total_amount
+        status_badge = " [Paid/Settled 🟢]" if j.payment_status == 'received' else " [Pending Due 🟡]"
+        transactions.append({
+            'id': f'job_{j.id}',
+            'date': j.date,
+            'type': f'Loading/Handling ({j.job_type})',
+            'description': f'{j.product_name} - {j.quantity:g} {j.unit}{status_badge} {f"({j.notes})" if j.notes else ""}',
+            'debit': amt,
+            'credit': 0.0,
+            'vehicle': j.vehicle_no or '',
+            'is_adj': False,
+            'is_job': True,
+            'job_id': j.id,
+            'payment_status': j.payment_status
+        })
             
     transactions.sort(key=lambda x: x['date'])
     

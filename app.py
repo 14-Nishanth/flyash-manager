@@ -43,6 +43,11 @@ def _migrate_db():
             'ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS gross_quantity DOUBLE PRECISION DEFAULT 0.0;',
             'ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS gross_amount DOUBLE PRECISION DEFAULT 0.0;',
             'ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS wastage_amount DOUBLE PRECISION DEFAULT 0.0;',
+            'ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS party_id INTEGER REFERENCES "party"(id) ON DELETE SET NULL;',
+            'ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) DEFAULT \'pending\';',
+            'ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS payment_mode VARCHAR(20);',
+            'ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(100);',
+            'ALTER TABLE "job_wage_entry" ADD COLUMN IF NOT EXISTS payment_id INTEGER REFERENCES "payment"(id) ON DELETE SET NULL;',
             'ALTER TABLE "job_rate_setting" ADD COLUMN IF NOT EXISTS pieces_per_tray DOUBLE PRECISION DEFAULT 105.0;',
             'ALTER TABLE "job_rate_setting" ADD COLUMN IF NOT EXISTS wastage_per_tray DOUBLE PRECISION DEFAULT 5.0;',
             'ALTER TABLE "job_rate_setting" ADD COLUMN IF NOT EXISTS opening_stock DOUBLE PRECISION DEFAULT 0.0;',
@@ -186,7 +191,12 @@ def _migrate_db():
                     ('total_wastage', "FLOAT DEFAULT 0.0"),
                     ('gross_quantity', "FLOAT DEFAULT 0.0"),
                     ('gross_amount', "FLOAT DEFAULT 0.0"),
-                    ('wastage_amount', "FLOAT DEFAULT 0.0")
+                    ('wastage_amount', "FLOAT DEFAULT 0.0"),
+                    ('party_id', "INTEGER"),
+                    ('payment_status', "VARCHAR(20) DEFAULT 'pending'"),
+                    ('payment_mode', "VARCHAR(20)"),
+                    ('payment_reference', "VARCHAR(100)"),
+                    ('payment_id', "INTEGER")
                 ],
                 'alert_settings': [
                     ('owner_name', "VARCHAR(100) DEFAULT 'Plant Owner'"),

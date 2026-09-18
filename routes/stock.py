@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 import calendar
 from flask import Blueprint, render_template, request, Response, url_for, flash, redirect
 from flask_login import login_required
-from models import db, JobWageEntry, MaterialInward, MaterialOutward, JobRateSetting, EmployeeGroup, Employee, StockAdjustment
+from models import db, JobWageEntry, MaterialInward, MaterialOutward, JobRateSetting, EmployeeGroup, Employee, StockAdjustment, Party, Payment
 from sqlalchemy import func, distinct
 
 bp = Blueprint('stock', __name__, url_prefix='/stock')
@@ -634,6 +634,8 @@ def loading_sheet():
     view_mode = request.args.get('view_mode', 'daily') # 'daily', 'weekly', 'monthly'
     product_name = request.args.get('product_name', '').strip()
     search = request.args.get('search', '').strip()
+    party_id = request.args.get('party_id', type=int)
+    payment_status = request.args.get('payment_status', '').strip()
 
     # Query piece-rate loading wage entries
     loading_wage_query = JobWageEntry.query.filter(
@@ -658,6 +660,11 @@ def loading_sheet():
     if product_name:
         loading_wage_query = loading_wage_query.filter(JobWageEntry.product_name == product_name)
         outward_query = outward_query.filter(MaterialOutward.material_type == product_name)
+    if party_id:
+        loading_wage_query = loading_wage_query.filter(JobWageEntry.party_id == party_id)
+        outward_query = outward_query.filter(MaterialOutward.party_id == party_id)
+    if payment_status:
+        loading_wage_query = loading_wage_query.filter(JobWageEntry.payment_status == payment_status)
     if search:
         search_fmt = f'%{search}%'
         loading_wage_query = loading_wage_query.filter(
@@ -828,6 +835,7 @@ def loading_sheet():
         })
 
     all_products = get_all_finished_products()
+    parties = Party.query.order_by(Party.name).all()
 
     return render_template(
         'stock/loading_sheet.html',
@@ -843,11 +851,14 @@ def loading_sheet():
         weekly_summary=weekly_summary,
         monthly_summary=monthly_summary,
         all_products=all_products,
+        parties=parties,
         from_date=from_date_str,
         to_date=to_date_str,
         period=period_param,
         view_mode=view_mode,
         selected_product=product_name,
+        selected_party_id=party_id,
+        selected_payment_status=payment_status,
         search=search
     )
 
@@ -1084,11 +1095,13 @@ def export_loading_csv():
             writer.writerow([data['label'], f"{data['pcs']:.0f}", f"{data['tons']:.2f}", data['trips'], f"{data['wages']:.2f}", f"{data['revenue']:.2f}"])
 
     else:
-        writer.writerow(['ID', 'Date', 'Operation', 'Product', 'Quantity Loaded', 'Unit', 'Rate (INR)', 'Total Loading Wage (INR)', 'Vehicle No', 'Workers Count', 'Wage Per Worker (INR)', 'Notes'])
+        writer.writerow(['ID', 'Date', 'Party', 'Payment Status', 'Operation', 'Product', 'Quantity Loaded', 'Unit', 'Rate (INR)', 'Total Loading Wage (INR)', 'Vehicle No', 'Workers Count', 'Wage Per Worker (INR)', 'Notes'])
         for e in loading_entries:
             writer.writerow([
                 e.id,
                 e.date.strftime('%Y-%m-%d'),
+                e.party.name if e.party else 'N/A',
+                e.payment_status.title() if e.payment_status else 'Pending',
                 e.job_type,
                 e.product_name,
                 f'{e.quantity:.0f}',

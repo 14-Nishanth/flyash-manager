@@ -38,7 +38,7 @@ import csv
 import json
 from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify
 from flask_login import login_required
-from models import db, Employee, Attendance, JobWageEntry, EmployeeJobAllocation, JobRateSetting, EmployeeGroup, AlertSettings, EmployeeSalaryPayment
+from models import db, Employee, Attendance, JobWageEntry, EmployeeJobAllocation, JobRateSetting, EmployeeGroup, AlertSettings, EmployeeSalaryPayment, Party, Payment
 from datetime import datetime, date
 from sqlalchemy import func
 
@@ -694,13 +694,18 @@ def job_wages_list():
     job_type = request.args.get('job_type')
     product_name = request.args.get('product_name')
     employee_id = request.args.get('employee_id', type=int)
+    party_id = request.args.get('party_id', type=int)
+    payment_status = request.args.get('payment_status', '').strip()
 
     query = JobWageEntry.query
     
     try:
-        from_date = datetime.strptime(from_date_str, '%Y-%m-%d').date()
-        to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date()
-        query = query.filter(JobWageEntry.date >= from_date, JobWageEntry.date <= to_date)
+        if from_date_str:
+            from_date = datetime.strptime(from_date_str, '%Y-%m-%d').date()
+            query = query.filter(JobWageEntry.date >= from_date)
+        if to_date_str:
+            to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date()
+            query = query.filter(JobWageEntry.date <= to_date)
     except ValueError:
         pass
 
@@ -710,6 +715,10 @@ def job_wages_list():
         query = query.filter(JobWageEntry.product_name.ilike(f'%{product_name}%'))
     if employee_id:
         query = query.join(JobWageEntry.allocations).filter(EmployeeJobAllocation.employee_id == employee_id)
+    if party_id:
+        query = query.filter(JobWageEntry.party_id == party_id)
+    if payment_status:
+        query = query.filter(JobWageEntry.payment_status == payment_status)
 
     all_entries = query.order_by(JobWageEntry.date.desc(), JobWageEntry.id.desc()).all()
     
@@ -744,6 +753,7 @@ def job_wages_list():
     
     employees = Employee.query.filter_by(is_active=True).order_by(Employee.name).all()
     groups = EmployeeGroup.query.filter_by(is_active=True).all()
+    parties = Party.query.order_by(Party.name).all()
 
     return render_template('employees/job_wages_list.html',
                            entries=entries,
@@ -758,8 +768,11 @@ def job_wages_list():
                            job_type=job_type,
                            product_name=product_name,
                            employee_id=employee_id,
+                           party_id=party_id,
+                           payment_status=payment_status,
                            employees=employees,
                            groups=groups,
+                           parties=parties,
                            job_types=JOB_TYPES,
                            job_products=JOB_PRODUCTS,
                            total_amount=total_amount,
@@ -781,6 +794,7 @@ def job_wages_add():
     employees = Employee.query.filter_by(is_active=True).order_by(Employee.name).all()
     groups = EmployeeGroup.query.filter_by(is_active=True).order_by(EmployeeGroup.name).all()
     rates = JobRateSetting.query.filter_by(is_active=True).all()
+    parties = Party.query.order_by(Party.name).all()
 
     # Create rates lookup dictionary for fast client-side JS auto-fill
     rates_map = {}
@@ -834,6 +848,12 @@ def job_wages_add():
             vehicle_no = request.form.get('vehicle_no')
             notes = request.form.get('notes')
 
+            party_id_raw = request.form.get('party_id')
+            party_id = int(party_id_raw) if (party_id_raw and party_id_raw.isdigit()) else None
+            payment_status = request.form.get('payment_status', 'pending')
+            payment_mode = request.form.get('payment_mode') if payment_status == 'received' else None
+            payment_reference = request.form.get('payment_reference') if payment_status == 'received' else None
+
             # Selected working employees on this day
             selected_emp_ids = request.form.getlist('employee_ids')
             if not selected_emp_ids:
@@ -841,6 +861,7 @@ def job_wages_add():
                 return render_template('employees/job_wage_form.html',
                                        employees=employees,
                                        groups=groups,
+                                       parties=parties,
                                        rates_map=rates_map,
                                        groups_map=groups_map,
                                        job_types=JOB_TYPES,
@@ -872,10 +893,33 @@ def job_wages_add():
                 worker_count=worker_count,
                 wage_per_worker=wage_per_worker,
                 vehicle_no=vehicle_no,
-                notes=notes
+                notes=notes,
+                party_id=party_id,
+                payment_status=payment_status,
+                payment_mode=payment_mode,
+                payment_reference=payment_reference
             )
             db.session.add(entry)
             db.session.flush()
+
+            # If money is received and linked to party, record a linked Payment transaction
+            if party_id and payment_status == 'received':
+                pay_amount = gross_amount if gross_amount > 0 else total_amount
+                pay_note = f"Loading/Unloading payment for {product_name} ({quantity:g} {unit})"
+                if vehicle_no:
+                    pay_note += f" - Vehicle: {vehicle_no}"
+                payment = Payment(
+                    date=entry_date,
+                    party_id=party_id,
+                    payment_type='received',
+                    amount=pay_amount,
+                    mode=payment_mode or 'cash',
+                    reference_no=payment_reference or 'Job Settle',
+                    notes=pay_note
+                )
+                db.session.add(payment)
+                db.session.flush()
+                entry.payment_id = payment.id
 
             # Allocate equal share and automatically grant FULL ATTENDANCE (Present) for all working workers
             for emp_id in selected_emp_ids:
@@ -905,7 +949,9 @@ def job_wages_add():
             if tray_count > 0:
                 flash(f'✅ Production Recorded: {tray_count:g} Trays = {gross_quantity:,.0f} Bricks added to Stock. Deducted {total_wastage:,.0f} wastage -> Salary calculated for {quantity:,.0f} Bricks (₹{total_amount:,.2f} total, ₹{wage_per_worker:,.2f}/worker).', 'success')
             else:
-                flash(f'✅ Job Recorded: ₹{total_amount:,.2f} total divided equally among {worker_count} working employees (₹{wage_per_worker:,.2f} per employee).', 'success')
+                party_str = f" for {entry.party.name}" if entry.party else ""
+                pay_str = " (Money Received 🟢)" if payment_status == 'received' else (" (Payment Pending 🟡)" if party_id else "")
+                flash(f'✅ Job Recorded{party_str}{pay_str}: ₹{total_amount:,.2f} total divided equally among {worker_count} working employees (₹{wage_per_worker:,.2f} per employee).', 'success')
             return redirect(url_for('employees.job_wages_list'))
 
         except Exception as e:
@@ -916,6 +962,7 @@ def job_wages_add():
                            entry=None,
                            employees=employees,
                            groups=groups,
+                           parties=parties,
                            rates_map=rates_map,
                            groups_map=groups_map,
                            job_types=JOB_TYPES,
@@ -930,6 +977,7 @@ def job_wages_edit(id):
     employees = Employee.query.filter_by(is_active=True).order_by(Employee.name).all()
     groups = EmployeeGroup.query.filter_by(is_active=True).order_by(EmployeeGroup.name).all()
     rates = JobRateSetting.query.filter_by(is_active=True).all()
+    parties = Party.query.order_by(Party.name).all()
     assigned_emp_ids = [alloc.employee_id for alloc in entry.allocations]
 
     rates_map = {
@@ -973,6 +1021,17 @@ def job_wages_edit(id):
             entry.vehicle_no = request.form.get('vehicle_no')
             entry.notes = request.form.get('notes')
 
+            party_id_raw = request.form.get('party_id')
+            party_id = int(party_id_raw) if (party_id_raw and party_id_raw.isdigit()) else None
+            payment_status = request.form.get('payment_status', 'pending')
+            payment_mode = request.form.get('payment_mode') if payment_status == 'received' else None
+            payment_reference = request.form.get('payment_reference') if payment_status == 'received' else None
+
+            entry.party_id = party_id
+            entry.payment_status = payment_status
+            entry.payment_mode = payment_mode
+            entry.payment_reference = payment_reference
+
             selected_emp_ids = request.form.getlist('employee_ids')
             if not selected_emp_ids:
                 flash('Please select at least one employee.', 'error')
@@ -981,6 +1040,7 @@ def job_wages_edit(id):
                                        assigned_emp_ids=assigned_emp_ids,
                                        employees=employees,
                                        groups=groups,
+                                       parties=parties,
                                        rates_map=rates_map,
                                        groups_map=groups_map,
                                        job_types=JOB_TYPES,
@@ -998,6 +1058,55 @@ def job_wages_edit(id):
             entry.total_amount = total_amount
             entry.worker_count = worker_count
             entry.wage_per_worker = wage_per_worker
+
+            # Manage linked payment
+            if party_id and payment_status == 'received':
+                pay_amount = gross_amount if gross_amount > 0 else total_amount
+                pay_note = f"Loading/Unloading payment for {entry.product_name} ({entry.quantity:g} {entry.unit})"
+                if entry.vehicle_no:
+                    pay_note += f" - Vehicle: {entry.vehicle_no}"
+                
+                if entry.payment_id:
+                    existing_pay = Payment.query.get(entry.payment_id)
+                    if existing_pay:
+                        existing_pay.date = entry.date
+                        existing_pay.party_id = party_id
+                        existing_pay.payment_type = 'received'
+                        existing_pay.amount = pay_amount
+                        existing_pay.mode = payment_mode or 'cash'
+                        existing_pay.reference_no = payment_reference or 'Job Settle'
+                        existing_pay.notes = pay_note
+                    else:
+                        new_pay = Payment(
+                            date=entry.date,
+                            party_id=party_id,
+                            payment_type='received',
+                            amount=pay_amount,
+                            mode=payment_mode or 'cash',
+                            reference_no=payment_reference or 'Job Settle',
+                            notes=pay_note
+                        )
+                        db.session.add(new_pay)
+                        db.session.flush()
+                        entry.payment_id = new_pay.id
+                else:
+                    new_pay = Payment(
+                        date=entry.date,
+                        party_id=party_id,
+                        payment_type='received',
+                        amount=pay_amount,
+                        mode=payment_mode or 'cash',
+                        reference_no=payment_reference or 'Job Settle',
+                        notes=pay_note
+                    )
+                    db.session.add(new_pay)
+                    db.session.flush()
+                    entry.payment_id = new_pay.id
+            elif payment_status != 'received' and entry.payment_id:
+                existing_pay = Payment.query.get(entry.payment_id)
+                if existing_pay:
+                    db.session.delete(existing_pay)
+                entry.payment_id = None
 
             # Clear old allocations and add updated ones
             EmployeeJobAllocation.query.filter_by(job_entry_id=entry.id).delete()
@@ -1022,6 +1131,7 @@ def job_wages_edit(id):
                            assigned_emp_ids=assigned_emp_ids,
                            employees=employees,
                            groups=groups,
+                           parties=parties,
                            rates_map=rates_map,
                            groups_map=groups_map,
                            job_types=JOB_TYPES,
@@ -1034,13 +1144,65 @@ def job_wages_edit(id):
 def job_wages_delete(id):
     entry = JobWageEntry.query.get_or_404(id)
     try:
+        if entry.payment_id:
+            linked_p = Payment.query.get(entry.payment_id)
+            if linked_p:
+                db.session.delete(linked_p)
         db.session.delete(entry)
         db.session.commit()
         flash('Job wage entry deleted successfully.', 'success')
     except Exception as e:
         db.session.rollback()
-        flash(f'Error deleting entry: {str(e)}', 'error')
+        flash(f'Error deleting job wage entry: {str(e)}', 'error')
     return redirect(url_for('employees.job_wages_list'))
+
+
+@bp.route('/job-wages/<int:id>/toggle-payment', methods=['POST'])
+@login_required
+@role_required('owner', 'admin', 'accountant', 'manager')
+def job_wages_toggle_payment(id):
+    entry = JobWageEntry.query.get_or_404(id)
+    next_url = request.form.get('next_url') or request.referrer or url_for('employees.job_wages_list')
+    
+    if entry.payment_status == 'received':
+        entry.payment_status = 'pending'
+        if entry.payment_id:
+            p = Payment.query.get(entry.payment_id)
+            if p:
+                db.session.delete(p)
+            entry.payment_id = None
+        db.session.commit()
+        flash(f'Payment status for Job #{entry.id} marked as Pending 🟡', 'info')
+    else:
+        entry.payment_status = 'received'
+        if not entry.payment_mode:
+            entry.payment_mode = request.form.get('payment_mode', 'cash')
+        
+        # If party is linked, create/update payment
+        if entry.party_id:
+            pay_amount = entry.gross_amount if entry.gross_amount > 0 else entry.total_amount
+            pay_note = f"Loading/Unloading payment for {entry.product_name} ({entry.quantity:g} {entry.unit})"
+            if entry.vehicle_no:
+                pay_note += f" - Vehicle: {entry.vehicle_no}"
+            
+            p = Payment(
+                date=entry.date,
+                party_id=entry.party_id,
+                payment_type='received',
+                amount=pay_amount,
+                mode=entry.payment_mode or 'cash',
+                reference_no=entry.payment_reference or 'Quick Settled',
+                notes=pay_note
+            )
+            db.session.add(p)
+            db.session.flush()
+            entry.payment_id = p.id
+            
+        db.session.commit()
+        party_txt = f" for {entry.party.name}" if entry.party else ""
+        flash(f'Payment for Job #{entry.id}{party_txt} marked as Received 🟢', 'success')
+        
+    return redirect(next_url)
 
 
 # ==============================================================================

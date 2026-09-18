@@ -174,9 +174,16 @@ class JobWageEntry(db.Model):
     wage_per_worker = db.Column(db.Float, nullable=False, default=0.0)
     vehicle_no = db.Column(db.String(30))
     notes = db.Column(db.Text)
+    party_id = db.Column(db.Integer, db.ForeignKey('party.id'), nullable=True)
+    payment_status = db.Column(db.String(20), default='pending')  # 'pending', 'received', 'not_applicable'
+    payment_mode = db.Column(db.String(20), nullable=True)        # 'cash', 'upi', 'bank', 'cheque'
+    payment_reference = db.Column(db.String(100), nullable=True)
+    payment_id = db.Column(db.Integer, db.ForeignKey('payment.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     group = db.relationship('EmployeeGroup', backref='job_entries', lazy=True)
+    party = db.relationship('Party', backref=db.backref('job_entries', lazy=True), foreign_keys=[party_id])
+    linked_payment = db.relationship('Payment', foreign_keys=[payment_id], backref=db.backref('job_entry', uselist=False))
     allocations = db.relationship('EmployeeJobAllocation', backref='job_entry', lazy=True,
                                   cascade='all, delete-orphan')
 
@@ -280,7 +287,7 @@ class Party(db.Model):
     def get_outstanding(self):
         """Calculate outstanding amount for this party.
         Positive = party owes us (receivable), Negative = we owe party (payable).
-        Outstanding = opening_balance + total_outward - total_inward - payments_received + payments_paid + debit_adjustments - credit_adjustments
+        Outstanding = opening_balance + total_outward - total_inward - payments_received + payments_paid + debit_adjustments - credit_adjustments + job_charges
         """
         total_outward = sum(m.amount for m in self.outwards) or 0
         total_inward = sum(m.amount for m in self.inwards) or 0
@@ -288,7 +295,8 @@ class Party(db.Model):
         payments_paid = sum(p.amount for p in self.payments if p.payment_type == 'paid') or 0
         debit_adjs = sum(a.amount for a in self.adjustments if a.adjustment_type in ('past_unpaid_due', 'debit')) or 0
         credit_adjs = sum(a.amount for a in self.adjustments if a.adjustment_type in ('past_advance', 'discount_waiver', 'credit')) or 0
-        return self.opening_balance + total_outward - total_inward - payments_received + payments_paid + debit_adjs - credit_adjs
+        job_charges = sum((j.gross_amount if (j.gross_amount and j.gross_amount > 0) else j.total_amount) for j in self.job_entries) or 0
+        return self.opening_balance + total_outward - total_inward - payments_received + payments_paid + debit_adjs - credit_adjs + job_charges
 
     def __repr__(self):
         return f'<Party {self.name}>'
