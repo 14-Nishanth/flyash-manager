@@ -1,3 +1,4 @@
+from utils.auth_decorators import role_required
 def resolve_employee_period(period_param, from_date_str, to_date_str):
     import calendar
     from datetime import timedelta
@@ -95,6 +96,7 @@ def list_employees():
 
 @bp.route('/add', methods=['GET', 'POST'])
 @login_required
+@role_required('owner', 'admin', 'manager', 'supervisor')
 def add_employee():
     if request.method == 'POST':
         name = request.form.get('name')
@@ -130,6 +132,7 @@ def add_employee():
 
 @bp.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
+@role_required('owner', 'admin', 'manager', 'supervisor')
 def edit_employee(id):
     emp = Employee.query.get_or_404(id)
     if request.method == 'POST':
@@ -159,6 +162,7 @@ def edit_employee(id):
 
 @bp.route('/<int:id>/delete', methods=['POST'])
 @login_required
+@role_required('owner', 'admin')
 def delete_employee(id):
     emp = Employee.query.get_or_404(id)
     try:
@@ -524,6 +528,7 @@ def job_rate_edit(id):
 
 @bp.route('/rates/<int:id>/delete', methods=['POST'])
 @login_required
+@role_required('owner', 'admin', 'manager')
 def job_rate_delete(id):
     rate = JobRateSetting.query.get_or_404(id)
     db.session.delete(rate)
@@ -1200,6 +1205,7 @@ def salary_sheet():
 
 @bp.route('/salary-sheet/mark-paid', methods=['POST'])
 @login_required
+@role_required('owner', 'admin', 'accountant', 'manager')
 def salary_sheet_mark_paid():
     """1-Click mark salary as paid for an employee with payment date, mode and notes."""
     emp_id = request.form.get('employee_id', type=int)

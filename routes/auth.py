@@ -1,3 +1,7 @@
+from utils.auth_decorators import role_required
+from utils.crypto import encrypt_secret, decrypt_secret
+import time
+from collections import defaultdict
 import os
 import requests
 import urllib.parse
@@ -11,6 +15,27 @@ from models import db, User, LoginHistory, AlertSettings
 from translations import SUPPORTED_LANGUAGES, LANGUAGE_MAP, TRANSLATIONS, get_translation
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
+# In-memory Rate Limiter: Max 5 failed attempts per IP or username in 15 minutes
+_FAILED_LOGIN_ATTEMPTS = defaultdict(list)
+MAX_FAILED_ATTEMPTS = 5
+LOCKOUT_WINDOW_SECONDS = 900  # 15 minutes
+
+def is_login_rate_limited(identifier):
+    now = time.time()
+    attempts = [t for t in _FAILED_LOGIN_ATTEMPTS[identifier] if now - t < LOCKOUT_WINDOW_SECONDS]
+    _FAILED_LOGIN_ATTEMPTS[identifier] = attempts
+    if len(attempts) >= MAX_FAILED_ATTEMPTS:
+        remaining_seconds = int(LOCKOUT_WINDOW_SECONDS - (now - attempts[0]))
+        remaining_minutes = max(1, remaining_seconds // 60)
+        return True, remaining_minutes
+    return False, 0
+
+def record_failed_login_attempt(identifier):
+    _FAILED_LOGIN_ATTEMPTS[identifier].append(time.time())
+
+def clear_failed_login_attempts(identifier):
+    _FAILED_LOGIN_ATTEMPTS.pop(identifier, None)
+
 
 USER_ROLES = [
     ('owner', 'Owner / Plant Head'),
@@ -25,13 +50,13 @@ USER_ROLES = [
 def _dispatch_email_alert(subject, body_text, to_email):
     """Dispatches real-time email notification using SMTP."""
     if not to_email:
-        to_email = 'nishanthissan1515@gmail.com'
+        to_email = 'admin@flyash.local'
 
     settings = AlertSettings.query.first()
     smtp_host = settings.smtp_host if (settings and settings.smtp_host) else 'smtp.gmail.com'
     smtp_port = settings.smtp_port if (settings and settings.smtp_port) else 587
     smtp_user = settings.smtp_user if (settings and settings.smtp_user) else ''
-    smtp_pass = settings.smtp_password if (settings and settings.smtp_password) else ''
+    smtp_pass = decrypt_secret(settings.smtp_password) if (settings and settings.smtp_password) else ''
 
     # If custom SMTP credentials are provided, send via SMTP server
     if smtp_user and smtp_pass:
@@ -84,22 +109,22 @@ def _dispatch_mobile_alert(message_text):
         if not settings or not settings.is_enabled:
             return
 
-        raw_phone = (settings.phone_number or '8072416903').replace('+', '').replace(' ', '').replace('-', '').strip()
+        raw_phone = (settings.phone_number or '').replace('+', '').replace(' ', '').replace('-', '').strip()
         phone = ('91' + raw_phone) if len(raw_phone) == 10 else raw_phone
 
-        if settings.channel in ['whatsapp', 'both'] and phone and settings.api_key:
+        if settings.channel in ['whatsapp', 'both'] and phone and decrypt_secret(settings.api_key):
             text_encoded = urllib.parse.quote(message_text)
-            url = f"https://api.callmebot.com/whatsapp.php?phone={phone}&text={text_encoded}&apikey={settings.api_key}"
+            url = f"https://api.callmebot.com/whatsapp.php?phone={phone}&text={text_encoded}&apikey={decrypt_secret(settings.api_key)}"
             requests.get(url, timeout=4)
 
-        if settings.channel in ['telegram', 'both'] and settings.api_key and settings.chat_id:
-            url = f"https://api.telegram.org/bot{settings.api_key}/sendMessage"
+        if settings.channel in ['telegram', 'both'] and decrypt_secret(settings.api_key) and settings.chat_id:
+            url = f"https://api.telegram.org/bot{decrypt_secret(settings.api_key)}/sendMessage"
             payload = {'chat_id': settings.chat_id, 'text': message_text}
             requests.post(url, json=payload, timeout=4)
 
-        if settings.channel == 'sms' and phone and settings.api_key:
+        if settings.channel == 'sms' and phone and decrypt_secret(settings.api_key):
             url = "https://www.fast2sms.com/dev/bulkV2"
-            headers = {'authorization': settings.api_key}
+            headers = {'authorization': decrypt_secret(settings.api_key)}
             payload = {
                 'route': 'q',
                 'message': message_text,
@@ -141,7 +166,7 @@ def _send_login_alert(user, login_identifier, status, ip_address, user_agent):
         print(f"\n{'='*60}\n  [LOGIN ALERT] User: '{uname}' ({uemail}) | Role: {urole}\n  Status: {status} | Time: {time_str} | IP: {ip_address}\n{'='*60}\n")
 
         settings = AlertSettings.query.first()
-        owner_email = settings.owner_email if (settings and settings.owner_email) else 'nishanthissan1515@gmail.com'
+        owner_email = settings.owner_email if (settings and settings.owner_email) else 'admin@flyash.local'
 
         # Construct alert content
         if status == 'SUCCESS':
@@ -173,7 +198,7 @@ def _send_login_alert(user, login_identifier, status, ip_address, user_agent):
                     f"• Time of Attempt: {time_str}\n"
                     f"• IP Address: {ip_address}\n"
                     f"• Device / Browser: {user_agent or 'Standard Browser'}\n\n"
-                    f"Notification dispatched to Owner ({owner_email} & 8072416903).")
+                    f"Notification dispatched to Owner ({owner_email} & ).")
         else:
             subject = f"⚠️ Security Alert: Failed Login Attempt ({login_identifier})"
             body = (f"⚠️ SECURITY WARNING - FAILED LOGIN ATTEMPT\n\n"
@@ -182,7 +207,7 @@ def _send_login_alert(user, login_identifier, status, ip_address, user_agent):
                     f"• Time of Attempt: {time_str}\n"
                     f"• IP Address: {ip_address}\n"
                     f"• Device / Browser: {user_agent or 'Standard Browser'}\n\n"
-                    f"Notification dispatched to Owner ({owner_email} & 8072416903).")
+                    f"Notification dispatched to Owner ({owner_email} & ).")
 
         # Smart Anti-Spam & Frequency Throttling Check
         should_dispatch = True
@@ -293,6 +318,14 @@ def login():
             flash('Please enter your username or email.', 'error')
             return render_template('login.html')
 
+        # Security: Rate Limiting & Brute-Force Lockout Check
+        limited_ip, rem_ip = is_login_rate_limited(f"ip:{ip_addr}")
+        limited_user, rem_user = is_login_rate_limited(f"user:{login_input.lower()}")
+        if limited_ip or limited_user:
+            rem_min = max(rem_ip, rem_user)
+            flash(f'⛔ Account temporarily locked out due to multiple failed login attempts. Please try again in {rem_min} minutes.', 'error')
+            return render_template('login.html')
+
         # Find user by Email (case-insensitive) or Username
         user = User.query.filter(
             (db.func.lower(User.email) == login_input.lower()) | 
@@ -306,6 +339,8 @@ def login():
                 return render_template('login.html')
 
             if user.check_password(password):
+                clear_failed_login_attempts(f"ip:{ip_addr}")
+                clear_failed_login_attempts(f"user:{login_input.lower()}")
                 login_user(user)
                 user_lang = getattr(user, 'preferred_language', 'en') or 'en'
                 session['lang'] = user_lang
@@ -325,10 +360,14 @@ def login():
             else:
                 # WRONG PASSWORD for existing user account
                 _send_login_alert(user, login_input, 'WRONG_PASSWORD', ip_addr, u_agent)
+                record_failed_login_attempt(f"ip:{ip_addr}")
+                record_failed_login_attempt(f"user:{login_input.lower()}")
                 flash('Invalid username or password.', 'error')
         else:
             # User not found in database
             _send_login_alert(None, login_input, 'USER_NOT_FOUND', ip_addr, u_agent)
+            record_failed_login_attempt(f"ip:{ip_addr}")
+            record_failed_login_attempt(f"user:{login_input.lower()}")
             flash('Invalid username or password.', 'error')
             
     return render_template('login.html')
@@ -382,6 +421,7 @@ def set_language(lang_code):
 
 @bp.route('/users')
 @login_required
+@role_required('owner', 'admin')
 def users_list():
     """List all application users / staff accounts."""
     users = User.query.order_by(User.role, User.username).all()
@@ -390,6 +430,7 @@ def users_list():
 
 @bp.route('/users/add', methods=['GET', 'POST'])
 @login_required
+@role_required('owner', 'admin')
 def user_add():
     """Add a new staff / user account."""
     if request.method == 'POST':
@@ -409,8 +450,8 @@ def user_add():
         if not username:
             username = email.split('@')[0]
 
-        if not password or len(password) < 4:
-            flash('Password must be at least 4 characters long.', 'error')
+        if not password or len(password) < 8:
+            flash('Password must be at least 8 characters long.', 'error')
             return render_template('auth/user_form.html', roles=USER_ROLES, supported_languages=SUPPORTED_LANGUAGES, user=None)
 
         # Check for duplicates
@@ -448,6 +489,7 @@ def user_add():
 
 @bp.route('/users/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
+@role_required('owner', 'admin')
 def user_edit(id):
     """Edit user / staff account."""
     user = User.query.get_or_404(id)
@@ -495,8 +537,8 @@ def user_edit(id):
                 user.is_active = is_active
 
             if new_password:
-                if len(new_password) < 4:
-                    flash('New password must be at least 4 characters long.', 'error')
+                if len(new_password) < 8:
+                    flash('New password must be at least 8 characters long.', 'error')
                     return render_template('auth/user_form.html', roles=USER_ROLES, supported_languages=SUPPORTED_LANGUAGES, user=user)
                 user.set_password(new_password)
 
@@ -512,6 +554,7 @@ def user_edit(id):
 
 @bp.route('/users/<int:id>/delete', methods=['POST'])
 @login_required
+@role_required('owner', 'admin')
 def user_delete(id):
     """Delete a user account."""
     if id == current_user.id:
@@ -572,8 +615,8 @@ def profile():
             if not user.check_password(old_password):
                 flash('Incorrect current password.', 'error')
                 return render_template('auth/profile.html', supported_languages=SUPPORTED_LANGUAGES)
-            if len(new_password) < 4:
-                flash('New password must be at least 4 characters long.', 'error')
+            if len(new_password) < 8:
+                flash('New password must be at least 8 characters long.', 'error')
                 return render_template('auth/profile.html', supported_languages=SUPPORTED_LANGUAGES)
             if new_password != confirm_password:
                 flash('New password and confirmation do not match.', 'error')
@@ -630,6 +673,7 @@ def profile():
 
 @bp.route('/history')
 @login_required
+@role_required('owner', 'admin', 'manager')
 def login_history():
     """Security audit log of all sign-ins."""
     history = LoginHistory.query.order_by(LoginHistory.timestamp.desc()).limit(100).all()
@@ -647,8 +691,8 @@ def change_password():
         
         if not current_user.check_password(old_password):
             flash('Incorrect current password.', 'error')
-        elif not new_password or len(new_password) < 4:
-            flash('New password must be at least 4 characters long.', 'error')
+        elif not new_password or len(new_password) < 8:
+            flash('New password must be at least 8 characters long.', 'error')
         elif new_password != confirm_password:
             flash('New password and confirmation do not match.', 'error')
         else:
@@ -660,7 +704,7 @@ def change_password():
             time_str = datetime.now().strftime('%d-%b-%Y at %I:%M %p')
             msg = f"🔐 Security Notice: Password for user '{current_user.name or current_user.username}' was changed on {time_str}."
             _dispatch_mobile_alert(msg)
-            _dispatch_email_alert("🔐 FlyAsh Manager: Password Changed Alert", msg, current_user.email or 'nishanthissan1515@gmail.com')
+            _dispatch_email_alert("🔐 FlyAsh Manager: Password Changed Alert", msg, current_user.email or 'admin@flyash.local')
             return redirect(url_for('dashboard.index'))
             
     return render_template('auth/change_password.html')
@@ -668,13 +712,14 @@ def change_password():
 
 @bp.route('/alert-settings', methods=['GET', 'POST'])
 @login_required
+@role_required('owner', 'admin')
 def alert_settings():
     """Configure mobile phone and email notifications for logins and security alerts."""
     settings = AlertSettings.query.first()
     if not settings:
         settings = AlertSettings(
-            owner_name='Nishanth (Owner)',
-            owner_email='nishanthissan1515@gmail.com',
+            owner_name='Plant Owner',
+            owner_email='admin@flyash.local',
             email_alerts_enabled=True,
             is_enabled=True
         )
@@ -692,10 +737,10 @@ def alert_settings():
 
         elif action == 'test_email':
             # Send test email to owner's email
-            target_email = request.form.get('owner_email', '').strip() or settings.owner_email or 'nishanthissan1515@gmail.com'
+            target_email = request.form.get('owner_email', '').strip() or settings.owner_email or 'admin@flyash.local'
             success, msg_res = _dispatch_email_alert(
                 "✅ Test Email: FlyAsh Manager Alert Connected",
-                f"Hello Nishanth,\n\nThis is a test notification confirming that email alerts are connected to {target_email} at {datetime.now().strftime('%I:%M %p, %d-%b-%Y')}.\n\nYou will receive instant notifications whenever any user logs into your FlyAsh plant system!",
+                f"Hello Plant Owner,\n\nThis is a test notification confirming that email alerts are connected to {target_email} at {datetime.now().strftime('%I:%M %p, %d-%b-%Y')}.\n\nYou will receive instant notifications whenever any user logs into your FlyAsh plant system!",
                 target_email
             )
             flash(f'Email test completed for {target_email}: {msg_res}', 'info' if success else 'warning')
@@ -706,13 +751,17 @@ def alert_settings():
             settings.email_alerts_enabled = request.form.get('email_alerts_enabled') == 'on'
             settings.channel = request.form.get('channel', 'whatsapp')
             settings.phone_number = request.form.get('phone_number', '').strip()
-            settings.owner_name = request.form.get('owner_name', 'Nishanth (Owner)').strip()
-            settings.owner_email = request.form.get('owner_email', 'nishanthissan1515@gmail.com').strip()
+            settings.owner_name = request.form.get('owner_name', 'Plant Owner').strip()
+            settings.owner_email = request.form.get('owner_email', 'admin@flyash.local').strip()
             settings.smtp_host = request.form.get('smtp_host', 'smtp.gmail.com').strip()
             settings.smtp_port = int(request.form.get('smtp_port', 587) or 587)
             settings.smtp_user = request.form.get('smtp_user', '').strip()
-            settings.smtp_password = request.form.get('smtp_password', '').strip()
-            settings.api_key = request.form.get('api_key', '').strip()
+            raw_smtp_pwd = request.form.get('smtp_password', '').strip()
+            if raw_smtp_pwd and not raw_smtp_pwd.startswith('enc:'):
+                settings.smtp_password = encrypt_secret(raw_smtp_pwd)
+            raw_api_key = request.form.get('api_key', '').strip()
+            if raw_api_key and not raw_api_key.startswith('enc:'):
+                settings.api_key = encrypt_secret(raw_api_key)
             settings.chat_id = request.form.get('chat_id', '').strip()
             settings.webhook_url = request.form.get('webhook_url', '').strip()
             settings.alert_on_all_users = request.form.get('alert_on_all_users') == 'on'

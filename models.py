@@ -1,3 +1,5 @@
+from utils.crypto import encrypt_secret, decrypt_secret
+import os
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -46,13 +48,22 @@ class LoginHistory(db.Model):
 
 
 class AlertSettings(db.Model):
+    def get_decrypted_smtp_password(self):
+        return decrypt_secret(self.smtp_password)
+
+    def get_decrypted_api_key(self):
+        return decrypt_secret(self.api_key)
+
+    def get_decrypted_telegram_token(self):
+        return decrypt_secret(self.telegram_bot_token)
+
     """Configuration for mobile/SMS/WhatsApp/Telegram and Email alerts."""
     id = db.Column(db.Integer, primary_key=True)
     is_enabled = db.Column(db.Boolean, default=True)
     channel = db.Column(db.String(20), default='whatsapp')  # whatsapp, telegram, sms, webhook, email, both
     phone_number = db.Column(db.String(20))  # Owner's mobile number
-    owner_name = db.Column(db.String(100), default='Nishanth (Owner)')
-    owner_email = db.Column(db.String(120), default='nishanthissan1515@gmail.com')  # Owner's email address
+    owner_name = db.Column(db.String(100), default=lambda: os.environ.get('OWNER_NAME', 'Plant Owner'))
+    owner_email = db.Column(db.String(120), default=lambda: os.environ.get('OWNER_EMAIL', os.environ.get('ADMIN_EMAIL', 'admin@flyash.local')))  # Owner's email address
     email_alerts_enabled = db.Column(db.Boolean, default=True)
     smtp_host = db.Column(db.String(100), default='smtp.gmail.com')
     smtp_port = db.Column(db.Integer, default=587)
@@ -79,10 +90,11 @@ class AlertSettings(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
     def get_telegram_token(self):
-        return self.telegram_bot_token or self.api_key or ''
+        token = self.telegram_bot_token or self.api_key or os.environ.get('TELEGRAM_BOT_TOKEN', '')
+        return decrypt_secret(token)
 
     def get_telegram_chat_id(self):
-        return self.telegram_chat_id or self.chat_id or ''
+        return self.telegram_chat_id or self.chat_id or os.environ.get('TELEGRAM_CHAT_ID', '')
 
     def __repr__(self):
         return f'<AlertSettings {self.channel} enabled={self.is_enabled}>'

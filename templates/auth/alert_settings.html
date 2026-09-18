@@ -12,7 +12,7 @@
                         <h4 class="mb-1 text-primary fw-bold">
                             <i class="bi bi-bell-fill me-2"></i>Owner Alert & Notification Setup
                         </h4>
-                        <small class="text-muted">Receive real-time alerts on your <strong>Email (nishanthissan1515@gmail.com)</strong> and <strong>Mobile Phone (WhatsApp / Telegram / SMS)</strong> whenever anyone logs in.</small>
+                        <small class="text-muted">Receive real-time alerts on your <strong>Email (admin@yourplant.com)</strong> and <strong>Mobile Phone (WhatsApp / Telegram / SMS)</strong> whenever anyone logs in.</small>
                     </div>
                     <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline-secondary btn-sm">
                         <i class="bi bi-arrow-left"></i> Dashboard
@@ -146,14 +146,14 @@
                         <div class="col-md-6">
                             <label for="owner_name" class="form-label fw-semibold">Owner Name</label>
                             <input type="text" class="form-control" id="owner_name" name="owner_name" 
-                                   value="{{ settings.owner_name if settings else 'Nishanth (Owner)' }}">
+                                   value="{{ settings.owner_name if settings else 'Plant Owner' }}">
                         </div>
                         <div class="col-md-6">
                             <label for="owner_email" class="form-label fw-semibold">Owner Alert Email Address *</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-envelope-fill text-danger"></i></span>
                                 <input type="email" class="form-control fw-bold text-dark" id="owner_email" name="owner_email" 
-                                       value="{{ settings.owner_email if settings else 'nishanthissan1515@gmail.com' }}" required>
+                                       value="{{ settings.owner_email if settings else 'admin@yourplant.com' }}" required>
                             </div>
                             <div class="form-text">All sign-in alerts and login security notices will be sent to this email.</div>
                         </div>

@@ -1,3 +1,4 @@
+from utils.auth_decorators import role_required
 import io
 import csv
 import urllib.parse
@@ -213,6 +214,7 @@ def party_outstanding():
 
 @bp.route('/add', methods=['GET', 'POST'])
 @login_required
+@role_required('owner', 'admin', 'accountant', 'manager')
 def add_party():
     if request.method == 'POST':
         name = request.form.get('name')
@@ -250,6 +252,7 @@ def add_party():
 
 @bp.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
+@role_required('owner', 'admin', 'accountant', 'manager')
 def edit_party(id):
     party = Party.query.get_or_404(id)
     
@@ -281,6 +284,7 @@ def edit_party(id):
 
 @bp.route('/<int:id>/delete', methods=['POST'])
 @login_required
+@role_required('owner', 'admin')
 def delete_party(id):
     party = Party.query.get_or_404(id)
     try:
@@ -566,6 +570,7 @@ def add_past_due(id):
 
 @bp.route('/adjustments/<int:id>/delete', methods=['POST'])
 @login_required
+@role_required('owner', 'admin')
 def delete_adjustment(id):
     """Delete a past due adjustment record."""
     adj = PartyAdjustment.query.get_or_404(id)
@@ -820,6 +825,7 @@ def export_payments_csv():
 
 @bp.route('/payments/add', methods=['GET', 'POST'])
 @login_required
+@role_required('owner', 'admin', 'accountant', 'manager')
 def payment_add():
     parties = Party.query.order_by(Party.name).all()
 
@@ -899,6 +905,7 @@ def payment_add():
 
 @bp.route('/payments/<int:id>/delete', methods=['POST'])
 @login_required
+@role_required('owner', 'admin', 'accountant', 'manager')
 def payment_delete(id):
     payment = Payment.query.get_or_404(id)
     try:
@@ -1009,6 +1016,7 @@ def update_party_rate(id):
 
 @bp.route('/rates/<int:rate_id>/delete', methods=['POST'])
 @login_required
+@role_required('owner', 'admin', 'manager')
 def delete_party_rate(rate_id):
     """Delete a configured agreed selling rate."""
     rate_entry = PartyProductRate.query.get_or_404(rate_id)
@@ -1276,6 +1284,7 @@ def update_opening_balance(id):
 
 @bp.route('/adjustments/add', methods=['POST'])
 @login_required
+@role_required('owner', 'admin', 'accountant', 'manager')
 def record_past_due_adjustment():
     """Add a past due, early expense, or past advance adjustment from any modal or sheet."""
     party_id = request.form.get('party_id')

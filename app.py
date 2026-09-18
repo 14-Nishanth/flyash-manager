@@ -13,8 +13,8 @@ def _migrate_db():
     if not Config.SQLALCHEMY_DATABASE_URI.startswith('sqlite:///'):
         pg_statements = [
             'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS preferred_language VARCHAR(10) DEFAULT \'en\';',
-            'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS owner_name VARCHAR(100) DEFAULT \'Nishanth (Owner)\';',
-            'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS owner_email VARCHAR(120) DEFAULT \'nishanthissan1515@gmail.com\';',
+            'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS owner_name VARCHAR(100) DEFAULT \'Plant Owner\';',
+            'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS owner_email VARCHAR(120) DEFAULT \'admin@flyash.local\';',
             'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS email_alerts_enabled BOOLEAN DEFAULT TRUE;',
             'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS smtp_host VARCHAR(100) DEFAULT \'smtp.gmail.com\';',
             'ALTER TABLE "alert_settings" ADD COLUMN IF NOT EXISTS smtp_port INTEGER DEFAULT 587;',
@@ -189,8 +189,8 @@ def _migrate_db():
                     ('wastage_amount', "FLOAT DEFAULT 0.0")
                 ],
                 'alert_settings': [
-                    ('owner_name', "VARCHAR(100) DEFAULT 'Nishanth (Owner)'"),
-                    ('owner_email', "VARCHAR(120) DEFAULT 'nishanthissan1515@gmail.com'"),
+                    ('owner_name', "VARCHAR(100) DEFAULT 'Plant Owner'"),
+                    ('owner_email', "VARCHAR(120) DEFAULT 'admin@flyash.local'"),
                     ('email_alerts_enabled', "BOOLEAN DEFAULT 1"),
                     ('smtp_host', "VARCHAR(100) DEFAULT 'smtp.gmail.com'"),
                     ('smtp_port', "INTEGER DEFAULT 587"),
@@ -306,19 +306,23 @@ def _create_default_rates_and_groups():
 
 
 def _create_default_admin():
-    """Create a default admin user if none exists and set owner email."""
+    """Create a default admin user if none exists from environment variables."""
+    admin_name = os.environ.get('OWNER_NAME', 'Plant Owner')
+    admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
+    admin_email = os.environ.get('OWNER_EMAIL', os.environ.get('ADMIN_EMAIL', 'admin@flyash.local'))
+    admin_password = os.environ.get('ADMIN_PASSWORD', 'Admin@FlyAsh2026!')
+
     if not User.query.first():
-        admin = User(name='Nishanth (Owner)', username='admin', email='nishanthissan1515@gmail.com', role='owner')
-        admin.set_password('admin123')
+        admin = User(name=admin_name, username=admin_username, email=admin_email, role='owner')
+        admin.set_password(admin_password)
         db.session.add(admin)
         db.session.commit()
-        print('[OK] Default admin user created (nishanthissan1515@gmail.com / admin123)')
+        print(f'[OK] Default admin user initialized ({admin_username} / {admin_email})')
     else:
-        # Ensure owner has email nishanthissan1515@gmail.com
         owner = User.query.filter((User.role == 'owner') | (User.id == 1)).first()
-        if owner and (not owner.email or owner.email == 'admin@flyash.com'):
-            owner.name = 'Nishanth (Owner)'
-            owner.email = 'nishanthissan1515@gmail.com'
+        if owner and not owner.email:
+            owner.email = admin_email
+            owner.name = admin_name
             db.session.commit()
 
 
