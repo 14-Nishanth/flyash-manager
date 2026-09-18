@@ -364,7 +364,7 @@ def _create_default_admin():
     admin_name = os.environ.get('OWNER_NAME', 'Plant Owner')
     admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
     admin_email = os.environ.get('OWNER_EMAIL', os.environ.get('ADMIN_EMAIL', 'admin@flyash.local'))
-    admin_password = os.environ.get('ADMIN_PASSWORD', 'Admin@FlyAsh2026!')
+    admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
 
     if not User.query.first():
         admin = User(name=admin_name, username=admin_username, email=admin_email, role='owner')
