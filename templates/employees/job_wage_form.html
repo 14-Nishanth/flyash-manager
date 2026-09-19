@@ -65,8 +65,8 @@
                         <div class="col-md-6">
                             <label for="product_name" class="form-label fw-semibold">Product Name *</label>
                             <input type="text" class="form-control form-control-lg" id="product_name" name="product_name" list="prodList"
-                                   placeholder="e.g. Fly Ash Brick 9x4x3, Solid Block 6&quot;, Hollow Block 8&quot;"
-                                   value="{{ entry.product_name if entry else 'Fly Ash Brick 9"x4"x3" (Standard)' }}" required>
+                                   placeholder="Select or type product name (e.g. Fly Ash Brick 9x4x3, Solid Block 6&quot;)"
+                                   value="{{ entry.product_name if entry else (initial_product_name if initial_product_name else '') }}" required autocomplete="off">
                             <datalist id="prodList">
                                 {% for p in job_products %}
                                     <option value="{{ p }}">
@@ -78,7 +78,7 @@
                             <label for="job_type" class="form-label fw-semibold">Job / Operation Type *</label>
                             <select class="form-select form-select-lg" id="job_type" name="job_type" required>
                                 {% for jt in job_types %}
-                                    <option value="{{ jt }}" {% if entry and entry.job_type == jt %}selected{% elif not entry and 'Production' in jt %}selected{% endif %}>
+                                    <option value="{{ jt }}" {% if entry and entry.job_type == jt %}selected{% elif not entry and initial_job_type and initial_job_type in jt %}selected{% elif not entry and not initial_job_type and 'Production' in jt %}selected{% endif %}>
                                         {{ jt }}
                                     </option>
                                 {% endfor %}
@@ -109,10 +109,10 @@
                                     </label>
                                     <div class="input-group">
                                         <input type="number" step="0.1" min="0" class="form-control form-control-lg fw-bold text-primary" id="tray_count" name="tray_count"
-                                               placeholder="e.g. 36" value="{{ entry.tray_count|int if (entry and entry.tray_count) else (36 if not entry else '') }}">
+                                               placeholder="Enter Trays (e.g. 50)" value="{{ entry.tray_count|int if (entry and entry.tray_count) else '' }}">
                                         <span class="input-group-text bg-light fw-semibold">Trays</span>
                                     </div>
-                                    <div class="form-text small">Staff enters tray count (e.g. 36 trays)</div>
+                                    <div class="form-text small">Enter total trays produced (or switch to direct pieces)</div>
                                 </div>
 
                                 <div class="col-6 col-md-4">
@@ -124,7 +124,7 @@
                                                value="{{ entry.pieces_per_tray|int if (entry and entry.pieces_per_tray) else 105 }}">
                                         <span class="input-group-text bg-light">Pcs/Tray</span>
                                     </div>
-                                    <div class="form-text small">Standard: 105 pieces per stack</div>
+                                    <div class="form-text small">Tray stack size (from rate settings)</div>
                                 </div>
 
                                 <div class="col-6 col-md-4">
@@ -136,7 +136,7 @@
                                                value="{{ entry.wastage_per_tray|int if (entry and entry.wastage_per_tray is not none) else 5 }}">
                                         <span class="input-group-text bg-light text-danger">Pcs Wastage</span>
                                     </div>
-                                    <div class="form-text small text-danger">Daily breakage deduction (e.g. 5 pcs)</div>
+                                    <div class="form-text small text-danger">Breakage subtracted per tray</div>
                                 </div>
                             </div>
 
@@ -145,38 +145,50 @@
                                 <div class="row g-2 text-center align-items-center">
                                     <div class="col-4 border-end">
                                         <div class="small text-muted text-uppercase fw-semibold">1. Added to Stock (+)</div>
-                                        <div class="h4 fw-bold text-success mb-0" id="displayGrossStock">3,780 <small class="fs-6 fw-normal text-muted">Pcs</small></div>
-                                        <div class="small text-success fw-semibold" id="displayGrossAmount">₹2,268.00 Full Value</div>
-                                        <small class="text-muted d-block" id="calcGrossDetail">36 Trays × 105 pcs</small>
+                                        <div class="h4 fw-bold text-success mb-0" id="displayGrossStock">
+                                            {{ "{:,.0f}".format(entry.gross_quantity) if (entry and entry.gross_quantity) else '0' }} <small class="fs-6 fw-normal text-muted">Pcs</small>
+                                        </div>
+                                        <div class="small text-success fw-semibold" id="displayGrossAmount">
+                                            ₹{{ "{:,.2f}".format(entry.gross_amount) if (entry and entry.gross_amount) else '0.00' }} Full Value
+                                        </div>
+                                        <small class="text-muted d-block" id="calcGrossDetail">0 Trays × 105 pcs</small>
                                     </div>
                                     <div class="col-4 border-end">
                                         <div class="small text-muted text-uppercase fw-semibold">2. Wastage Cut (-)</div>
-                                        <div class="h4 fw-bold text-danger mb-0" id="displayWastage">- 180 <small class="fs-6 fw-normal text-muted">Pcs</small></div>
-                                        <div class="small text-danger fw-semibold" id="displayWastageAmount">- ₹108.00 Cut from Workers</div>
-                                        <small class="text-muted d-block" id="calcWastageDetail">36 Trays × 5 pcs</small>
+                                        <div class="h4 fw-bold text-danger mb-0" id="displayWastage">
+                                            - {{ "{:,.0f}".format(entry.total_wastage) if (entry and entry.total_wastage) else '0' }} <small class="fs-6 fw-normal text-muted">Pcs</small>
+                                        </div>
+                                        <div class="small text-danger fw-semibold" id="displayWastageAmount">
+                                            - ₹{{ "{:,.2f}".format(entry.wastage_amount) if (entry and entry.wastage_amount) else '0.00' }} Cut from Workers
+                                        </div>
+                                        <small class="text-muted d-block" id="calcWastageDetail">0 Trays × 5 pcs</small>
                                     </div>
                                     <div class="col-4">
                                         <div class="small text-muted text-uppercase fw-semibold">3. Net Salary Basis</div>
-                                        <div class="h4 fw-bold text-primary mb-0" id="displayWagePayable">3,600 <small class="fs-6 fw-normal text-muted">Pcs</small></div>
-                                        <div class="small text-primary fw-semibold" id="displayNetSalary">₹2,160.00 Worker Salary</div>
-                                        <small class="text-muted d-block">36 Trays × 100 pcs</small>
+                                        <div class="h4 fw-bold text-primary mb-0" id="displayWagePayable">
+                                            {{ "{:,.0f}".format(entry.quantity) if (entry and entry.quantity) else '0' }} <small class="fs-6 fw-normal text-muted">Pcs</small>
+                                        </div>
+                                        <div class="small text-primary fw-semibold" id="displayNetSalary">
+                                            ₹{{ "{:,.2f}".format(entry.total_amount) if (entry and entry.total_amount) else '0.00' }} Worker Salary
+                                        </div>
+                                        <small class="text-muted d-block" id="calcNetDetail">0 Trays × 100 pcs</small>
                                     </div>
                                 </div>
                             </div>
 
                             <!-- Hidden / Calculated Data Fields -->
-                            <input type="hidden" id="gross_quantity" name="gross_quantity" value="{{ entry.gross_quantity if entry else 3780 }}">
-                            <input type="hidden" id="total_wastage" name="total_wastage" value="{{ entry.total_wastage if entry else 180 }}">
+                            <input type="hidden" id="gross_quantity" name="gross_quantity" value="{{ entry.gross_quantity if (entry and entry.gross_quantity) else '' }}">
+                            <input type="hidden" id="total_wastage" name="total_wastage" value="{{ entry.total_wastage if (entry and entry.total_wastage) else '' }}">
 
                             <!-- Quantity & Rate Row -->
                             <div class="row g-3 align-items-center mt-2 pt-2 border-top">
                                 <div class="col-12 col-md-4" id="directQtyCol">
-                                    <label for="quantity" class="form-label fw-bold text-dark mb-1">
+                                    <label for="quantity" class="form-label fw-bold text-dark mb-1" id="quantityFieldLabel">
                                         Payable Quantity for Worker Wages *
                                     </label>
                                     <div class="input-group">
                                         <input type="number" step="1" min="1" class="form-control form-control-lg fw-bold" id="quantity" name="quantity"
-                                               placeholder="e.g. 3600" value="{{ entry.quantity|int if entry else 3600 }}" required>
+                                               placeholder="Enter Quantity (e.g. 1000)" value="{{ entry.quantity|int if (entry and entry.quantity) else '' }}" required>
                                         <span class="input-group-text bg-white" id="unitText">Pieces</span>
                                     </div>
                                     <div class="form-text small" id="qtyHelpText">Auto-calculated from trays minus wastage (editable).</div>
@@ -187,15 +199,15 @@
                                     <div class="input-group">
                                         <span class="input-group-text bg-white fw-bold text-success">₹</span>
                                         <input type="number" step="0.01" min="0" class="form-control form-control-lg fw-bold text-success" id="rate_per_unit" name="rate_per_unit"
-                                               placeholder="0.60" value="{{ entry.rate_per_unit if entry else '0.60' }}" required>
+                                               placeholder="Rate ₹" value="{{ entry.rate_per_unit if (entry and entry.rate_per_unit) else '' }}" required>
                                     </div>
-                                    <div class="form-text small text-muted">Auto-filled from settings, you can edit it.</div>
+                                    <div class="form-text small text-muted">Auto-loaded from price list, or type any rate freely.</div>
                                 </div>
 
                                 <div class="col-6 col-md-4">
                                     <label class="form-label fw-semibold text-dark mb-1">Total Labor Wage (₹)</label>
                                     <div class="fs-4 fw-bold text-primary p-2 bg-white rounded border" id="totalAmountDisplay">
-                                        ₹{{ "{:,.2f}".format(entry.total_amount) if entry else '0.00' }}
+                                        ₹{{ "{:,.2f}".format(entry.total_amount) if (entry and entry.total_amount) else '0.00' }}
                                     </div>
                                 </div>
                             </div>
@@ -437,9 +449,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const wasteAmt = wastage * rate;
         const netAmt = payable * rate;
 
-        grossQtyInput.value = gross;
-        totalWastageInput.value = wastage;
-        qtyInput.value = payable;
+        grossQtyInput.value = trays > 0 ? gross : '';
+        totalWastageInput.value = trays > 0 ? wastage : '';
+        qtyInput.value = trays > 0 ? payable : '';
 
         displayGrossStock.innerHTML = `${gross.toLocaleString()} <small class="fs-6 fw-normal text-muted">Pcs</small>`;
         displayWastage.innerHTML = `- ${wastage.toLocaleString()} <small class="fs-6 fw-normal text-muted">Pcs</small>`;
@@ -455,12 +467,31 @@ document.addEventListener('DOMContentLoaded', function() {
         recalculate();
     }
 
-    // Auto rate lookup
-    function updateRateFromSettings() {
+    // Auto rate lookup & mode toggle
+    function updateRateFromSettings(isManual = false) {
         const prod = prodInput.value.trim();
         const job = jobTypeSelect.value.trim();
         const key = `${prod}___${job}`;
+        const isProdJob = job.toLowerCase().includes('production');
 
+        // Automatically switch mode:
+        // Production -> Trays / Stacks Mode
+        // Loading / Unloading / Other -> Direct Quantity Mode
+        if (isProdJob) {
+            if (!modeDirectRadio.checked || isManual) {
+                modeTrayRadio.checked = true;
+                trayInputsRow.classList.remove('d-none');
+                traySummaryBanner.classList.remove('d-none');
+                qtyHelpText.innerText = "Auto-calculated from trays minus wastage (editable).";
+            }
+        } else {
+            modeDirectRadio.checked = true;
+            trayInputsRow.classList.add('d-none');
+            traySummaryBanner.classList.add('d-none');
+            qtyHelpText.innerText = "Enter direct quantity loaded / handled.";
+        }
+
+        // Auto-match rate, capacity, and wastage from Job Rate Settings
         if (ratesMap[key]) {
             rateInput.value = ratesMap[key].rate;
             unitText.innerText = ratesMap[key].unit || 'Pieces';
@@ -472,14 +503,11 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        // Auto toggle tray calculator for Production
-        if (job.toLowerCase().includes('production') && !modeDirectRadio.checked) {
-            modeTrayRadio.checked = true;
-            trayInputsRow.classList.remove('d-none');
-            traySummaryBanner.classList.remove('d-none');
+        if (isTrayMode()) {
+            recalcTrays();
+        } else {
+            recalculate();
         }
-
-        recalcTrays();
         checkDuplicate();
     }
 
@@ -550,8 +578,8 @@ document.addEventListener('DOMContentLoaded', function() {
     wastagePerTrayInput.addEventListener('input', recalcTrays);
 
     dateInput.addEventListener('change', checkDuplicate);
-    prodInput.addEventListener('input', updateRateFromSettings);
-    jobTypeSelect.addEventListener('change', updateRateFromSettings);
+    prodInput.addEventListener('input', () => updateRateFromSettings());
+    jobTypeSelect.addEventListener('change', () => updateRateFromSettings(true));
     qtyInput.addEventListener('input', recalculate);
     rateInput.addEventListener('input', recalculate);
     empCheckboxes.forEach(cb => cb.addEventListener('change', recalculate));
@@ -597,10 +625,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initial check & run
     togglePaymentStatusUI();
-    if (isTrayMode() && trayCountInput.value) {
-        recalcTrays();
+    const currentJob = jobTypeSelect.value.trim();
+    const isEditWithTrays = {{ 'true' if (entry and entry.tray_count and entry.tray_count > 0) else 'false' }};
+    if (!currentJob.toLowerCase().includes('production') && !isEditWithTrays) {
+        modeDirectRadio.checked = true;
+        toggleTrayMode();
     } else {
-        recalculate();
+        if (isTrayMode() && trayCountInput.value) {
+            recalcTrays();
+        } else {
+            updateRateFromSettings();
+        }
     }
     checkDuplicate();
 });

@@ -1103,6 +1103,13 @@ def job_wages_add():
             db.session.rollback()
             flash(f'Error recording job wage: {str(e)}', 'error')
 
+    initial_job_type = request.args.get('job_type', '')
+    initial_product_name = request.args.get('product_name', '')
+    from routes.stock import get_all_finished_products
+    available_products = get_all_finished_products()
+    if not available_products:
+        available_products = JOB_PRODUCTS
+
     return render_template('employees/job_wage_form.html',
                            entry=None,
                            employees=employees,
@@ -1111,8 +1118,10 @@ def job_wages_add():
                            rates_map=rates_map,
                            groups_map=groups_map,
                            job_types=JOB_TYPES,
-                           job_products=JOB_PRODUCTS,
-                           job_units=JOB_UNITS)
+                           job_products=available_products,
+                           job_units=JOB_UNITS,
+                           initial_job_type=initial_job_type,
+                           initial_product_name=initial_product_name)
 
 
 @bp.route('/job-wages/<int:id>/edit', methods=['GET', 'POST'])
@@ -1271,6 +1280,11 @@ def job_wages_edit(id):
             db.session.rollback()
             flash(f'Error updating job: {str(e)}', 'error')
 
+    from routes.stock import get_all_finished_products
+    available_products = get_all_finished_products()
+    if not available_products:
+        available_products = JOB_PRODUCTS
+
     return render_template('employees/job_wage_form.html',
                            entry=entry,
                            assigned_emp_ids=assigned_emp_ids,
@@ -1280,8 +1294,10 @@ def job_wages_edit(id):
                            rates_map=rates_map,
                            groups_map=groups_map,
                            job_types=JOB_TYPES,
-                           job_products=JOB_PRODUCTS,
-                           job_units=JOB_UNITS)
+                           job_products=available_products,
+                           job_units=JOB_UNITS,
+                           initial_job_type='',
+                           initial_product_name='')
 
 
 @bp.route('/job-wages/<int:id>/delete', methods=['POST'])
