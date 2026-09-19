@@ -340,89 +340,24 @@ def _create_default_rates_and_groups():
                 ))
             db.session.commit()
 
-        if not EmployeeGroup.query.first():
-            sample_groups = [
-                ('Brick Production Team (Gang 1)', 'Group dedicated to daily Fly Ash Brick manufacturing', 'Production (Per Piece)', 'Fly Ash Brick 9"x4"x3" (Standard)'),
-                ('Solid & Hollow Block Gang (Gang 2)', 'Group for solid and hollow block machine production', 'Production (Per Piece)', 'Solid Block 6"'),
-                ('Loading & Vehicle Dispatch Team', 'Labor gang for vehicle loading and transport', 'Loading Only', 'Fly Ash Brick 9"x4"x3" (Standard)'),
-                ('Unloading & Material Handling Gang', 'Labor team for unloading raw materials and bricks', 'Unloading Only', 'Fly Ash Brick 9"x4"x3" (Standard)')
-            ]
-            all_emps = Employee.query.filter_by(is_active=True).all()
-            for gname, desc, jtype, prod in sample_groups:
-                grp = EmployeeGroup(name=gname, description=desc, default_job_type=jtype, default_product_name=prod)
-                if all_emps:
-                    grp.members = all_emps[:min(4, len(all_emps))]
-                db.session.add(grp)
-            db.session.commit()
-
-        # Seed initial parties (BALAJI, MVS, etc.) if table is empty
-        from models import Party
-        if not Party.query.first():
-            initial_parties = [
-                (1, 'BALAJI', 'both', '', '', '', 0.0, 0.0),
-                (2, 'MVS', 'both', '9840012345', 'Site 4, Industrial Estate', '33AAACM1234F1Z5', 0.0, 5.5),
-                (3, 'MVS Builders & Infra', 'customer', '9840012346', 'Highway Project Yard', '', 25000.0, 6.0),
-                (4, 'Test Customer Buildcon', 'customer', '9876543210', '', '', 0.0, 0.0),
-                (5, 'Test Ash Supplier Co', 'supplier', '9123456780', '', '', 0.0, 0.0),
-                (6, 'AutoSave Party', 'customer', '9876543211', '', '', 0.0, 12.5),
-                (7, 'TEST Early Dues Party', 'customer', '9876543210', '', '', 7500.0, 0.0),
-                (8, 'Test Master Customer', 'customer', '9112233445', '', '', 5000.0, 5.5),
-                (9, 'Test Master Supplier', 'supplier', '9112233446', '', '', -15000.0, 0.0),
-                (10, 'Test Master Both', 'both', '9112233447', '', '', 0.0, 0.0)
-            ]
-            for pid, name, ptype, phone, addr, gstin, obal, srate in initial_parties:
-                db.session.add(Party(
-                    id=pid, name=name, party_type=ptype, phone=phone, address=addr,
-                    gstin=gstin, opening_balance=obal, default_selling_rate=srate
-                ))
-            db.session.commit()
-
-        # Seed initial employees if table is empty
-        if not Employee.query.first():
-            from datetime import date
-            initial_employees = [
-                ('Murugan Loading Master', 'Loading Gang Leader', '9876543210', 0.0, date(2026, 9, 1), True),
-                ('Ramesh Operator', 'Operator', '9876543210', 400.0, date(2026, 9, 12), True),
-                ('Suresh Loader', 'Loader', '9876543212', 350.0, date(2026, 9, 12), True),
-                ('Worker 1', 'Helper', '', 500.0, date(2026, 9, 7), True),
-                ('Master Worker A', 'Operator', '9988776651', 0.0, date(2026, 9, 12), True),
-                ('Master Worker B', 'Loader', '9988776652', 0.0, date(2026, 9, 12), False),
-                ('TEST Bot Worker', 'Operator', '9123456780', 500.0, date(2026, 9, 12), True),
-                ('TEST Gang Worker 1', 'Operator', '9000000001', 500.0, date(2026, 9, 12), True),
-                ('TEST Gang Worker 2', 'Loader', '9000000002', 450.0, date(2026, 9, 12), True)
-            ]
-            for name, role, phone, wage, jdate, active in initial_employees:
-                db.session.add(Employee(name=name, role=role, phone=phone, daily_wage=wage, joining_date=jdate, is_active=active))
-            db.session.commit()
     except Exception as e:
         db.session.rollback()
-        print(f"[WARN] Error seeding rates/groups/parties: {e}")
+        print(f"[WARN] Error seeding standard rates: {e}")
 
 
 def _create_default_admin():
-    """Create default staff user accounts if none exists."""
-    admin_name = os.environ.get('OWNER_NAME', 'Nishanth (Owner)')
+    """Create default admin user account if none exists."""
+    admin_name = os.environ.get('OWNER_NAME', 'Plant Owner')
     admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
-    admin_email = os.environ.get('OWNER_EMAIL', os.environ.get('ADMIN_EMAIL', 'nishanthissan1515@gmail.com'))
+    admin_email = os.environ.get('OWNER_EMAIL', os.environ.get('ADMIN_EMAIL', 'admin@flyash.com'))
     admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
 
     if not User.query.first():
-        admin = User(name=admin_name, username=admin_username, email=admin_email, phone='8072416903', role='admin')
+        admin = User(name=admin_name, username=admin_username, email=admin_email, phone='', role='admin')
         admin.set_password(admin_password)
         db.session.add(admin)
-
-        staff_accounts = [
-            ('ramesh_op', 'ramesh123', 'operator', 'Ramesh Operator', 'ramesh@plant.com', '9876543210'),
-            ('operator_2275', 'operator123', 'operator', 'Operator 2275', 'operator_2275@plant.com', '9876543210'),
-            ('testadmin_stock', 'admin123', 'owner', 'Stock Admin', 'stockadmin@plant.com', '9876543211')
-        ]
-        for uname, pwd, role, name, email, phone in staff_accounts:
-            u = User(username=uname, role=role, name=name, email=email, phone=phone, is_active=True)
-            u.set_password(pwd)
-            db.session.add(u)
-
         db.session.commit()
-        print(f'[OK] Default admin and staff accounts initialized')
+        print(f'[OK] Default admin user initialized ({admin_username} / {admin_email})')
     else:
         owner = User.query.filter((User.role == 'admin') | (User.role == 'owner') | (User.id == 1)).first()
         if owner and not owner.email:
