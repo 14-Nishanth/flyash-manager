@@ -290,9 +290,12 @@ def _create_default_admin():
     admin_name = os.environ.get('OWNER_NAME', 'Plant Owner')
     admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
     admin_email = os.environ.get('OWNER_EMAIL', os.environ.get('ADMIN_EMAIL', 'admin@flyash.com'))
-    admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
+    admin_password = os.environ.get('ADMIN_PASSWORD')
 
     if not User.query.first():
+        if os.environ.get('VERCEL') and not admin_password:
+            raise RuntimeError('ADMIN_PASSWORD is required on Vercel before the first deployment.')
+        admin_password = admin_password or 'admin123'
         admin = User(name=admin_name, username=admin_username, email=admin_email, phone='', role='admin')
         admin.set_password(admin_password)
         db.session.add(admin)
