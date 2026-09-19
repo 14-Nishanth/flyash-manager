@@ -1358,3 +1358,33 @@ def wastage_settings():
         standard_products=STANDARD_PRODUCTS
     )
 
+
+@bp.route('/wastage-settings/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_wastage_setting(id):
+    """Delete a specific product stock & wastage rate setting."""
+    setting = JobRateSetting.query.get_or_404(id)
+    p_name = setting.product_name
+    try:
+        db.session.delete(setting)
+        db.session.commit()
+        flash(f"Wastage and stock setting for '{p_name}' deleted successfully.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error deleting setting: {str(e)}", "error")
+    return redirect(url_for('stock.wastage_settings'))
+
+
+@bp.route('/wastage-settings/clear-all', methods=['POST'])
+@login_required
+def clear_all_wastage_settings():
+    """Clear all product stock & wastage rate settings."""
+    try:
+        JobRateSetting.query.delete()
+        db.session.commit()
+        flash("All product stock & wastage settings have been cleared successfully.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error clearing settings: {str(e)}", "error")
+    return redirect(url_for('stock.wastage_settings'))
+
