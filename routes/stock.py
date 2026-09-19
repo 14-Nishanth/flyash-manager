@@ -50,10 +50,12 @@ STANDARD_RAW_MATERIALS = [
 ]
 
 
-def get_all_finished_products():
-    products_set = set(STANDARD_PRODUCTS)
+def get_all_finished_products(include_presets=False):
+    products_set = set()
+    if include_presets:
+        products_set.update(STANDARD_PRODUCTS)
     try:
-        rates_prods = [r[0] for r in db.session.query(distinct(JobRateSetting.product_name)).all() if r[0]]
+        rates_prods = [r[0] for r in db.session.query(distinct(JobRateSetting.product_name)).filter(JobRateSetting.is_active == True).all() if r[0]]
         products_set.update(rates_prods)
         job_prods = [r[0] for r in db.session.query(distinct(JobWageEntry.product_name)).all() if r[0]]
         products_set.update(job_prods)
@@ -61,10 +63,11 @@ def get_all_finished_products():
         for p in out_prods:
             if any(term in p.lower() for term in ['brick', 'block', 'paver', 'aac', 'modular', 'solid', 'hollow']):
                 products_set.update([p])
+        stock_adj_prods = [r[0] for r in db.session.query(distinct(StockAdjustment.item_name)).filter_by(item_type='product').all() if r[0]]
+        products_set.update(stock_adj_prods)
     except Exception:
         pass
-    custom = sorted([p for p in products_set if p not in STANDARD_PRODUCTS])
-    return STANDARD_PRODUCTS + custom
+    return sorted(list(products_set))
 
 
 def get_all_raw_materials():
@@ -1366,12 +1369,28 @@ def delete_wastage_setting(id):
     setting = JobRateSetting.query.get_or_404(id)
     p_name = setting.product_name
     try:
-        db.session.delete(setting)
+        JobRateSetting.query.filter_by(product_name=p_name).delete()
         db.session.commit()
-        flash(f"Wastage and stock setting for '{p_name}' deleted successfully.", "success")
+        flash(f"Product '{p_name}' and its wastage/rate settings removed successfully.", "success")
     except Exception as e:
         db.session.rollback()
         flash(f"Error deleting setting: {str(e)}", "error")
+    return redirect(url_for('stock.wastage_settings'))
+
+
+@bp.route('/product/delete', methods=['POST'])
+@login_required
+def delete_product_by_name():
+    """Delete all settings associated with a product name."""
+    p_name = request.form.get('product_name', '').strip()
+    if p_name:
+        try:
+            JobRateSetting.query.filter_by(product_name=p_name).delete()
+            db.session.commit()
+            flash(f"Product '{p_name}' removed from active stock & wastage configuration.", "success")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error removing product: {str(e)}", "error")
     return redirect(url_for('stock.wastage_settings'))
 
 

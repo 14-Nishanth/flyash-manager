@@ -1,6 +1,6 @@
 import os
 import sqlite3
-from flask import Flask, redirect, url_for, send_from_directory
+from flask import Flask, redirect, url_for, send_from_directory, render_template
 from flask_login import LoginManager
 from flask_wtf import CSRFProtect
 from config import Config
