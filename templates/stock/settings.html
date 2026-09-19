@@ -180,7 +180,7 @@
                         <th class="text-end">Total Wastage (-)</th>
                         <th class="text-end">Dispatched (-)</th>
                         <th class="text-end">Actual Stock in Yard</th>
-                        <th class="text-center" style="width: 120px;">Action</th>
+                        <th class="text-center" style="min-width: 210px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -237,25 +237,25 @@
                                 {{ "{:,.0f}".format(p.actual_balance) }} Pcs
                             </span>
                         </td>
-                        <td class="text-center">
-                            <div class="d-inline-flex gap-1 align-items-center">
-                                <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1"
-                                        data-bs-toggle="modal" data-bs-target="#editModal_{{ loop.index }}">
-                                    <i class="bi bi-pencil-square"></i> Set
+                        <td class="text-center text-nowrap">
+                            <div class="d-inline-flex gap-1.5 align-items-center">
+                                <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-sm"
+                                        data-bs-toggle="modal" data-bs-target="#editModal_{{ loop.index }}" title="Set Tray Capacity & Wastage">
+                                    <i class="bi bi-pencil-square"></i> <span>Set Wastage</span>
                                 </button>
                                 {% if p.setting_id %}
-                                <form method="POST" action="{{ url_for('stock.delete_wastage_setting', id=p.setting_id) }}" onsubmit="return confirm('Are you sure you want to delete this stock & wastage setting for {{ p.product_name }}?');" class="d-inline">
+                                <form method="POST" action="{{ url_for('stock.delete_wastage_setting', id=p.setting_id) }}" onsubmit="return confirm('Are you sure you want to delete {{ p.product_name }} and its wastage settings?');" class="d-inline">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-outline-danger btn-sm py-1 px-2" title="Delete setting">
-                                        <i class="bi bi-trash"></i>
+                                    <button type="submit" class="btn btn-outline-danger btn-sm py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-sm" title="Delete Product">
+                                        <i class="bi bi-trash-fill"></i> <span>Delete</span>
                                     </button>
                                 </form>
                                 {% else %}
                                 <form method="POST" action="{{ url_for('stock.delete_product_by_name') }}" onsubmit="return confirm('Are you sure you want to remove {{ p.product_name }} from stock settings?');" class="d-inline">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="product_name" value="{{ p.product_name }}">
-                                    <button type="submit" class="btn btn-outline-danger btn-sm py-1 px-2" title="Delete product">
-                                        <i class="bi bi-trash"></i>
+                                    <button type="submit" class="btn btn-outline-danger btn-sm py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-sm" title="Delete Product">
+                                        <i class="bi bi-trash-fill"></i> <span>Delete</span>
                                     </button>
                                 </form>
                                 {% endif %}
@@ -338,12 +338,12 @@
                                             <div class="modal-footer bg-light py-2 justify-content-between">
                                                 <div>
                                                     {% if p.setting_id %}
-                                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="if(confirm('Are you sure you want to delete this setting for {{ p.product_name }}?')) { document.getElementById('deleteForm_{{ loop.index }}').submit(); }">
-                                                        <i class="bi bi-trash me-1"></i> Delete Setting
+                                                    <button type="button" class="btn btn-danger btn-sm fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" onclick="if(confirm('Are you sure you want to delete {{ p.product_name }} and its wastage settings?')) { document.getElementById('deleteForm_{{ loop.index }}').submit(); }">
+                                                        <i class="bi bi-trash-fill"></i> <span>Delete Product</span>
                                                     </button>
                                                     {% else %}
-                                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="if(confirm('Are you sure you want to delete this setting for {{ p.product_name }}?')) { document.getElementById('deleteNamedForm_{{ loop.index }}').submit(); }">
-                                                        <i class="bi bi-trash me-1"></i> Delete Setting
+                                                    <button type="button" class="btn btn-danger btn-sm fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-sm" onclick="if(confirm('Are you sure you want to remove {{ p.product_name }} from stock settings?')) { document.getElementById('deleteNamedForm_{{ loop.index }}').submit(); }">
+                                                        <i class="bi bi-trash-fill"></i> <span>Delete Product</span>
                                                     </button>
                                                     {% endif %}
                                                 </div>
